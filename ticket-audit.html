@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Ticket Audit</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1040px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    [hidden] { display: none !important; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 820px; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input[type="text"], input[type="search"], input[type="number"], select { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(33, 105, 44, .12); }
+    .status { display: none; margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; } .status.info { background: #eff6ff; color: #1e40af; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; vertical-align: middle; }
+    .tag.done { background: #dcfce7; color: #166534; } .tag.open { background: #dbeafe; color: #1e40af; } .tag.off { background: #f1f5f9; color: #64748b; } .tag.red { background: #fee2e2; color: #991b1b; }
+
+    .find { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .find .box { flex: 1 1 380px; min-width: 0; } .find input { font-size: 15px; padding: 11px 14px; }
+
+    /* results of a name / phone / email search */
+    .hit { display: grid; grid-template-columns: 150px minmax(0, 1fr) 110px; gap: 4px 16px; align-items: center; width: 100%; text-align: left; background: #fff; color: var(--text); border: none; border-top: 1px solid #f1f5f9; border-radius: 0; padding: 12px 6px; font-weight: 400; }
+    .hit:first-child { border-top: none; } .hit:hover { background: #f8fafc; }
+    .hit b { font-size: 14.5px; } .hit .who { font-size: 14px; } .hit .what { display: block; font-size: 12.5px; color: var(--muted); } .hit .when { font-size: 12.5px; color: var(--muted); text-align: right; }
+
+    /* the ticket */
+    .head { display: flex; gap: 10px 14px; align-items: baseline; flex-wrap: wrap; }
+    .head .num { font-size: 26px; font-weight: 800; letter-spacing: .01em; }
+    .who-line { font-size: 16px; font-weight: 700; margin: 8px 0 2px; }
+    .contact { font-size: 13.5px; color: #475569; }
+    .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 18px; margin: 14px 0 0; }
+    .facts div { font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; } .facts b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
+    .rel { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; font-size: 13px; color: var(--muted); }
+    .rel button { padding: 6px 12px; font-size: 13px; }
+
+    .money { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tile { border: 1px solid #eef2f7; border-radius: 12px; padding: 10px 12px; min-width: 0; }
+    .tile b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .tile span { display: block; font-size: 19px; font-weight: 800; margin-top: 2px; } .tile i { font-style: normal; font-size: 12px; color: var(--muted); }
+    .tile.red span { color: #b91c1c; } .tile.epass { background: #f8fafc; }
+    .gap { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; background: #fffbeb; color: #92400e; }
+
+    .bar { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; } .chips button { padding: 6px 12px; font-size: 12.5px; background: #eef2f7; color: var(--text); } .chips button.on { background: var(--primary); color: #fff; }
+    .day { margin: 18px 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #475569; }
+    .day:first-of-type { margin-top: 8px; }
+    ul.tl { list-style: none; margin: 0; padding: 0; border-left: 2px solid #e2e8f0; margin-left: 5px; }
+    ul.tl li { position: relative; padding: 0 0 12px 18px; font-size: 14px; line-height: 1.45; }
+    ul.tl li::before { content: ""; position: absolute; left: -7px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: #cbd5e1; border: 2px solid #fff; }
+    ul.tl li.request::before { background: #0ea5e9; } ul.tl li.paid::before { background: #16a34a; } ul.tl li.posted::before { background: #fff; border-color: #16a34a; }
+    ul.tl li.refund::before { background: #b91c1c; } ul.tl li.paidback::before { background: #fff; border-color: #b91c1c; } ul.tl li.return::before { background: #d97706; }
+    ul.tl li.done::before { background: var(--primary); } ul.tl li.off { color: var(--muted); } ul.tl li.off::before { background: #e2e8f0; }
+    .row1 { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; }
+    .t { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+    .what strong { font-weight: 700; } .what .sub { color: var(--muted); font-size: 13px; } .what .q { display: block; color: #374151; font-size: 13.5px; margin-top: 2px; }
+    .src { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: #dcfce7; color: #166534; }
+    .src.epass { background: #e2e8f0; color: #334155; } .src.board { background: #e0e7ff; color: #3730a3; } .src.delivery { background: #fef3c7; color: #92400e; }
+    .act { grid-column: 2 / -1; margin-top: 6px; }
+    button.refund { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 6px 12px; font-size: 12.5px; } button.refund:hover { background: #fee2e2; }
+    button.refund-solid { background: #dc2626; } button.refund-solid:hover:not(:disabled) { background: #b91c1c; }
+
+    .refund-panel { grid-column: 1 / -1; margin: 10px 0 4px; border: 1.5px solid #fecaca; background: #fff7f7; border-radius: 14px; padding: 16px; }
+    .refund-panel .title { font-weight: 800; font-size: 15px; margin-bottom: 12px; }
+    .refund-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr) 220px; gap: 12px 14px; }
+    .refund-panel label { color: var(--text); font-size: 13px; }
+    .helper { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .refund-confirm { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 13.5px; font-weight: 400; color: var(--text); }
+    .refund-confirm input { width: 17px; height: 17px; margin-top: 2px; accent-color: #dc2626; flex: none; }
+    .refund-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+    table.units { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .units th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .units td { padding: 8px; border-bottom: 1px solid #f1f5f9; } .units td.r, .units th.r { text-align: right; }
+    details.where { font-size: 13.5px; } details.where summary { cursor: pointer; font-weight: 700; }
+    .where ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 18px; }
+    .where li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dotted #e2e8f0; padding: 3px 0; } .where li.none { color: var(--muted); }
+    .where p { margin: 12px 0 0; color: var(--muted); font-size: 13px; max-width: 820px; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; }
+      .find button { flex: 1 1 auto; }
+      .hit { grid-template-columns: 1fr; } .hit .when { text-align: left; }
+      .head .num { font-size: 22px; }
+      .money { grid-template-columns: 1fr 1fr; }
+      .row1 { grid-template-columns: minmax(0, 1fr) auto; } .row1 .t { grid-column: 1 / -1; } .act { grid-column: 1 / -1; }
+      .refund-grid { grid-template-columns: 1fr; } .refund-actions button { flex: 1 1 auto; }
+      .units thead { display: none; } .units tr { display: block; padding: 8px 0; border-bottom: 1px solid #f1f5f9; } .units td { display: inline-block; border: none; padding: 0 10px 0 0; } .units td.r { text-align: left; }
+    }
+    @media print {
+      body { background: #fff; padding: 0; } .surface { box-shadow: none; padding: 8px 0; margin: 0 0 8px; }
+      #findCard, #resultsCard, .chips, button, .act, .refund-panel { display: none !important; }
+      details.where > *:not(summary) { display: block; }
+    }
+  </style>
+</head>
+<body data-shell-label="Ticket Audit" data-shell-icon="lookup">
+  <div class="wrap">
+    <div class="surface" id="findCard">
+      <h2>Ticket Audit</h2>
+      <p class="note">Everything on file for one ticket, in the order it happened: the quote, the order, every payment, the delivery, the service work, any return and any refund. Look it up by number, or find it by who it was for.</p>
+      <form class="find" id="findForm" autocomplete="off">
+        <div class="box">
+          <label for="q">Ticket, order or quote number, or a name, phone number or email</label>
+          <input type="search" id="q" placeholder="SV00124641 · A0098765 · Q0045121 · WEB-1042 · Hamilton · 512-555-0142" />
+        </div>
+        <button type="submit" id="go">Look up</button>
+      </form>
+      <div class="status" id="status" role="status"></div>
+    </div>
+
+    <div class="surface" id="resultsCard" hidden>
+      <h3 id="resultsTitle"></h3>
+      <div id="results"></div>
+    </div>
+
+    <div id="ticket" hidden>
+      <div class="surface" id="headCard"></div>
+      <div class="surface" id="moneyCard"></div>
+      <div class="surface" id="timeCard">
+        <div class="bar">
+          <h3 style="margin:0;">What happened</h3>
+          <div class="chips" id="chips">
+            <button type="button" data-f="all" class="on">Everything</button>
+            <button type="button" data-f="money">Money only</button>
+            <button type="button" class="quiet" id="printBtn">Print</button>
+          </div>
+        </div>
+        <div class="status" id="tlStatus" role="status"></div>
+        <div id="timeline"></div>
+      </div>
+      <div class="surface" id="unitsCard" hidden></div>
+      <div class="surface" id="whereCard"></div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const money = (v) => { const n = Number(v) || 0; return (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
+    const listOf = (a) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+    const state = { ticket: null, filter: "all", refundFor: "", notice: null };
+
+    function setStatus(el, kind, text) { el.className = "status" + (text ? " show " + kind : ""); el.textContent = text || ""; }
+    async function getJson(url, options) {
+      const res = await fetch(url, { credentials: "same-origin", ...options });
+      let data = {}; try { data = await res.json(); } catch { /* not JSON */ }
+      if (res.status === 401) { location.href = "/login.html"; throw new Error("Please sign in again."); }
+      if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+      return data;
+    }
+
+    // ---- looking it up -------------------------------------------------------
+    // Letters then digits (SV…, A…, Q…, WEB-…), or 4 to 8 digits alone, reads
+    // as a number. Anything else is a name, a phone number or an email.
+    const looksLikeNumber = (q) => /^[A-Za-z]{1,4}[-\s]?\d{3,}(-\d{1,2})?$/.test(q) || /^\d{4,8}(-\d{1,2})?$/.test(q);
+
+    $("findForm").addEventListener("submit", (ev) => { ev.preventDefault(); lookUp($("q").value.trim()); });
+    async function lookUp(q) {
+      if (q.length < 3) return setStatus($("status"), "error", "Enter a ticket number, or at least 3 characters of a name, phone number or email.");
+      $("go").disabled = true; setStatus($("status"), "info", "Looking…");
+      try { if (looksLikeNumber(q)) await openTicket(q, { fallBackToSearch: /^\d{7,8}$/.test(q) }); else await search(q); }
+      catch (err) { setStatus($("status"), "error", err.message); }
+      finally { $("go").disabled = false; }
+    }
+
+    async function search(q) {
+      const data = await getJson("/api/ticket-audit/search?q=" + encodeURIComponent(q));
+      $("ticket").hidden = true; state.ticket = null;
+      if (!data.results.length) { $("resultsCard").hidden = true; return setStatus($("status"), "error", `Nothing on file for “${q}”. Try the ticket number, or a different spelling.`); }
+      setStatus($("status"), "", "");
+      showResults(`${plural(data.results.length, "ticket")} for “${q}”`, data.results);
+    }
+    function showResults(title, rows) {
+      $("resultsTitle").textContent = title;
+      $("results").innerHTML = rows.map((r) => `
+        <button type="button" class="hit" data-open="${esc(r.number)}">
+          <b>${esc(r.number)}</b>
+          <span class="who">${esc(r.customerName || "—")}<span class="what">${esc([r.what, ...(r.also || [])].filter(Boolean).join(" · "))}</span></span>
+          <span class="when">${esc(shortDate(r.when))}</span>
+        </button>`).join("");
+      $("resultsCard").hidden = false;
+    }
+    $("results").addEventListener("click", (ev) => { const b = ev.target.closest("[data-open]"); if (b) { $("q").value = b.dataset.open; lookUp(b.dataset.open); } });
+
+    async function openTicket(number, { fallBackToSearch = false, quiet = false } = {}) {
+      const data = await getJson("/api/ticket-audit/ticket/" + encodeURIComponent(number));
+      if (data.choices) {
+        $("ticket").hidden = true; state.ticket = null; setStatus($("status"), "info", `More than one ticket ends in ${number}. Pick the one you mean.`);
+        return showResults(`Tickets numbered ${number}`, data.choices.map((c) => ({ number: c, customerName: "", what: c.startsWith("SV") ? "Service ticket" : c.startsWith("Q") ? "Quote" : "Order", when: "" })));
+      }
+      if (!data.found && fallBackToSearch) return search(number);
+      state.ticket = data; state.refundFor = ""; if (!quiet) state.notice = null;
+      $("resultsCard").hidden = true; setStatus($("status"), "", "");
+      const url = new URL(location.href); url.searchParams.set("t", data.number); history.replaceState(null, "", url);
+      render();
+    }
+
+    // ---- dates, in the store's time zone -------------------------------------
+    const tz = () => state.ticket?.timeZone || "America/Chicago";
+    const timeOf = (iso) => new Date(iso).toLocaleTimeString("en-US", { timeZone: tz(), hour: "numeric", minute: "2-digit" });
+    function dayTitle(day) {
+      if (/^\d{4}-\d{2}$/.test(day)) return new Date(day + "-15T12:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", month: "long", year: "numeric" }) + " · day not recorded";
+      const d = new Date(day + "T12:00:00Z"); if (Number.isNaN(d.getTime())) return day;
+      return d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    }
+    function shortDate(v) {
+      if (!v) return "";
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + "T12:00:00Z") : new Date(v);
+      return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { timeZone: /^\d{4}-\d{2}-\d{2}$/.test(v) ? "UTC" : "America/Chicago", month: "short", day: "numeric", year: "numeric" });
+    }
+
+    // ---- drawing the ticket ---------------------------------------------------
+    const MONEY_TONES = ["paid", "posted", "refund", "paidback", "return"];
+    const SRC_CLASS = { ePASS: "epass", "Service board": "board", Delivery: "delivery" };
+
+    function render() {
+      const t = state.ticket; if (!t) return;
+      $("ticket").hidden = false;
+
+      $("headCard").innerHTML = `
+        <div class="head"><span class="num">${esc(t.number)}</span><span class="tag">${esc(t.kindLabel)}</span><span class="tag ${esc(t.state.tone)}">${esc(t.state.label)}</span></div>
+        ${t.cameFrom ? `<div class="mut" style="margin-top:6px;">You looked up ${esc(t.cameFrom)}. It was entered in ePASS as ${esc(t.number)}, so this is that ticket, with the web order's own lines included.</div>` : ""}
+        ${t.customerName ? `<div class="who-line">${esc(t.customerName)}</div>` : ""}
+        <div class="contact">${[t.phone, t.email, t.customerNumber ? "Customer " + t.customerNumber : ""].filter(Boolean).map(esc).join(" · ")}</div>
+        ${t.facts.length ? `<div class="facts">${t.facts.map(([k, v]) => `<div><b>${esc(k)}</b>${esc(v)}</div>`).join("")}</div>` : ""}
+        ${t.subInvoices.length ? `<div class="mut" style="margin-top:12px;">Includes ${esc(t.subInvoices.join(", "))}.</div>` : ""}
+        ${t.related.length ? `<div class="rel">Also see ${t.related.map((r) => `<button type="button" class="quiet" data-open="${esc(r.number)}">${esc(r.number)} <span style="font-weight:400;">· ${esc(r.why)}</span></button>`).join("")}</div>` : ""}`;
+
+      const m = t.money;
+      const tiles = [];
+      if (m.paidCount || m.refundCount) {
+        tiles.push(`<div class="tile"><b>Collected through Agility</b><span>${money(m.agilityPaid)}</span><i>${plural(m.paidCount, "payment")}</i></div>`);
+        tiles.push(`<div class="tile ${m.refundCount ? "red" : ""}"><b>Refunded through Agility</b><span>${money(m.agilityRefunded)}</span><i>${plural(m.refundCount, "refund")}</i></div>`);
+        tiles.push(`<div class="tile"><b>Net through Agility</b><span>${money(m.agilityNet)}</span><i>collected less refunded</i></div>`);
+      }
+      if (m.epassCount) tiles.push(`<div class="tile epass"><b>Posted in ePASS</b><span>${money(m.epassPosted)}</span><i>${plural(m.epassCount, "entry", "entries")}, net</i></div>`);
+      if (m.orderTotal != null) tiles.push(`<div class="tile epass"><b>${t.kind === "quote" ? "Quote total" : t.kind === "web" ? "Web order total" : "Total in ePASS"}</b><span>${money(m.orderTotal)}</span><i>as it stands today</i></div>`);
+      // a balance below zero is money paid ahead, not money owed
+      if (m.balance != null) tiles.push(m.balance < -0.005
+        ? `<div class="tile epass"><b>Credit in ePASS</b><span>${money(-m.balance)}</span><i>paid beyond the total</i></div>`
+        : `<div class="tile epass"><b>Balance in ePASS</b><span>${money(m.balance)}</span><i>still owed</i></div>`);
+      const short = m.epassCount && m.agilityNet - m.epassPosted > 0.5;
+      $("moneyCard").hidden = !tiles.length;
+      $("moneyCard").innerHTML = `<h3>Money</h3><div class="money">${tiles.join("")}</div>
+        ${m.epassCount && (m.paidCount || m.refundCount) ? `<p class="mut" style="margin:10px 0 0;">Agility and ePASS are two records of the same money. Read them side by side; do not add them together.</p>` : ""}
+        ${short ? `<div class="gap">Agility has collected ${money(m.agilityNet - m.epassPosted)} more on this ticket than ePASS shows posted. A payment keyed today may not have reached Agility's copy of ePASS yet.</div>` : ""}`;
+
+      drawTimeline();
+
+      $("unitsCard").hidden = !t.units.length;
+      if (t.units.length) $("unitsCard").innerHTML = `<h3>Units on this order</h3>
+        <table class="units"><thead><tr><th>Model</th><th>Serial</th><th>Invoice</th><th class="r">Sold for</th><th></th></tr></thead><tbody>
+        ${t.units.map((u) => `<tr><td><b>${esc(u.model || "—")}</b></td><td>${esc(u.serial || "—")}</td><td>${esc(u.invoice)}</td><td class="r">${u.price == null ? "" : money(u.price)}</td><td>${u.returned ? `<span class="tag red">Returned</span>` : ""}</td></tr>`).join("")}
+        </tbody></table>`;
+
+      $("whereCard").innerHTML = `<details class="where"><summary>Where these lines come from</summary>
+        <ul>${t.sources.map((s) => `<li class="${s.count ? "" : "none"}"><span>${esc(s.name)}</span><span>${s.count ? plural(s.count, "record") : "nothing on file"}</span></li>`).join("")}</ul>
+        <p>Lines marked Agility carry the exact time and who did it. Lines marked ePASS show how the order stands in ePASS today: when it was written and by whom, when it was last changed and by whom (ePASS does not keep what was changed, or any change before the last one), each payment and who keyed it, and when it was finished. A line says "date only" where ePASS gave Agility a date with no time, which is the case for payments and for orders already finished and posted. "Finished" is the day ePASS closed the invoice, normally the delivery or pickup day. A quote is matched to its order by customer and salesperson, so that link is a best match, not a record of the sale.</p>
+      </details>`;
+    }
+    $("headCard").addEventListener("click", (ev) => { const b = ev.target.closest("[data-open]"); if (b) { $("q").value = b.dataset.open; lookUp(b.dataset.open); } });
+
+    function drawTimeline() {
+      const t = state.ticket;
+      const rows = t.events.filter((e) => state.filter === "all" || MONEY_TONES.includes(e.tone));
+      if (state.notice) setStatus($("tlStatus"), state.notice.kind, state.notice.text); else if (t.missing.length) setStatus($("tlStatus"), "error", `Agility could not read ${listOf(t.missing)} just now, so anything this ticket has there is missing below. Look the ticket up again in a minute.`); else setStatus($("tlStatus"), "", "");
+      if (!t.events.length) { $("timeline").innerHTML = `<p class="note" style="margin:8px 0 0;">Nothing is on file for ${esc(t.number)}. Check the number, or find the ticket by the client's name, phone number or email.</p>`; return; }
+      if (!rows.length) { $("timeline").innerHTML = `<p class="note" style="margin:8px 0 0;">No payments, refunds or returns are on file for this ticket.</p>`; return; }
+      let html = "", day = null;
+      for (const e of rows) {
+        if (e.day !== day) { if (day !== null) html += "</ul>"; day = e.day; html += `<div class="day">${esc(dayTitle(e.day))}</div><ul class="tl">`; }
+        const canRefund = t.canRefund && e.payment && e.payment.paymentIntentId;
+        html += `<li class="${esc(e.tone)}" data-id="${esc(e.id)}"><div class="row1">
+          <span class="t"${e.dateOnly ? ` title="ePASS records the date, not the time"` : ""}>${e.dateOnly ? "date only" : esc(timeOf(e.at))}</span>
+          <span class="what"><strong>${esc(e.label)}</strong>${e.text ? " " + esc(e.text) : ""}${e.sub ? ` <span class="sub">· ${esc(e.sub)}</span>` : ""}${e.quote ? `<span class="q">“${esc(e.quote)}”</span>` : ""}</span>
+          <span class="src ${SRC_CLASS[e.source] || ""}">${esc(e.source)}</span>
+          ${canRefund && state.refundFor !== e.id ? `<span class="act"><button type="button" class="refund" data-refund="${esc(e.id)}">Refund…</button></span>` : ""}
+          ${canRefund && state.refundFor === e.id ? `<div class="refund-panel" id="refundPanel"></div>` : ""}
+        </div></li>`;
+      }
+      $("timeline").innerHTML = html + "</ul>";
+      if (state.refundFor) fillRefundPanel();
+    }
+    $("chips").addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-f]"); if (!b) return;
+      state.filter = b.dataset.f; state.refundFor = "";
+      for (const x of $("chips").querySelectorAll("[data-f]")) x.classList.toggle("on", x === b);
+      drawTimeline();
+    });
+    $("printBtn").addEventListener("click", () => window.print());
+
+    // ---- refunding a payment ----------------------------------------------------
+    // The same form and the same rules as Issue Refund, and the same route does
+    // the work, so only people who hold Issue Refund are offered the button.
+    const GENERIC_REFUND_NOTES = /^(requested by( the)? customer|customer request(ed)?( it)?( a refund)?|per( the)? customer( request)?|customer( asked)?( for( a)? refund)?|refund( requested)?|return(ed)?|cancell?ed|cancellation|cancel|n\/?a|none|misc|other|test)[.!]*$/i;
+    const REASON_CODES = ["Cancelled order", "Return / exchange", "Damaged / defective", "Price adjustment", "Duplicate charge", "Delivery / install issue", "Service issue", "Fraudulent", "Other"];
+    function refundNoteError(note) {
+      const trimmed = String(note || "").trim();
+      return trimmed.length < 8 || GENERIC_REFUND_NOTES.test(trimmed) ? 'Be specific about the product or service being refunded (e.g. "KDTS434SPS dishwasher returned" or "canceled HVAC maintenance visit").' : null;
+    }
+    function suggestReasonCode(note) {
+      const t = String(note || "").toLowerCase();
+      if (/duplicat|double charg|charged twice|billed twice/.test(t)) return "Duplicate charge";
+      if (/fraud/.test(t)) return "Fraudulent";
+      if (/scratch\s*(and|&|\+|n)\s*save|scratch-?n-?save|price|adjust|discount|overcharg|over charg|differen|rebate|coupon|promo code|match/.test(t)) return "Price adjustment";
+      if (/cancel/.test(t)) return "Cancelled order";
+      if (/damag|defect|dent|scratch|broke|not working|doa/.test(t)) return "Damaged / defective";
+      if (/return|exchang|swap/.test(t)) return "Return / exchange";
+      if (/deliver|install|schedul|backorder|back order|out of stock/.test(t)) return "Delivery / install issue";
+      if (/service|repair|warranty|tech/.test(t)) return "Service issue";
+      return "Other";
+    }
+
+    $("timeline").addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-refund]"); if (!b) return;
+      state.refundFor = b.dataset.refund; state.notice = null; drawTimeline();
+    });
+
+    async function fillRefundPanel() {
+      const panel = $("refundPanel"); if (!panel) return;
+      const line = state.ticket.events.find((e) => e.id === state.refundFor);
+      if (!line?.payment) return closeRefund();
+      const id = line.payment.paymentIntentId;
+      panel.innerHTML = `<div class="title">Refund this payment</div><div class="mut">Checking what can still be refunded…</div>`;
+      let refundable = 0, refunded = 0;
+      try {
+        const data = await getJson("/api/intent-lookup/payment_intent/" + encodeURIComponent(id));
+        if (state.refundFor !== line.id || !$("refundPanel")) return; // closed while we were asking
+        refundable = Number(data.summary?.refundableAmount || 0); refunded = Number(data.summary?.refundedAmount || 0);
+        if (data.summary?.intentStatus !== "succeeded" || refundable <= 0) {
+          panel.innerHTML = `<div class="title">Refund this payment</div><div>${refunded > 0 ? `This payment has already been refunded in full (${money(refunded)}).` : "This payment cannot be refunded from here."}</div><div class="refund-actions"><button type="button" class="quiet" id="refundCancel">Close</button></div>`;
+          $("refundCancel").addEventListener("click", closeRefund);
+          return;
+        }
+      } catch (err) {
+        if (!$("refundPanel")) return;
+        panel.innerHTML = `<div class="title">Refund this payment</div><div style="color:#991b1b;">${esc(err.message)}</div><div class="refund-actions"><button type="button" class="quiet" id="refundCancel">Close</button></div>`;
+        $("refundCancel").addEventListener("click", closeRefund);
+        return;
+      }
+      panel.innerHTML = `
+        <div class="title">Refund this payment · ${esc(line.label)}</div>
+        <div class="refund-grid">
+          <div>
+            <label for="refundAmount">Refund amount ($)</label>
+            <input id="refundAmount" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" />
+            <div class="helper">Refundable: ${money(refundable)}${refunded > 0 ? ` (${money(refunded)} already refunded)` : ""}. Enter the exact amount and double-check it.</div>
+          </div>
+          <div>
+            <label for="refundNote">Product or service cancelled / returned</label>
+            <input id="refundNote" type="text" maxlength="200" placeholder='e.g. "KDTS434SPS dishwasher returned" or "canceled HVAC maintenance visit"' />
+          </div>
+          <div>
+            <label for="refundReasonCode">Reason code</label>
+            <select id="refundReasonCode">${REASON_CODES.map((c) => `<option value="${esc(c)}"${c === "Other" ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
+            <div class="helper" id="reasonCodeHint">Suggested from the note. Change it if it's wrong.</div>
+          </div>
+        </div>
+        <label class="refund-confirm">
+          <input id="refundConfirm" type="checkbox" />
+          <span>I understand this process <strong>cannot be reversed once submitted</strong>, and Wilson Appliance will need to pay additional credit card fees to re-collect from the customer at a later time.</span>
+        </label>
+        <div class="status" id="refundStatus" role="status"></div>
+        <div class="refund-actions">
+          <button id="refundSubmit" class="refund-solid" type="button" disabled>Submit refund</button>
+          <button id="refundCancel" class="quiet" type="button">Cancel</button>
+        </div>`;
+      let chosen = false;
+      $("refundNote").addEventListener("input", () => { setStatus($("refundStatus"), "", ""); if (!chosen) $("refundReasonCode").value = suggestReasonCode($("refundNote").value); });
+      $("refundAmount").addEventListener("input", () => setStatus($("refundStatus"), "", ""));
+      $("refundReasonCode").addEventListener("change", () => { chosen = true; $("reasonCodeHint").textContent = "Using your selection."; });
+      $("refundConfirm").addEventListener("change", () => { $("refundSubmit").disabled = !$("refundConfirm").checked; });
+      $("refundCancel").addEventListener("click", closeRefund);
+      $("refundSubmit").addEventListener("click", () => submitRefund(id, refundable));
+      $("refundAmount").focus(); $("refundAmount").select();
+    }
+    function closeRefund() { state.refundFor = ""; drawTimeline(); }
+
+    async function submitRefund(id, refundable) {
+      const st = $("refundStatus");
+      const amount = Number($("refundAmount").value);
+      if (!Number.isFinite(amount) || amount <= 0) return setStatus(st, "error", "Enter the exact refund amount. It can't be zero.");
+      if (amount > refundable + 0.001) return setStatus(st, "error", `Refund amount cannot exceed ${money(refundable)}.`);
+      const noteError = refundNoteError($("refundNote").value);
+      if (noteError) { $("refundNote").focus(); return setStatus(st, "error", noteError); }
+      if (!$("refundConfirm").checked) return setStatus(st, "error", "Check the confirmation box acknowledging the refund cannot be reversed.");
+      const btn = $("refundSubmit"); btn.disabled = true; btn.textContent = "Refunding…";
+      try {
+        const data = await getJson(`/api/intent-lookup/payment_intent/${encodeURIComponent(id)}/refund`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, note: $("refundNote").value.trim(), reasonCode: $("refundReasonCode").value, confirmed: true, reason: "requested_by_customer" })
+        });
+        const done = money(data.amount || amount);
+        const number = state.ticket.number, before = state.ticket.money.refundCount;
+        state.refundFor = ""; state.notice = { kind: "ok", text: `Refund issued for ${done}.` }; drawTimeline();
+        // The refund is written to the record a moment after Stripe accepts it, so look twice before saying it is not showing yet.
+        for (const wait of [1200, 2500]) {
+          await new Promise((r) => setTimeout(r, wait));
+          if (state.ticket?.number !== number) return;
+          await openTicket(number, { quiet: true }).catch(() => {});
+          if (state.ticket?.money.refundCount > before) return;
+        }
+        state.notice = { kind: "ok", text: `Refund issued for ${done}. It is not on the list below yet; look the ticket up again in a minute and it will be.` }; drawTimeline();
+      } catch (err) {
+        setStatus(st, "error", err.message || "Unable to issue refund.");
+        btn.disabled = !$("refundConfirm").checked; btn.textContent = "Submit refund";
+      }
+    }
+
+    // a link straight to a ticket: ticket-audit.html?t=SV00124641
+    const first = new URLSearchParams(location.search).get("t");
+    if (first) { $("q").value = first; lookUp(first.trim()); } else $("q").focus();
+  </script>
+</body>
+</html>

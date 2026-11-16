@@ -32,3 +32,21 @@ Storage: `important_dates.signup_mode` (`bring` | `rsvp`); `important_date_signu
 **Export.** On the builder page each date with a sign-up has **export CSV** beside *view*. RSVP: one row per person — Name, Email, Response, Guests, Party size (the person plus guests; 0 when not coming, so the column sums to the head count), Note, Answered — with those coming first. Bring-list: Item, Name, Email, Added. The file is built in the browser from the same list the page shows (`<title>-rsvp-<date>.csv`), opens cleanly in Excel, and a note that starts with `=`, `+`, `-` or `@` is prefixed with an apostrophe so it can't run as a formula.
 
 **Guest limit (11/11).** An RSVP date has **Guests allowed** in the builder: None — staff only, or up to 1 (a plus-one) through 5. A new RSVP starts at a plus-one; dates made before the setting existed keep 5 until edited. The dashboard's guest picker offers only what the date allows (it disappears for staff-only) and the server refuses anything higher. Lowering the limit does not change answers already given: the builder shows "N over the limit" on the date and marks those lines, so you can ask the person to update or remove the line. Stored as `important_dates.signup_guest_max`.
+
+## Who has and hasn't answered (11/16)
+
+On the builder page, an RSVP date's line now ends with how many people it is still waiting on: *RSVP · 14 coming (19 people) · 3 no · **9 no answer***. **view names** opens the list under the date in three groups:
+
+- **Coming**, with each person's guests and note, and the head count with guests.
+- **Can't make it**, with any note.
+- **No answer yet**: everyone with an active Agility sign-in who hasn't answered. This is the same roster the Christmas party menu survey uses for "hasn't answered", because those are the people who see the RSVP on their dashboard and can answer it. Someone with no sign-in can't answer and isn't listed; a shared sign-in (a showroom kiosk, say) will sit in this group.
+
+Click **view names** again to close it. Removing someone's answer puts them back under No answer yet. A line left over from before a date was switched to RSVP is shown apart and is not counted as an answer.
+
+**export CSV** on an RSVP date now lists the people with no answer after the answers, with Response = *No answer* and a party size of 0, so the file is the whole roster and the Party size column still sums to the head count.
+
+On a phone the dates now stack as blocks instead of a sideways-scrolling table, and the tally and both links sit under the title (the Sign-up column used to be hidden there).
+
+Only the builder page shows who hasn't answered. The sheet everyone opens from the dashboard is unchanged: it lists answers, never who is missing. Nobody is sent a reminder.
+
+`GET /api/important-dates/:id/signups` adds `notAnswered` (`[{ name, email }]`, or `null` if the roster couldn't be read) for people who hold the builder page, on RSVP dates only; `GET /api/important-dates` adds `rsvp.waiting` to each RSVP date. `listRsvpAnswerEmails()` in `lib/important-dates-postgres.js`. No new tables or columns.

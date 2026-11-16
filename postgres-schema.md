@@ -412,3 +412,13 @@ codes; see `docs/company/org-chart.md`.
 - `employee_profile_details.reports_to_mode`: `''` = `reports_to_code` follows
   the chart, `pick` = HR chose between several holders of the job above,
   `override` = set by hand and left alone by the chart.
+- `pto_requests` (11/16) also carries which hours a part-day request covers (`start_time`, `end_time`, "HH:MM"), the regular day those hours come out of as it stood when the request was made (`day_start`, `day_end`), and `pto_hours`, what the request draws from PTO under the policy (null for leave that isn't PTO).
+- `pto_requests_archive`: time-off requests whose last day out is more than 365 days past, moved out of `pto_requests` so the working table stays small. Never deleted. `id` (the request's own id), `employee_code`, `employee_name`, `approver_email`, `start_date`, `end_date` (copied out to search on), `archived_at`, and `request` (JSONB: the whole original row, so a column added to `pto_requests` later needs nothing here). A request still waiting on a decision or on Kronos is never moved.
+- `pto_policy`: one row (`id` = 1), the Time Off policy as JSON in `policy`, with `updated_at` and `updated_by`. Empty until an executive changes something; until then the defaults in `lib/employee-profiles-postgres.js` (the policy document's numbers) apply.
+- `job_code_schedules`: the standard working week per job code (`job_code`
+  PK, `schedule` jsonb in the same shape as a person's). A person's own
+  `employee_profile_details.schedule` wins when it has any days in it; empty
+  means they follow their job code's row here (2026-11-16).
+- `job_titles.is_hr`: the HR box on a job title (2026-11-16). Holders are HR
+  for time off (the Enter in Kronos list, deciding or entering anyone's
+  request) and may change anyone's work schedule. It grants no pages.

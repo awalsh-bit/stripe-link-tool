@@ -83,7 +83,14 @@
       .back { display: inline-block; }
       .c2, .c3, .c4, .c5, .c6, .c8 { grid-column: span 12; }
       .hide-sm { display: none; }
-      .sched td.day { width: auto; } .sched input[type="time"] { max-width: none; }
+      /* the week grid on a narrow screen: day and Off on one line, the two times under them */
+      .sched thead { display: none; }
+      .sched tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+      .sched tbody td { padding: 0; border: none; min-width: 0; }
+      .sched tbody td.day { width: auto; align-self: center; } .sched tbody td:nth-child(2) { justify-self: end; align-self: center; }
+      .sched tbody td.hrs { display: none; }
+      .sched input[type="time"] { max-width: none; width: 100%; padding: 8px 10px; }
+      .sched tfoot tr { display: flex; justify-content: space-between; gap: 10px; } .sched tfoot td { border: none; padding: 10px 0 0; }
     }
   </style>
 </head>
@@ -161,7 +168,8 @@
 
           <!-- Schedule -->
           <div class="pane" data-pane="schedule" hidden>
-            <p class="note">The hours this person normally works. Time off counts working days and hours from this, and it is the schedule people see when they ask for time off. It doesn't change anything in Kronos.</p>
+            <p class="note">The hours this person normally works. Time off counts working days and hours from this, and they see it on <a href="work-schedules.html">Work Schedules</a>. It doesn't change anything in Kronos.</p>
+            <p class="note" id="sSource"></p>
             <form id="schedForm" autocomplete="off">
               <table class="sched">
                 <thead><tr><th>Day</th><th>Off</th><th>Starts</th><th>Ends</th><th>Hours</th></tr></thead>
@@ -332,6 +340,14 @@
       }).join("");
       $("sNote").value = current.scheduleNote || "";
       $("sLunch").checked = Number(s.lunch) > 0;
+      // where it comes from, and whether this viewer may change it (their supervisor or an executive)
+      const e = current, first = esc(e.name.split(" ")[0]), edit = e.canEditSchedule;
+      $("sSource").innerHTML = (e.scheduleSource === "job" ? `Following the standard week for <b>${esc(e.jobTitle)}</b>.${edit ? ` Changing it here gives ${first} a schedule of their own.` : ""}`
+        : e.scheduleSource === "custom" ? `<span class="tag amber">Custom</span> Set just for ${first}.${edit && e.hasJobSchedule ? ` <button type="button" class="link" id="sDefault">Back to the standard week for ${esc(e.jobTitle)}</button>` : ""}`
+        : `No schedule yet.${edit ? ` Set one here for ${first}, or set the standard week for ${e.jobTitle ? esc(e.jobTitle) : "their job"} on Work Schedules.` : ""}`)
+        + (edit ? "" : ` Only ${e.reportsToName ? esc(e.reportsToName) + " (their supervisor)" : "their supervisor"}, HR or an executive can change it.`);
+      $("sNote").disabled = !edit; $("sLunch").disabled = !edit; $("sSave").hidden = !edit; $("copyMon").hidden = !edit;
+      document.querySelectorAll("#schedRows [data-off]").forEach((x) => { x.disabled = !edit; });
       totalSchedule();
     }
     function readSchedule() {
@@ -348,7 +364,7 @@
       let total = 0;
       document.querySelectorAll("#schedRows tr").forEach((tr) => {
         const off = tr.querySelector("[data-off]").checked;
-        tr.querySelector("[data-start]").disabled = off; tr.querySelector("[data-end]").disabled = off;
+        const locked = off || !current.canEditSchedule; tr.querySelector("[data-start]").disabled = locked; tr.querySelector("[data-end]").disabled = locked;
         const h = off ? 0 : hoursBetween(tr.querySelector("[data-start]").value, tr.querySelector("[data-end]").value, lunchMinutes());
         total += h;
         tr.querySelector("[data-hrs]").textContent = off ? "Off" : h ? h + " hrs" : "";
@@ -380,7 +396,7 @@
         const [cls, label] = STATUS_TAG[r.status] || ["", r.status];
         const who = r.status === "pending" ? `with ${r.approverName || "HR"}` : r.status === "cancelled" ? (r.cancelledBy ? `by ${r.cancelledBy}` : "") : (r.decidedBy ? `by ${r.decidedBy}` : "");
         const kronos = r.kronosTask === "enter" ? `<span class="tag amber">Not entered yet</span>` : r.kronosTask === "remove" ? `<span class="tag red">Needs removing</span>` : r.kronosEnteredAt && r.status === "approved" ? `Entered ${esc(fmtShort(r.kronosEnteredAt.slice(0, 10)))}` : "";
-        return `<tr><td>${esc(fmtRange(r.startDate, r.endDate))}</td><td>${esc(r.type)}</td><td>${r.hours != null ? r.hours + " hrs" : r.workDays + (r.workDays === 1 ? " day" : " days") + (r.scheduledHours ? ` <span class="mut">${r.scheduledHours} hrs</span>` : "")}</td>
+        return `<tr><td>${esc(fmtRange(r.startDate, r.endDate))}</td><td>${esc(r.type)}</td><td>${r.hours != null ? r.hours + " hrs" + (r.partDay ? `<div class="mut">${esc(r.partDay.offText)}</div>` : "") : r.workDays + (r.workDays === 1 ? " day" : " days") + (r.scheduledHours ? ` <span class="mut">${r.scheduledHours} hrs</span>` : "")}</td>
           <td><span class="tag ${cls}">${label}</span> <span class="mut">${esc(who)}</span>${r.decisionNote ? `<div class="mut">${esc(r.decisionNote)}</div>` : ""}</td><td class="hide-sm">${kronos}</td></tr>`;
       }).join("")}</tbody></table>` : `<p class="empty">No time off on record.</p>`;
     }
@@ -476,7 +492,8 @@
       try {
         const j = await send(`/api/employee-profiles/${encodeURIComponent(current.code)}`, "PUT", body); mergeSaved(j.employee);
         if (j.rerouted) await refreshPeople(); // a new title moved people on the Org Chart
-        fillProfile(); setStatus("pStatus", j.rerouted ? `Saved. The Org Chart updated Reports to for ${j.rerouted} ${j.rerouted === 1 ? "person" : "people"}.` : "Saved.");
+        fillProfile(); fillSchedule(); // a new supervisor or title changes who may edit the schedule and which standard week applies
+        setStatus("pStatus", j.rerouted ? `Saved. The Org Chart updated Reports to for ${j.rerouted} ${j.rerouted === 1 ? "person" : "people"}.` : "Saved.");
       }
       catch (err) { setStatus("pStatus", err.message, "error"); }
       $("pSave").disabled = false;
@@ -493,6 +510,14 @@
       const mon = document.querySelector('#schedRows tr[data-day="mon"]');
       ["tue", "wed", "thu", "fri"].forEach((d) => { const tr = document.querySelector(`#schedRows tr[data-day="${d}"]`); ["[data-start]", "[data-end]"].forEach((s) => { tr.querySelector(s).value = mon.querySelector(s).value; }); tr.querySelector("[data-off]").checked = mon.querySelector("[data-off]").checked; });
       totalSchedule();
+    });
+    $("sSource").addEventListener("click", async (ev) => {
+      if (ev.target.id !== "sDefault") return;
+      ev.target.disabled = true;
+      try {
+        await send(`/api/work-schedules/people/${encodeURIComponent(current.code)}`, "PUT", { useJobDefault: true });
+        const j = await api(`/api/employee-profiles/${encodeURIComponent(current.code)}`); mergeSaved(j.employee); fillSchedule(); setStatus("sStatus", "Back on the standard week for the job.");
+      } catch (err) { setStatus("sStatus", err.message, "error"); }
     });
     $("schedForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();

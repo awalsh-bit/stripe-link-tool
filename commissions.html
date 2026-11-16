@@ -176,21 +176,73 @@
     .editor-grid .ef.credit label { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--text); }
     .editor-hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; width: 100%; }
 
+    /* The tile strip under each name (Andrew 11/16: "straighten out the
+       boxes"). Every figure has its own slot (k1-k8), so the same figure sits
+       in the same column on every statement down the page; a tile that doesn't
+       apply leaves its slot empty and never moves the others. Each tile is
+       three rows - label, figure, small print - and the rows are shared across
+       the strip (subgrid), so the figures sit on one line whatever the labels
+       and small print do. Room for two lines of small print is kept in every
+       strip, so the strips are one height down the page as well. Slots run
+       eight across on a wide screen. On a narrower one and on paper it is two
+       rows of four: the four standing figures on top, the ones that come and
+       go packed from the left underneath, the total always bottom right. On a
+       phone they flow two across (no kept room) with the total full width. */
     .totals-strip {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
-      margin: 14px 0 6px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      column-gap: 12px;
+      row-gap: 0;
+      margin: 2px 0 6px;
     }
     .tot {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 93px;
+      margin-top: 12px;
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 10px 12px;
       background: var(--primary-faint);
     }
-    .tot .t-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    .tot .t-value { font-size: 18px; font-weight: 800; margin-top: 2px; }
-    .tot .t-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .tot.k1 { grid-column: 1; }
+    .tot.k2 { grid-column: 2; }
+    .tot.k3 { grid-column: 3; }
+    .tot.k4, .tot.k8 { grid-column: 4; }
+    .tot.k1, .tot.k2, .tot.k3, .tot.k4 { grid-row: 1; }
+    .tot.k5, .tot.k6, .tot.k7, .tot.k8 { grid-row: 2; }
+    @supports (grid-template-rows: subgrid) {
+      .totals-strip { grid-auto-rows: auto auto minmax(43px, auto); }
+      .tot { display: grid; grid-template-rows: subgrid; align-content: start; min-height: 0; }
+      .tot.k1, .tot.k2, .tot.k3, .tot.k4 { grid-row: 1 / span 3; }
+      .tot.k5, .tot.k6, .tot.k7, .tot.k8 { grid-row: 4 / span 3; }
+    }
+    .tot .t-label { font-size: 10.5px; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .tot .t-value { font-size: 18px; line-height: 1.3; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .tot .t-sub { font-size: 11px; line-height: 1.35; color: var(--muted); margin-top: 2px; }
+    .tot .t-sub span { display: block; }
+    @media screen and (min-width: 1280px) {
+      .totals-strip { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+      .tot { padding-left: clamp(9px, 0.8vw, 12px); padding-right: clamp(9px, 0.8vw, 12px); }
+      .tot.k5 { grid-column: 5; }
+      .tot.k6 { grid-column: 6; }
+      .tot.k7 { grid-column: 7; }
+      .tot.k8 { grid-column: 8; }
+      .tot.k5, .tot.k6, .tot.k7, .tot.k8 { grid-row: 1; }
+      .tot .t-value { font-size: clamp(15.5px, 1.3vw, 18px); }
+      @supports (grid-template-rows: subgrid) {
+        .tot.k5, .tot.k6, .tot.k7, .tot.k8 { grid-row: 1 / span 3; }
+      }
+    }
+    @media screen and (max-width: 760px) {
+      .totals-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; grid-auto-rows: auto; }
+      .totals-strip .tot { grid-column: auto; grid-row: auto; margin-top: 10px; min-height: 0; }
+      .totals-strip .tot.grand { grid-column: 1 / -1; }
+      @supports (grid-template-rows: subgrid) {
+        .totals-strip .tot { grid-row: span 3; }
+      }
+    }
     .tot.grand { background: var(--primary); border-color: var(--primary); }
     .tot.grand .t-label { color: rgba(255, 255, 255, 0.85); }
     .tot.grand .t-value { color: #fff; }
@@ -638,13 +690,13 @@
         </div>
 
         <div class="totals-strip">
-          <div class="tot"><div class="t-label">Gross (before tax)</div><div class="t-value">${money(t.gross)}</div></div>
-          <div class="tot"><div class="t-label">Job cost</div><div class="t-value">${money(t.cost)}</div></div>
-          <div class="tot"><div class="t-label">Margin $</div><div class="t-value">${money(t.margin)}</div></div>
-          <div class="tot"><div class="t-label">HVAC job commission</div><div class="t-value">${money(t.jobCommission)}</div></div>
-          ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
-          ${t.heldBackCount ? `<div class="tot" title="${escapeHtml(heldBackTitle(t, "job"))}"><div class="t-label">Held back — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldBackCommission)}</div></div>` : ""}
-          <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
+          <div class="tot k1"><div class="t-label">Gross</div><div class="t-value">${money(t.gross)}</div><div class="t-sub">before tax</div></div>
+          <div class="tot k2"><div class="t-label">Job cost</div><div class="t-value">${money(t.cost)}</div></div>
+          <div class="tot k3"><div class="t-label">Margin $</div><div class="t-value">${money(t.margin)}</div></div>
+          <div class="tot k4"><div class="t-label">Job commission</div><div class="t-value">${money(t.jobCommission)}</div></div>
+          ${t.releasedCount ? `<div class="tot k5"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
+          ${t.heldBackCount ? `<div class="tot k6" title="${escapeHtml(heldBackTitle(t, "job"))}"><div class="t-label">Held back</div><div class="t-value" style="color: #991b1b;">${money(t.heldBackCommission)}</div><div class="t-sub">unpaid · not in total</div></div>` : ""}
+          <div class="tot grand k8"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
 
         <div class="st-body">
@@ -682,6 +734,10 @@
       if (st.planKey === "hvac") return hvacStatementHtml(st);
       const t = st.totals;
       const e = st.eligibility;
+      // Below the plan's trailing-revenue requirement nothing pays out, so the
+      // green Total commission tile is left off (Andrew 11/16); the red badge
+      // beside the name says why. Plans with no requirement always show it.
+      const paysOut = e.required == null || e.eligible;
       const isOpen = expandedCodes.has(st.code);
       return `
       <div class="surface statement ${isOpen ? "" : "collapsed"}" data-code="${escapeHtml(st.code)}">
@@ -708,14 +764,14 @@
         </div>
 
         <div class="totals-strip">
-          <div class="tot"><div class="t-label">New serial commission</div><div class="t-value">${money(t.newCommission)}</div></div>
-          <div class="tot"><div class="t-label">Closeout commission</div><div class="t-value">${money(t.closeoutCommission)}</div></div>
-          <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
-          <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
-          ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
-          ${t.heldBackCount ? `<div class="tot" title="${escapeHtml(heldBackTitle(t, "line"))}"><div class="t-label">Held back — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldBackCommission)}</div></div>` : ""}
-          ${t.marginPct != null ? `<div class="tot no-print" title="Overall delivered margin for this statement: total delivered margin (net price less serial cost less vendor credit) divided by total actual revenue, across every new and closeout line with a cost on file. Screen only — not on the PDF or printout.${t.uncostedLines ? ` ${t.uncostedLines} line(s) have no serial cost in the feed and are left out.` : ""}"><div class="t-label">Overall margin · screen only</div><div class="t-value" style="color: #1e40af;">${t.marginPct.toFixed(1)}%</div><div class="t-sub">${money(t.marginDollars)} on ${money(t.marginRevenue)}${t.commissionOfMargin != null ? ` · pays ${t.commissionOfMargin.toFixed(0)}% of margin` : ""}${t.uncostedLines ? ` · ${t.uncostedLines} no-cost line${t.uncostedLines === 1 ? "" : "s"}` : ""}</div></div>` : ""}
-          <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
+          <div class="tot k1"><div class="t-label">New serial</div><div class="t-value">${money(t.newCommission)}</div></div>
+          <div class="tot k2"><div class="t-label">Closeout</div><div class="t-value">${money(t.closeoutCommission)}</div></div>
+          <div class="tot k3"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
+          <div class="tot k4"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
+          ${t.releasedCount ? `<div class="tot k5"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
+          ${t.heldBackCount ? `<div class="tot k6" title="${escapeHtml(heldBackTitle(t, "line"))}"><div class="t-label">Held back</div><div class="t-value" style="color: #991b1b;">${money(t.heldBackCommission)}</div><div class="t-sub">unpaid · not in total</div></div>` : ""}
+          ${t.marginPct != null ? `<div class="tot k7 no-print" title="Overall delivered margin for this statement: total delivered margin (net price less serial cost less vendor credit) divided by total actual revenue, across every new and closeout line with a cost on file: ${money(t.marginDollars)} on ${money(t.marginRevenue)}. Screen only — not on the PDF or printout.${t.uncostedLines ? ` ${t.uncostedLines} line(s) have no serial cost in the feed and are left out.` : ""}"><div class="t-label">Overall margin</div><div class="t-value" style="color: #1e40af;">${t.marginPct.toFixed(1)}%</div><div class="t-sub"><span>${money(t.marginDollars, 0)} on ${money(t.marginRevenue, 0)}</span>${t.commissionOfMargin != null ? `<span>pays ${t.commissionOfMargin.toFixed(0)}% of margin</span>` : ""}${t.uncostedLines ? `<span>${t.uncostedLines} no-cost line${t.uncostedLines === 1 ? "" : "s"}</span>` : ""}</div></div>` : ""}
+          ${paysOut ? `<div class="tot grand k8"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>` : ""}
         </div>
 
         <div class="st-body">

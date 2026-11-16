@@ -436,6 +436,25 @@
   }
   .lookup-status.loading{background:var(--surface-2); color:var(--text-muted);}
   .lookup-status.error{background:var(--danger-soft); color:var(--danger);}
+  .lookup-status.note{background:var(--warning-soft); color:var(--warning); align-items:flex-start;}
+
+  /* ---------- truck picker: how current the list is ---------- */
+  .truck-meta{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin-top:10px; font-size:12.5px; line-height:1.4; color:var(--text-muted);
+  }
+  .truck-meta:empty{display:none;}
+  .truck-meta.warn{
+    background:var(--warning-soft); color:var(--warning);
+    border-radius:var(--radius-sm); padding:10px 12px; font-weight:600;
+  }
+  .truck-refresh{
+    appearance:none; -webkit-appearance:none; border:0; background:transparent;
+    color:var(--accent); font:inherit; font-weight:700;
+    padding:8px 4px; margin:-8px 0; cursor:pointer; white-space:nowrap; flex:none;
+  }
+  .truck-meta.warn .truck-refresh{color:inherit; text-decoration:underline;}
+  .truck-refresh[disabled]{opacity:0.55; cursor:default;}
   .spinner{
     width:16px; height:16px; border-radius:50%;
     border:2.5px solid var(--border);
@@ -569,7 +588,8 @@
         <label class="field-label">Which truck are you on?</label>
         <div class="field-help" style="margin-top:-4px; margin-bottom:12px;">Tap your route to see the stops on your run.</div>
         <div class="chip-grid" id="truckChips"></div>
-        <div class="field-help" id="truckMeta" style="margin-top:10px;"></div>
+        <div class="truck-meta" id="truckMeta"></div>
+        <div id="truckNotice"></div>
         <div id="truckOrders"></div>
       </div>
 
@@ -795,8 +815,7 @@
    ===================================================================== */
 const CONFIG = {
   LOOKUP_URL: "/api/install-damage/lookup",   // Agility: open orders + serial snapshot + dispatch stops
-  ROUTES_URL: "/api/install-damage/routes",         // truck picker (Sales Order Health Route column); blank = hidden
-  ROUTE_ORDERS_URL: "/api/install-damage/route-orders",
+  TRUCKS_URL: "/api/install-damage/trucks",   // truck picker: today's trucks and their stops from ePASS open orders; blank = hidden
   SUBMIT_URL: "/api/install-damage",          // Agility: Service Request Queue + photos + email to service@
   SUBMIT_AUTH_HEADER: "",
   EMAIL_ENDPOINT_URL: ""  // blank: the Agility submit endpoint sends the service@ email itself
@@ -1026,72 +1045,187 @@ $("#locChangeBtn").addEventListener("click", ()=>{
   locShow("overview");
 });
 
-/* ---- Truck-first picker (Sales Order Health routes: D01, D02, …) ---- */
-async function initTruckPicker(){
-  if(!CONFIG.ROUTES_URL || !CONFIG.ROUTE_ORDERS_URL) return;
-  try{
-    const res = await fetch(CONFIG.ROUTES_URL);
-    if(!res.ok) return;
-    const data = await res.json();
-    if(!data.routes || !data.routes.length) return;
-    $("#truckCard").style.display = "block";
-    $("#truckMeta").textContent = data.today
-      ? ""
-      : (data.date ? `Showing the last routed day on file (${data.date}) — today's Sales Order Health upload hasn't landed yet.` : "");
-    const host = $("#truckChips");
-    host.innerHTML = "";
-    data.routes.forEach((r)=>{
-      const c = el("div", "chip", `${r.route} · ${r.count} stop${r.count === 1 ? "" : "s"}`);
-      c.addEventListener("click", ()=>{
-        host.querySelectorAll(".chip").forEach((x)=>x.classList.remove("selected"));
-        c.classList.add("selected");
-        loadTruckOrders(r.route, data.date);
-      });
-      host.appendChild(c);
-    });
-  } catch(e){ /* picker is optional — invoice lookup below still works */ }
-}
+/* ---- Truck-first picker (routes D01, D02, … on today's open sales orders) ----
+   One call brings every truck running today with its stops, as ePASS had
+   them at its last 15-minute pull. This page used to ask once, when it was
+   opened, and then keep that list — and that day — for as long as it stayed
+   open on the phone, which is how a truck ended up showing the wrong orders
+   (Andrew 11/16). Now it asks again whenever the page comes back into view,
+   every couple of minutes while it is open, and each time a truck or a stop
+   is tapped; it says when ePASS was last read; and if the stop that was
+   picked has since moved to another truck, it says so. */
+const TRUCK_REFRESH_MS = 2 * 60 * 1000;   // while the page is open and showing
+const TRUCK_RECHECK_MS = 30 * 1000;       // on a tap, or on coming back into view
+const truck = { board:null, loadedAt:0, failed:false, loading:null, route:"", invoice:"", stopName:"", drawn:"", stops:"" };
 
-async function loadTruckOrders(route, date){
-  const host = $("#truckOrders");
-  host.innerHTML = '<div class="lookup-status loading"><span class="spinner"></span> Loading stops…</div>';
+function truckClock(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return "";
+  const time = d.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+  const now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if(days === 0) return time;
+  if(days === 1) return time + " yesterday";
+  return time + " on " + d.toLocaleDateString([], { month:"short", day:"numeric" });
+}
+function truckDay(ymd){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || "");
+  return m ? new Date(+m[1], +m[2]-1, +m[3]).toLocaleDateString([], { weekday:"short", month:"short", day:"numeric" }) : (ymd || "");
+}
+function truckRoute(code){ return truck.board ? truck.board.routes.find((r)=>r.route === code) : null; }
+
+async function fetchTrucks(){
   try{
-    const res = await fetch(CONFIG.ROUTE_ORDERS_URL + "?route=" + encodeURIComponent(route) + "&date=" + encodeURIComponent(date || ""));
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), 8000);
+    const res = await fetch(CONFIG.TRUCKS_URL, { cache:"no-store", signal: controller.signal });
+    clearTimeout(timer);
+    if(!res.ok) throw new Error("bad status");
     const data = await res.json();
-    if(!res.ok) throw new Error(data.error || "load failed");
-    host.innerHTML = "";
-    if(!data.orders.length){
-      host.appendChild(el("div", "lookup-status error", "No routed stops for that truck — use the invoice lookup below."));
-      return;
-    }
-    const help = el("div", "field-help", "Tap the job you're at:");
-    help.style.margin = "12px 0 8px";
-    host.appendChild(help);
-    data.orders.forEach((o)=>{
-      const opt = el("div", "unit-option");
-      const left = el("div");
-      left.appendChild(el("div", "u-name", o.name || o.invoice));
-      left.appendChild(el("div", "u-meta", [o.address, o.invoice].filter(Boolean).join(" · ")));
-      opt.appendChild(left);
-      opt.appendChild(el("div", "radio-dot"));
-      opt.addEventListener("click", ()=>{
-        host.querySelectorAll(".unit-option").forEach((x)=>x.classList.remove("selected"));
-        opt.classList.add("selected");
-        $("#invoiceInput").value = o.invoice;
-        // Same workflow from here: the stop feeds the normal invoice lookup,
-        // with its own name/address as the safety net.
-        runLookup({ name: o.name, address: o.address }).then(()=>{
-          $("#jobResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
-        });
-      });
-      host.appendChild(opt);
-    });
+    if(!data || !Array.isArray(data.routes)) throw new Error("bad answer");
+    truck.board = data;
+    truck.loadedAt = Date.now();
+    truck.failed = false;
   } catch(e){
-    host.innerHTML = "";
-    host.appendChild(el("div", "lookup-status error", "Couldn't load that truck's stops — use the invoice lookup below."));
+    truck.failed = true;   // keep whatever list is already showing, and say how old it is
   }
 }
-initTruckPicker();
+function loadTrucks(){
+  if(!CONFIG.TRUCKS_URL) return Promise.resolve();
+  if(truck.loading) return truck.loading;
+  // .then always runs after this assignment, so "loading" can never be left set.
+  truck.loading = fetchTrucks().then(()=>{ truck.loading = null; renderTrucks(true); });
+  renderTruckMeta();
+  return truck.loading;
+}
+function recheckTrucks(olderThanMs){
+  if(truck.loading) return truck.loading;
+  // After a check that didn't get through, try again at the very next chance.
+  return (truck.failed || Date.now() - truck.loadedAt >= olderThanMs) ? loadTrucks() : Promise.resolve();
+}
+
+function renderTruckMeta(){
+  const host = $("#truckMeta");
+  host.innerHTML = "";
+  host.className = "truck-meta";
+  const b = truck.board;
+  if(!b) return;
+  const when = b.asOf ? truckClock(b.asOf) : "";
+  const parts = [];
+  let warn = false;
+  if(truck.failed){
+    parts.push("Couldn't reach Agility just now, so this is the list from " + truckClock(new Date(truck.loadedAt).toISOString()) + ".");
+    warn = true;
+  } else if(b.stale){
+    parts.push((when ? "ePASS was last read at " + when : "Agility can't tell when ePASS was last read") + ", so this list may be out of date. If your stop isn't here, type the invoice number below.");
+    warn = true;
+  } else if(b.today){
+    parts.push("From ePASS as of " + when + ".");
+  }
+  if(!b.today && b.date) parts.push("Nothing is routed for today in ePASS yet — showing the last routed day on file (" + truckDay(b.date) + ").");
+  if(warn) host.classList.add("warn");
+  host.appendChild(el("span", null, parts.join(" ")));
+  const btn = el("button", "truck-refresh", truck.loading ? "Checking…" : "Refresh");
+  btn.type = "button";
+  btn.id = "truckRefresh";
+  btn.disabled = !!truck.loading;
+  btn.addEventListener("click", ()=>{ loadTrucks(); });
+  host.appendChild(btn);
+}
+
+function renderTrucks(fromRefresh){
+  const b = truck.board;
+  const card = $("#truckCard");
+  if(!b || (!b.routes.length && !truck.route)){ card.style.display = "none"; return; }   // the picker is optional — the invoice lookup below still works
+  card.style.display = "block";
+  renderTruckMeta();
+
+  // Only rebuild the chips and the stops when something on them changed, so a
+  // background refresh never swallows a tap.
+  const mine = truckRoute(truck.route);
+  const stops = JSON.stringify(mine ? mine.orders : null);
+  const drawn = JSON.stringify([b.date, b.routes.map((r)=>[r.route, r.count]), truck.route, truck.invoice, stops]);
+  if(fromRefresh && truck.route && truck.stops && stops !== truck.stops) showToast(truck.route + "'s stops were updated from ePASS");
+  truck.stops = stops;
+  if(drawn === truck.drawn) return;
+  truck.drawn = drawn;
+
+  const host = $("#truckChips");
+  host.innerHTML = "";
+  b.routes.forEach((r)=>{
+    const c = el("div", "chip", `${r.route} · ${r.count} stop${r.count === 1 ? "" : "s"}`);
+    c.dataset.route = r.route;
+    if(r.route === truck.route) c.classList.add("selected");
+    c.addEventListener("click", ()=>{
+      truck.route = r.route;
+      truck.stops = "";
+      renderTrucks(false);
+      recheckTrucks(TRUCK_RECHECK_MS);
+    });
+    host.appendChild(c);
+  });
+  renderTruckOrders();
+}
+
+function renderTruckOrders(){
+  const host = $("#truckOrders");
+  const notice = $("#truckNotice");
+  host.innerHTML = "";
+  notice.innerHTML = "";
+  if(!truck.route) return;
+  const b = truck.board;
+  const mine = truckRoute(truck.route);
+
+  // The double check: is the stop that was picked still on this truck?
+  if(truck.invoice && !(mine && mine.orders.some((o)=>o.invoice === truck.invoice))){
+    const now = b.routes.find((r)=>r.orders.some((o)=>o.invoice === truck.invoice));
+    const what = truck.invoice + (truck.stopName ? " (" + truck.stopName + ")" : "");
+    notice.appendChild(el("div", "lookup-status note", now
+      ? `ePASS now shows ${what} on ${now.route}, not ${truck.route}. If you're at that job, carry on — the invoice below still works.`
+      : `ePASS no longer shows ${what} on today's routes — it may have been finished or moved to another day. If you're at that job, carry on — the invoice below still works.`));
+  }
+
+  if(!mine || !mine.orders.length){
+    host.appendChild(el("div", "lookup-status error", "No routed stops for " + truck.route + " in ePASS right now — use the invoice lookup below."));
+    return;
+  }
+  const help = el("div", "field-help", "Tap the job you're at:");
+  help.style.margin = "12px 0 8px";
+  host.appendChild(help);
+  mine.orders.forEach((o)=>{
+    const opt = el("div", "unit-option");
+    opt.dataset.invoice = o.invoice;
+    if(o.invoice === truck.invoice) opt.classList.add("selected");
+    const left = el("div");
+    left.appendChild(el("div", "u-name", o.name || o.invoice));
+    left.appendChild(el("div", "u-meta", [o.address, o.invoice].filter(Boolean).join(" · ")));
+    opt.appendChild(left);
+    opt.appendChild(el("div", "radio-dot"));
+    opt.addEventListener("click", ()=>{
+      truck.invoice = o.invoice;
+      truck.stopName = o.name || "";
+      renderTrucks(false);
+      $("#invoiceInput").value = o.invoice;
+      // Same workflow from here: the stop feeds the normal invoice lookup,
+      // with its own name/address as the safety net.
+      runLookup({ name: o.name, address: o.address }).then(()=>{
+        $("#jobResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      recheckTrucks(TRUCK_RECHECK_MS);
+    });
+    host.appendChild(opt);
+  });
+}
+
+// Ask again whenever this page comes back in front of the driver, and on a
+// slow tick while it stays there. A phone hands back a page it kept in memory
+// without reloading it, so "when it was opened" can be days ago.
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") recheckTrucks(TRUCK_RECHECK_MS); });
+window.addEventListener("pageshow", ()=>{ recheckTrucks(TRUCK_RECHECK_MS); });
+window.addEventListener("focus", ()=>{ recheckTrucks(TRUCK_RECHECK_MS); });
+window.addEventListener("online", ()=>{ loadTrucks(); });
+setInterval(()=>{ if(document.visibilityState === "visible") recheckTrucks(TRUCK_REFRESH_MS); }, 30000);
+loadTrucks();
 
 /* ============================= STEP 1: LOOKUP ============================= */
 $("#manualBtn").addEventListener("click", ()=>{
@@ -1103,7 +1237,10 @@ $("#manualBtn").addEventListener("click", ()=>{
   $("#manualCard").scrollIntoView({behavior:"smooth", block:"nearest"});
 });
 
-$("#lookupBtn").addEventListener("click", ()=>runLookup());
+$("#lookupBtn").addEventListener("click", ()=>{
+  if(truck.invoice && $("#invoiceInput").value.trim().toUpperCase() !== truck.invoice){ truck.invoice = ""; truck.stopName = ""; renderTrucks(false); }
+  runLookup();
+});
 
 async function runLookup(fallback){
   const val = $("#invoiceInput").value.trim();

@@ -24,7 +24,7 @@
     button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
     button:disabled { opacity: .6; cursor: default; }
     label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
-    input[type="text"], input[type="date"], input[type="number"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
     .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
     .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c9 { grid-column: span 9; } .c12 { grid-column: span 12; }
     #forBox[hidden] { display: none; } #forBox label { max-width: 520px; } /* HR only, on a row of its own */
@@ -38,7 +38,21 @@
     th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
     td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
     .empty { color: var(--muted); font-size: 14px; margin: 0; }
+    .audit-acts { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; } .audit-acts .check { margin: 0; }
+    #auditList tr.arch td { color: var(--muted); } #auditList td.acts { text-align: right; white-space: nowrap; }
     .preview { font-size: 13.5px; color: var(--text); background: #f4f7f5; border-radius: 10px; padding: 9px 12px; }
+    .preview.no { background: #fff7ed; color: #9a3412; } .preview ul, .policy-notes { margin: 6px 0 0; padding-left: 18px; } .preview li { margin-top: 2px; }
+    .heads-up { color: #92400e; font-size: 12.5px; margin: 2px 0; }
+    .day .closed { display: block; font-size: 11px; font-weight: 700; color: #92400e; margin-top: 3px; }
+    /* the policy, as everyone reads it */
+    .policy h3 { margin: 16px 0 4px; font-size: 14px; } .policy p { margin: 0 0 6px; font-size: 13.5px; max-width: 860px; }
+    .policy table { max-width: 560px; margin: 6px 0 8px; } .policy td, .policy th { padding: 6px 8px; }
+    .policy-edit { border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-top: 14px; background: #fbfcfd; }
+    .policy-edit fieldset { border: none; padding: 0; margin: 0 0 14px; } .policy-edit legend { font-weight: 800; font-size: 14px; padding: 0; margin-bottom: 8px; }
+    .policy-edit .nums { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
+    .policy-edit .tier { display: grid; grid-template-columns: repeat(3, minmax(0, 150px)) auto; gap: 8px 12px; align-items: end; margin-bottom: 8px; }
+    .policy-edit .hols { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; } .policy-edit .hols .check { margin: 0; }
+    .policy-edit textarea { min-height: 130px; }
 
     .req { border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; }
     .req h4 { margin: 0 0 2px; font-size: 15px; } .req p { margin: 2px 0; font-size: 13.5px; }
@@ -72,7 +86,7 @@
       .c3, .c4, .c6, .c9 { grid-column: span 12; } .check { margin-top: 0; }
       #forBox label, #kindBox label { max-width: none; }
       .calhead .grow { display: none; } .calhead select { flex: 1; } .cal.week .day { min-height: 0; }
-      .hide-sm { display: none; }
+      .hide-sm { display: none; } #auditList td.acts { white-space: normal; }
       .req { grid-template-columns: 1fr; }
       .dow { display: none; } .cal { display: block; }
       .day { min-height: 0; margin-bottom: 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
@@ -96,7 +110,7 @@
 
     <div class="surface" id="kronosBox" hidden>
       <h2>Enter in Kronos</h2>
-      <p class="note">Agility doesn't send anything to Kronos. Key each of these in there, then tick it off here so nothing gets missed.</p>
+      <p class="note">Agility doesn't send anything to Kronos. Approved time off lands here; key each one in there, then tick it off here so nothing gets missed.</p>
       <div id="kronosList"></div>
       <div class="status" id="kronosStatus"></div>
     </div>
@@ -105,13 +119,15 @@
       <h2>Ask for time off</h2>
       <p class="note" id="askNote"></p>
       <p class="note" id="mySched" hidden></p>
+      <p class="note" id="myPto" hidden></p>
       <form id="form" class="form" autocomplete="off">
         <div class="c12" id="forBox" hidden><label>Who is it for<select id="fFor"></select></label></div>
         <div class="c12" id="kindBox"><label>Kind<select id="fType"></select></label><div class="mut" id="kindHint" style="margin-top:6px" hidden></div></div>
-        <div class="c3"><label>First day out<input id="fStart" type="date" required /></label></div>
-        <div class="c3"><label>Last day out<input id="fEnd" type="date" required /></label></div>
+        <div class="c3"><label><span id="startLabel">First day out</span><input id="fStart" type="date" required /></label></div>
+        <div class="c3" id="endBox"><label>Last day out<input id="fEnd" type="date" required /></label></div>
         <div class="c3"><label class="check"><input id="fPartial" type="checkbox" /> Only part of one day</label></div>
-        <div class="c3" id="hoursBox" hidden><label>Hours off<input id="fHours" type="number" min="0.25" max="24" step="0.25" placeholder="4" /></label></div>
+        <div class="c3" id="fromBox" hidden><label>Off from<input id="fFrom" type="time" step="900" /></label></div>
+        <div class="c3" id="untilBox" hidden><label>Until<input id="fUntil" type="time" step="900" /></label></div>
         <div class="c9" id="noteBox"><label>Note (optional; only your approver and HR see it)<input id="fNote" type="text" maxlength="600" /></label></div>
         <div class="c12 preview" id="preview" hidden></div>
         <div class="c12"><button type="submit" id="saveBtn">Send request</button><div class="status" id="status"></div></div>
@@ -141,12 +157,32 @@
       <p class="empty" id="calEmpty" hidden>Nobody is out this month.</p>
     </div>
 
-    <div class="surface" id="recentBox" hidden>
-      <details>
-        <summary style="cursor:pointer;font-weight:700;font-size:15px">Decided in the last 45 days</summary>
-        <div id="recentList" style="margin-top:12px"></div>
-        <div class="status" id="recentStatus"></div>
-      </details>
+    <div class="surface" id="auditBox" hidden>
+      <h2>Request audit</h2>
+      <p class="note">Every time-off request and what became of it. Search by employee, by the dates they were out, or both.</p>
+      <form id="auditForm" class="form" autocomplete="off">
+        <div class="c4"><label>Employee<input id="aQ" type="text" maxlength="80" placeholder="Any part of the name" /></label></div>
+        <div class="c3"><label>Out on or after<input id="aFrom" type="date" /></label></div>
+        <div class="c3"><label>Out on or before<input id="aTo" type="date" /></label></div>
+        <div class="c12 audit-acts">
+          <button type="submit" id="aGo">Search</button>
+          <button type="button" class="quiet" id="aClear">Clear</button>
+          <label class="check"><input id="aArchived" type="checkbox" /> <span>Include archived requests <span class="mut" id="aArchivedNote">(last day out more than a year ago)</span></span></label>
+        </div>
+      </form>
+      <div class="status" id="auditStatus"></div>
+      <p class="mut" id="auditCount" style="margin: 14px 0 4px;"></p>
+      <div id="auditList" style="overflow: auto;"></div>
+    </div>
+
+    <div class="surface policy" id="policyBox" hidden>
+      <div style="display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap;">
+        <h2>Time off policy</h2>
+        <button type="button" class="quiet" id="policyEditBtn" hidden>Edit policy</button>
+      </div>
+      <div id="policyText"></div>
+      <form class="policy-edit" id="policyForm" hidden autocomplete="off"></form>
+      <div class="status" id="policyStatus"></div>
     </div>
   </div>
 
@@ -163,7 +199,11 @@
     const fmtDay = (d) => parse(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     const fmtRange = (a, b) => (a === b ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(b)}`);
     const fmtStamp = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "");
-    const lengthText = (r) => (r.hours != null ? `${r.hours} ${r.hours === 1 ? "hour" : "hours"}` : `${r.workDays} working ${r.workDays === 1 ? "day" : "days"}${r.scheduledHours ? ` (${r.scheduledHours} hours)` : ""}`);
+    // the audit reaches back years, so it names the year whenever it is not this one
+    const fmtDayY = (d) => (String(d).slice(0, 4) === String(today).slice(0, 4) ? fmtDay(d) : parse(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }));
+    const fmtRangeY = (a, b) => (a === b ? fmtDayY(a) : `${fmtDayY(a)} – ${fmtDayY(b)}`);
+    const fmtStampY = (d) => { if (!d) return ""; const t = new Date(d); return t.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(String(t.getFullYear()) === String(today).slice(0, 4) ? {} : { year: "numeric" }) }); };
+    const lengthText = (r) => (r.hours != null ? `${r.hours} ${r.hours === 1 ? "hour" : "hours"}${r.partDay ? `, ${r.partDay.offText}${r.partDay.work && r.partDay.expect ? ` (${r.partDay.expect})` : ""}` : ""}` : `${r.workDays} working ${r.workDays === 1 ? "day" : "days"}${r.scheduledHours ? ` (${r.scheduledHours} hours)` : ""}`);
     // the kind of time off; anything that isn't PTO says so, since it's keyed differently in Kronos
     const kindTag = (r) => `<span class="tag ${r.payClass === "other" ? "" : "blue"}">${esc(r.type)}${r.payClass === "other" ? " · not PTO" : ""}</span>`;
     const WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -179,23 +219,30 @@
         : t === "Parental leave (unpaid)" ? "Unpaid time away beyond the paid days. It isn't PTO. Talk to HR about eligibility and paperwork before you send this." : "";
       $("kindHint").hidden = !text; $("kindHint").textContent = text;
     }
+    // What is on the form, as the server wants it (the dry run and the real thing send the same).
+    function formBody() {
+      const part = $("fPartial").checked;
+      const body = { type: $("fType").value, startDate: $("fStart").value, endDate: part ? $("fStart").value : ($("fEnd").value || $("fStart").value), note: $("fNote").value };
+      if (part) { body.startTime = $("fFrom").value; body.endTime = $("fUntil").value; }
+      if (me.isHr && $("fFor").value) body.forCode = $("fFor").value;
+      return body;
+    }
+    // The line under the form: what the request comes to, and anything the
+    // policy says about it. The server works it out, so this is exactly what
+    // sending it would do, and a refusal shows before Send is pressed.
+    let previewTimer = null, previewSeq = 0;
     function preview() {
-      const el = $("preview");
       if ($("status").classList.contains("error")) setStatus("status", ""); // an old refusal doesn't linger once the dates or kind change
-      const a = $("fStart").value, b = $("fPartial").checked ? a : ($("fEnd").value || a);
-      const forOther = me.isHr && $("fFor").value && (!me.profile || $("fFor").value !== me.profile.code);
-      if (!a || b < a || forOther || !me.profile) { el.hidden = true; return; }
-      if ($("fPartial").checked) { el.hidden = false; el.textContent = `Part of ${fmtDay(a)}.`; return; }
-      const s = me.profile.schedule || {}, known = WEEK.some((d) => s[d]);
-      let days = 0, hours = 0, n = 0;
-      for (let d = a; d <= b && n < 190; d = addDays(d, 1), n++) {
-        const key = WEEK[(parse(d).getDay() + 6) % 7];
-        if (known) { const h = schedHours(s, key); if (h > 0) { days++; hours += h; } } else if (key !== "sat" && key !== "sun") days++;
-      }
-      el.hidden = false;
-      const max = me.parentalPaid ? me.parentalPaid.maxDays : 10;
-      if (me.parentalPaid && $("fType").value === me.parentalPaid.type && days > max) { el.textContent = `Those dates are ${days} working days. Paid parental leave covers up to ${max}, so send the first ${max} as paid and the rest as Parental leave (unpaid) or PTO.`; return; }
-      el.textContent = known ? `${days} working ${days === 1 ? "day" : "days"} (${Math.round(hours * 100) / 100} hours) on your regular schedule.` : `${days} ${days === 1 ? "weekday" : "weekdays"}. HR hasn't entered your regular schedule yet, so this counts Monday to Friday.`;
+      clearTimeout(previewTimer); previewTimer = setTimeout(runPreview, 180);
+    }
+    async function runPreview() {
+      const el = $("preview"), body = formBody(), part = $("fPartial").checked, seq = ++previewSeq;
+      const ready = body.startDate && body.endDate >= body.startDate && (!part || (body.startTime && body.endTime)) && (me.profile || body.forCode);
+      if (!ready) { el.hidden = true; return; }
+      let j; try { j = await post("/api/pto/preview", body); } catch (err) { if (seq === previewSeq) el.hidden = true; return; }
+      if (seq !== previewSeq) return; // something changed while we were asking
+      el.hidden = false; el.className = "c12 preview" + (j.ok ? "" : " no");
+      el.innerHTML = j.ok ? `${esc(j.summary)}${j.notes && j.notes.length ? `<ul>${j.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}` : esc(j.error);
     }
     // "Mon to Thu 8:00 AM to 5:00 PM, Fri 8:00 AM to 12:00 PM"
     function scheduleText(s) {
@@ -211,7 +258,9 @@
     }
     function syncPartial() {
       const part = $("fPartial").checked;
-      $("hoursBox").hidden = !part; $("fEnd").disabled = part; if (part) $("fEnd").value = $("fStart").value;
+      // part of one day has one date: the last-day box goes away rather than sitting there greyed out
+      $("fromBox").hidden = !part; $("untilBox").hidden = !part; $("endBox").hidden = part; $("startLabel").textContent = part ? "Day out" : "First day out";
+      $("fEnd").disabled = part; if (part) $("fEnd").value = $("fStart").value; else { $("fFrom").value = ""; $("fUntil").value = ""; $("fUntil").dataset.auto = ""; }
       preview();
     }
     function renderAsk() {
@@ -231,30 +280,55 @@
       } else if (me.profile) {
         $("askNote").innerHTML = `Your request goes to <b>${esc(me.profile.approverName || "HR")}</b> to approve. You'll get a notice on your dashboard when it's decided. Coworkers only ever see your name and the dates on the calendar below.`;
         const st = scheduleText(me.profile.schedule);
-        if (st) { $("mySched").hidden = false; $("mySched").textContent = `Your regular schedule: ${st}${me.profile.weeklyHours ? ` (${me.profile.weeklyHours} hours a week)` : ""}.${me.profile.scheduleNote ? " " + me.profile.scheduleNote + "." : ""} If that's wrong, tell HR.`; }
+        renderMyPto();
+        if (st) { $("mySched").hidden = false; $("mySched").textContent = `Your regular schedule: ${st}${me.profile.weeklyHours ? ` (${me.profile.weeklyHours} hours a week)` : ""}.${me.profile.scheduleNote ? " " + me.profile.scheduleNote + "." : ""} If that's wrong, ask ${me.profile.supervisorName || "your supervisor"}.`; }
       } else {
         $("askNote").textContent = "Your own sign-in isn't linked to an employee profile, but you can enter time off for someone else. It goes to their manager to approve.";
         $("mineBox").hidden = true;
       }
     }
+    const hoursText = (n) => `${n} ${n === 1 ? "hour" : "hours"}`;
+    const niceDate = (d) => parse(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    // "PTO for 2027: 160 hours. 16 used, 8 waiting on a decision, 136 left."
+    function ptoLine(b) {
+      if (!b) return "";
+      if (b.hours == null) return b.why;
+      if (b.basis === "none") return b.why;
+      const head = `PTO for ${b.year}: ${hoursText(b.hours)}${b.prorated ? " (first year, counted from your hire date)" : ""}.`;
+      const wait = b.availableFrom && b.availableFrom > today ? ` Available from ${niceDate(b.availableFrom)}.` : "";
+      if (b.partial) return `${head} Agility has counted ${hoursText(Math.round((b.used + b.pending) * 100) / 100)} taken or waiting since ${niceDate(b.trackingSince)}; anything earlier is in Kronos.${wait}`;
+      return `${head} ${hoursText(b.used)} used${b.pending ? `, ${hoursText(b.pending)} waiting on a decision` : ""}, ${hoursText(b.left)} left.${wait}`;
+    }
+    function renderMyPto() {
+      const text = me.profile ? ptoLine(me.profile.balance) : "";
+      $("myPto").hidden = !text; $("myPto").textContent = text;
+    }
     $("form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const part = $("fPartial").checked;
-      const body = { type: $("fType").value, startDate: $("fStart").value, endDate: part ? $("fStart").value : $("fEnd").value, note: $("fNote").value };
-      if (part) body.hours = $("fHours").value;
-      if (me.isHr && $("fFor").value) body.forCode = $("fFor").value;
-      if (part && !body.hours) return setStatus("status", "Enter how many hours you'll be out.", "error");
+      const body = formBody();
+      if (part && (!body.startTime || !body.endTime)) return setStatus("status", "Say which hours you'll be off: from what time, until what time.", "error");
       $("saveBtn").disabled = true;
       try {
         const j = await post("/api/pto/requests", body);
         setStatus("status", `Sent to ${j.routedTo} for approval.`);
-        $("fStart").value = ""; $("fEnd").value = ""; $("fNote").value = ""; $("fHours").value = ""; $("fPartial").checked = false; syncPartial();
+        $("fStart").value = ""; $("fEnd").value = ""; $("fNote").value = ""; $("fPartial").checked = false; syncPartial();
         await load(true);
       } catch (err) { setStatus("status", err.message, "error"); }
       $("saveBtn").disabled = false;
     });
     $("fStart").addEventListener("change", () => { if (!$("fEnd").value || $("fEnd").value < $("fStart").value || $("fPartial").checked) $("fEnd").value = $("fStart").value; $("fEnd").min = $("fStart").value; preview(); });
     $("fEnd").addEventListener("change", preview); $("fPartial").addEventListener("change", syncPartial); $("fFor").addEventListener("change", preview);
+    // PTO is taken in blocks (4 hours), so picking when it starts fills in when it ends; any other kind is typed freely
+    $("fFrom").addEventListener("change", () => {
+      const from = $("fFrom").value, block = me.policy ? me.policy.incrementHours : 0, until = $("fUntil");
+      if (from && block && (me.ptoTypes || []).includes($("fType").value) && (!until.value || until.dataset.auto === "1")) {
+        const end = Number(from.slice(0, 2)) * 60 + Number(from.slice(3, 5)) + block * 60;
+        if (end < 24 * 60) { until.value = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`; until.dataset.auto = "1"; }
+      }
+      preview();
+    });
+    $("fUntil").addEventListener("change", () => { $("fUntil").dataset.auto = ""; preview(); });
     $("fType").addEventListener("change", () => { kindHint(); preview(); });
 
     // ---------- my requests ----------
@@ -279,7 +353,7 @@
     $("mineList").addEventListener("click", (ev) => { const b = ev.target.closest("[data-cancel]"); if (b) cancelRequest(b.closest("tr").dataset.id, b, "mineStatus"); });
 
     // ---------- deciding ----------
-    let approvals = { pending: [], recent: [], kronos: [], isHr: false }, overlap = [];
+    let approvals = { pending: [], kronos: [], isHr: false }, overlap = [];
     const alsoOut = (r) => [...new Set(overlap.filter((o) => o.employeeCode !== r.employeeCode && o.startDate <= r.endDate && o.endDate >= r.startDate).map((o) => o.employeeName))];
     function renderDecide() {
       const list = approvals.pending;
@@ -293,6 +367,9 @@
             ${r.note ? `<p>“${esc(r.note)}”</p>` : ""}
             <p class="mut">Asked ${esc(fmtStamp(r.createdAt))}${r.requestedByEmail && r.requestedByEmail !== r.employeeEmail ? ` (entered by ${esc(r.requestedBy)})` : ""} · ${r.approverName ? "goes to " + esc(r.approverName) : "no manager on file, so it goes to HR"}</p>
             ${r.parentalPaid ? `<p class="mut"${r.parentalPaid.used + r.workDays > r.parentalPaid.max ? ` style="color:#991b1b;font-weight:600"` : ""}>Paid parental leave: ${r.parentalPaid.used ? `${r.parentalPaid.used} of ${r.parentalPaid.max} days already approved in the last 12 months` : `none in the last 12 months`}${r.parentalPaid.used + r.workDays > r.parentalPaid.max ? `. This request would make it ${r.parentalPaid.used + r.workDays}.` : "."}</p>` : ""}
+            ${r.partDay && r.partDay.workText ? `<p class="mut">That day: working ${esc(r.partDay.workText)} instead of ${esc(r.partDay.regularText)}.</p>` : ""}
+            ${r.balance && r.balance.hours != null && r.balance.basis !== "none" && !r.balance.partial ? `<p class="mut">PTO for ${r.balance.year}: ${esc(hoursText(r.balance.hours))}, ${esc(hoursText(r.balance.used))} used${r.balance.pending ? `, ${esc(hoursText(r.balance.pending))} more waiting` : ""}. This takes ${esc(hoursText(r.ptoHours))}.</p>` : ""}
+            ${(r.notes || []).map((n) => `<p class="heads-up">${esc(n)}</p>`).join("")}
             <p class="mut">${others.length ? "Also out then: " + esc(others.join(", ")) : "Nobody else is approved out on those days."}</p></div>
           <div class="acts">${r.canDecide ? `<button type="button" data-approve>Approve</button><button type="button" class="quiet" data-decline>Decline</button>` : `<span class="mut">Your own request. Someone else decides it.</span>`}</div>
           <div class="decline"><label>Why is it declined? ${esc(r.employeeName.split(" ")[0])} will see this.<input type="text" maxlength="600" data-why /></label>
@@ -314,12 +391,14 @@
     // ---------- Kronos ----------
     function renderKronos() {
       const list = approvals.kronos || [];
-      $("kronosBox").hidden = !approvals.isHr || !list.length;
+      // HR always sees this box, with or without anything in it, so it is where they expect it to be
+      $("kronosBox").hidden = !approvals.isHr;
       $("kronosList").innerHTML = list.map((r) => `<div class="req" data-id="${esc(r.id)}"><div>
           <h4>${esc(r.employeeName)} ${r.kronosTask === "remove" ? `<span class="tag red">Cancelled, take it out</span>` : kindTag(r)}</h4>
           <p><b>${esc(fmtRange(r.startDate, r.endDate))}</b> · ${esc(lengthText(r))}</p>
           <p class="mut">${r.kronosTask === "remove" ? `${esc(r.type)} · cancelled ${esc(fmtStamp(r.cancelledAt))}${r.cancelledBy ? " by " + esc(r.cancelledBy) : ""}` : `approved by ${esc(r.decidedBy)} ${esc(fmtStamp(r.decidedAt))}${r.scheduledHours == null && r.hours == null ? " · no regular schedule on file, so check the hours" : ""}`}</p></div>
-        <div class="acts"><button type="button" data-kronos="${r.kronosTask === "remove" ? "removed" : "entered"}">${r.kronosTask === "remove" ? "Removed from Kronos" : "Entered in Kronos"}</button></div></div>`).join("");
+        <div class="acts"><button type="button" data-kronos="${r.kronosTask === "remove" ? "removed" : "entered"}">${r.kronosTask === "remove" ? "Removed from Kronos" : "Entered in Kronos"}</button></div></div>`).join("")
+        || `<p class="empty" id="kronosEmpty">Nothing waiting. Every approved request has been ticked off as entered, and nothing cancelled is waiting to come out.</p>`;
     }
     $("kronosList").addEventListener("click", async (ev) => {
       const b = ev.target.closest("[data-kronos]"); if (!b) return;
@@ -328,24 +407,61 @@
       catch (err) { setStatus("kronosStatus", err.message, "error"); b.disabled = false; }
     });
 
-    function renderRecent() {
-      const list = approvals.recent || [];
-      $("recentBox").hidden = !list.length;
-      $("recentList").innerHTML = `<table><thead><tr><th>Person</th><th>Dates</th><th class="hide-sm">Kind</th><th>Outcome</th><th></th></tr></thead><tbody>${list.map((r) => {
+    // ---------- request audit ----------
+    // Every request and what became of it, searchable by person and by the
+    // dates out. HR and executives search everyone's; a manager sees the
+    // requests that were routed to them; nobody else has the box. Requests
+    // whose last day out is more than a year past sit in an archive and are
+    // only searched when the box is ticked.
+    let audit = { isHr: false, show: false, searching: false, requests: [], truncated: false, archiveAfterDays: 365 };
+    async function loadAudit() {
+      const p = new URLSearchParams();
+      if ($("aQ").value.trim()) p.set("q", $("aQ").value.trim());
+      if ($("aFrom").value) p.set("from", $("aFrom").value);
+      if ($("aTo").value) p.set("to", $("aTo").value);
+      if ($("aArchived").checked) p.set("archived", "1");
+      audit = await api("/api/pto/audit" + (p.toString() ? "?" + p : ""));
+      renderAudit();
+    }
+    function renderAudit() {
+      const list = audit.requests || [];
+      $("auditBox").hidden = !audit.show;
+      if (!audit.show) return;
+      const n = list.length, some = `${n} request${n === 1 ? "" : "s"}`;
+      $("auditCount").textContent = audit.searching
+        ? (n ? `${some} found${audit.truncated ? ", and there are more. Narrow the name or the dates to see the rest" : ""}.` : "")
+        : (n ? (audit.truncated ? `The ${n} latest by date out. Search by employee or dates to see the rest.` : `All ${some} on file.`) + ` Requests are archived once their last day out is more than a year ago.` : "");
+      if (!n) { $("auditList").innerHTML = `<p class="empty">${audit.searching ? `No requests match.${$("aArchived").checked ? "" : " Tick the box to look through archived requests too."}` : "No requests on file yet."}</p>`; return; }
+      $("auditList").innerHTML = `<table><thead><tr><th>Person</th><th>Dates out</th><th class="hide-sm">Kind</th><th class="hide-sm">Asked</th><th>Outcome</th><th></th></tr></thead><tbody>${list.map((r) => {
         const [cls, label] = STATUS[r.status] || ["", r.status];
-        const kronos = r.status === "approved" ? (r.kronosEnteredAt ? `In Kronos ${esc(fmtStamp(r.kronosEnteredAt))}` : "Not in Kronos yet") : "";
+        const who = r.status === "pending" ? `with ${r.approverName || "HR"}` : r.status === "cancelled" ? [r.cancelledBy ? "by " + r.cancelledBy : "", fmtStampY(r.cancelledAt)].filter(Boolean).join(" · ") : [r.decidedBy ? "by " + r.decidedBy : "", fmtStampY(r.decidedAt)].filter(Boolean).join(" · ");
+        const more = r.status === "approved" ? (r.kronosEnteredAt ? `In Kronos ${fmtStampY(r.kronosEnteredAt)}${r.kronosEnteredBy ? " by " + r.kronosEnteredBy : ""}` : "Not in Kronos yet")
+          : r.status === "denied" ? r.decisionNote
+          : r.status === "cancelled" ? [r.cancelReason, r.kronosEnteredAt ? (r.kronosRemovedAt ? `Taken out of Kronos ${fmtStampY(r.kronosRemovedAt)}` : "Still to come out of Kronos") : ""].filter(Boolean).join(" · ") : "";
         const acts = [];
-        if (approvals.isHr && r.status === "approved" && r.kronosEnteredAt) acts.push(`<button type="button" class="link" data-kronos="not_entered">Not entered after all</button>`);
-        if (approvals.isHr && r.status === "approved") acts.push(`<button type="button" class="link" data-cancel>Cancel</button>`);
-        return `<tr data-id="${esc(r.id)}"><td><b>${esc(r.employeeName)}</b></td><td>${esc(fmtRange(r.startDate, r.endDate))}</td><td class="hide-sm">${esc(r.type)}</td>
-          <td><span class="tag ${cls}">${label}</span> <span class="mut">${r.status === "cancelled" ? esc(r.cancelledBy ? "by " + r.cancelledBy : "") : esc(r.decidedBy ? "by " + r.decidedBy : "")}</span><div class="mut">${kronos}</div></td>
-          <td style="text-align:right;white-space:nowrap">${acts.join(" &nbsp; ")}</td></tr>`;
+        if (audit.isHr && !r.archived && r.status === "approved" && r.kronosEnteredAt) acts.push(`<button type="button" class="link" data-kronos="not_entered">Not entered after all</button>`);
+        if (audit.isHr && !r.archived && r.status === "approved") acts.push(`<button type="button" class="link" data-cancel>Cancel</button>`);
+        return `<tr data-id="${esc(r.id)}" class="${r.archived ? "arch" : ""}"><td><b>${esc(r.employeeName)}</b></td>
+          <td>${esc(fmtRangeY(r.startDate, r.endDate))}<div class="mut">${esc(lengthText(r))}</div></td><td class="hide-sm">${esc(r.type)}</td>
+          <td class="hide-sm">${esc(fmtStampY(r.createdAt))}${r.requestedBy && r.requestedBy !== r.employeeName ? `<div class="mut">entered by ${esc(r.requestedBy)}</div>` : ""}</td>
+          <td><span class="tag ${cls}">${label}</span>${r.archived ? ` <span class="tag">Archived</span>` : ""} <span class="mut">${esc(who)}</span>${more ? `<div class="mut">${esc(more)}</div>` : ""}</td>
+          <td class="acts">${acts.join(" &nbsp; ")}</td></tr>`;
       }).join("")}</tbody></table>`;
     }
-    $("recentList").addEventListener("click", async (ev) => {
+    $("auditForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if ($("aFrom").value && $("aTo").value && $("aTo").value < $("aFrom").value) return setStatus("auditStatus", "The second date is before the first.", "error");
+      $("aGo").disabled = true;
+      try { await loadAudit(); setStatus("auditStatus", ""); } catch (err) { setStatus("auditStatus", err.message, "error"); } finally { $("aGo").disabled = false; }
+    });
+    $("aClear").addEventListener("click", async () => {
+      $("aQ").value = ""; $("aFrom").value = ""; $("aTo").value = ""; $("aArchived").checked = false;
+      try { await loadAudit(); setStatus("auditStatus", ""); } catch (err) { setStatus("auditStatus", err.message, "error"); }
+    });
+    $("auditList").addEventListener("click", async (ev) => {
       const t = ev.target, tr = t.closest("tr[data-id]"); if (!tr) return;
-      if (t.hasAttribute("data-cancel")) return cancelRequest(tr.dataset.id, t, "recentStatus");
-      if (t.dataset.kronos) { t.disabled = true; try { await post(`/api/pto/requests/${tr.dataset.id}/kronos`, { action: t.dataset.kronos }); await load(true); } catch (err) { setStatus("recentStatus", err.message, "error"); t.disabled = false; } }
+      if (t.hasAttribute("data-cancel")) return cancelRequest(tr.dataset.id, t, "auditStatus");
+      if (t.dataset.kronos) { t.disabled = true; try { await post(`/api/pto/requests/${tr.dataset.id}/kronos`, { action: t.dataset.kronos }); await load(true); } catch (err) { setStatus("auditStatus", err.message, "error"); t.disabled = false; } }
     });
 
     // ---------- who's out ----------
@@ -353,6 +469,7 @@
     // carry each person's department; nothing else about them).
     let calView = "month", weekStart = null, calRows = [], calFrom = null, calTo = null;
     const mondayOf = (d) => { const m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
+    let calHolidays = {}; // paid holidays in view: date -> name
     async function loadCalendar() {
       if (calView === "week") {
         calFrom = new Date(weekStart); calTo = new Date(weekStart); calTo.setDate(calTo.getDate() + 6);
@@ -367,7 +484,7 @@
       $("calPrev").setAttribute("aria-label", "Previous " + unit); $("calNext").setAttribute("aria-label", "Next " + unit); $("calToday").textContent = "This " + unit;
       try {
         const j = await api(`/api/pto/calendar?from=${isoOf(calFrom)}&to=${isoOf(calTo)}`);
-        calRows = j.out;
+        calRows = j.out; calHolidays = Object.fromEntries((j.holidays || []).map((h) => [h.date, h.label]));
         const keep = $("calDept").value, depts = [...new Set([...(j.departments || []), ...calRows.map((r) => r.department).filter(Boolean)])];
         $("calDept").innerHTML = `<option value="">All departments</option>` + depts.map((d) => `<option${d === keep ? " selected" : ""}>${esc(d)}</option>`).join("");
       } catch (err) { $("cal").innerHTML = `<p class="empty">${esc(err.message)}</p>`; return; }
@@ -383,7 +500,7 @@
         const who = rows.filter((r) => r.startDate <= iso && r.endDate >= iso);
         if (who.length && inRange) any = true;
         const dow = (d.getDay() + 6) % 7;
-        html += `<div class="day${inRange ? "" : " other"}${dow > 4 ? " weekend" : ""}${iso === today ? " today" : ""}${who.length ? "" : " none"}"><div class="n"><span class="wd">${d.toLocaleDateString("en-US", { weekday: "short" })} </span>${week ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : d.getDate()}</div>${who.map((r) => `<span class="who${r.employeeCode === myCode ? " me" : ""}${r.partialDay ? " part" : ""}" title="${esc(r.employeeName)}${r.department ? ", " + esc(r.department) : ""}${r.partialDay ? " (part of the day)" : ""}">${esc(r.employeeName)}${r.partialDay ? " (part day)" : ""}</span>`).join("")}</div>`;
+        html += `<div class="day${inRange ? "" : " other"}${dow > 4 ? " weekend" : ""}${iso === today ? " today" : ""}${who.length ? "" : " none"}"><div class="n"><span class="wd">${d.toLocaleDateString("en-US", { weekday: "short" })} </span>${week ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : d.getDate()}</div>${who.map((r) => `<span class="who${r.employeeCode === myCode ? " me" : ""}${r.partialDay ? " part" : ""}" title="${esc(r.employeeName)}${r.department ? ", " + esc(r.department) : ""}${r.partialDay ? (r.expect ? ", " + esc(r.expect) : " (part of the day)") : ""}">${esc(r.employeeName)}${r.partialDay ? (r.expect ? " · " + esc(r.expect) : " (part day)") : ""}</span>`).join("")}${calHolidays[iso] ? `<span class="closed">Closed · ${esc(calHolidays[iso])}</span>` : ""}</div>`;
       }
       $("cal").className = "cal" + (week ? " week" : ""); $("cal").innerHTML = html;
       $("calEmpty").hidden = any; $("calEmpty").textContent = `Nobody${dept ? " in " + dept : ""} is out this ${week ? "week" : "month"}.`;
@@ -407,6 +524,82 @@
       loadCalendar();
     }));
 
+    // ---------- the policy ----------
+    // The company's Time Off policy as the numbers Agility applies. Everyone
+    // reads it here; executives change it. It is what the checks on the form
+    // above run on, so a change takes effect on the next request.
+    const tierLabel = (tiers, i) => { const t = tiers[i], next = tiers[i + 1]; return !next ? (t.fromYears === 0 ? "Everyone" : `${t.fromYears} ${t.fromYears === 1 ? "year" : "years"} or more`) : t.fromYears === 0 ? `Under ${next.fromYears} ${next.fromYears === 1 ? "year" : "years"}` : `${t.fromYears} ${t.fromYears === 1 ? "year" : "years"}, under ${next.fromYears}`; };
+    function renderPolicy() {
+      const p = me.policy; if (!p) { $("policyBox").hidden = true; return; }
+      $("policyBox").hidden = false; $("policyEditBtn").hidden = !me.canEditPolicy || !$("policyForm").hidden;
+      const holidays = (me.holidayChoices || []).filter((h) => p.holidays.includes(h.key)).map((h) => h.label);
+      const list = (a) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+      const parentalDays = Math.floor(p.parentalPaidHours / p.fullDayHours + 1e-9);
+      $("policyText").innerHTML = `
+        <h3>Paid time off (PTO)</h3>
+        <p>A full workday is ${esc(hoursText(p.fullDayHours))}. PTO is taken in ${p.incrementHours}-hour blocks, for sick time or planned time off.</p>
+        <table><thead><tr><th>Years of service</th><th>Full time</th><th>Part time</th></tr></thead><tbody>
+          ${p.tiers.map((t, i) => `<tr><td>${esc(tierLabel(p.tiers, i))}</td><td>${esc(hoursText(t.fullTime))}</td><td>${esc(hoursText(t.partTime))}</td></tr>`).join("")}
+        </tbody></table>
+        <p>PTO is reset and deposited each January 1, on the years of service reached in the calendar year before. In the year you are hired it builds from your hire date to December 31${p.newHireWaitDays ? ` and can be used after ${p.newHireWaitDays} days` : ""}.${p.partTimeMinWeeklyHours ? ` Part-time staff need to average ${p.partTimeMinWeeklyHours} hours a week to receive it.` : ""}</p>
+        <h3>Paid holidays</h3>
+        <p>${holidays.length ? `The store is closed on ${esc(list(holidays))}. Those days are not counted against time off.` : "None are set."}</p>
+        <h3>Parental leave</h3>
+        <p>${esc(hoursText(p.parentalPaidHours))} of extra paid time (${parentalDays} working ${parentalDays === 1 ? "day" : "days"}), used within ${p.parentalWindowWeeks} ${p.parentalWindowWeeks === 1 ? "week" : "weeks"}, for a birth or an adoption. ${p.parentalNoticeDays ? `Apply ${p.parentalNoticeDays} days ahead; the General Manager approves it.` : "The General Manager approves it."}</p>
+        <h3>Jury duty</h3>
+        <p>Hourly staff are paid ${esc(hoursText(p.juryPaidHoursPerDay))} a day at base pay for up to ${p.juryMaxDays} ${p.juryMaxDays === 1 ? "day" : "days"}. Court paperwork goes to HR.</p>
+        <h3>Unpaid leave of absence</h3>
+        <p>Up to ${p.unpaidLeaveMaxDays} ${p.unpaidLeaveMaxDays === 1 ? "day" : "days"} in one request, once paid time is used up. Beyond that, talk with the owners, the general manager and Employer Flexible's HR team.</p>
+        ${p.notes ? `<h3>Also</h3>${p.notes.split("\n").filter((x) => x.trim()).map((x) => `<p>${esc(x)}</p>`).join("")}` : ""}
+        ${p.updatedAt ? `<p class="mut" style="margin-top:10px;">Last changed ${esc(niceDate(p.updatedAt.slice(0, 10)))}${p.updatedBy ? " by " + esc(p.updatedBy) : ""}.</p>` : `<p class="mut" style="margin-top:10px;">As written in the company Time Off policy. Nobody has changed it here.</p>`}`;
+    }
+    // The editing form, for executives. Nothing is saved until Save policy.
+    const tierRow = (t) => `<div class="tier"><label>From years of service<input type="number" min="0" max="60" step="1" data-tier="fromYears" value="${esc(t.fromYears)}" /></label><label>Full time, hours a year<input type="number" min="0" max="2000" step="1" data-tier="fullTime" value="${esc(t.fullTime)}" /></label><label>Part time, hours a year<input type="number" min="0" max="2000" step="1" data-tier="partTime" value="${esc(t.partTime)}" /></label><button type="button" class="link" data-tier-remove style="color:#b91c1c; padding-bottom: 10px;">remove</button></div>`;
+    function openPolicyForm() {
+      const p = me.policy, n = (id, label, value, step, hint) => `<label>${label}<input type="number" id="${id}" value="${esc(value)}" min="0" step="${step}" />${hint ? `<span class="mut" style="font-weight:400;">${hint}</span>` : ""}</label>`;
+      $("policyForm").innerHTML = `
+        <fieldset><legend>Paid time off</legend>
+          <div class="nums">${n("pFullDay", "Hours in a full workday", p.fullDayHours, "0.25")}${n("pBlock", "PTO is taken in blocks of (hours)", p.incrementHours, "0.25")}${n("pWait", "New hires can use PTO after (days)", p.newHireWaitDays, "1")}${n("pPartMin", "Part time needs a weekly average of (hours)", p.partTimeMinWeeklyHours, "0.5")}</div>
+          <p class="mut" style="margin: 12px 0 6px;">PTO hours a year, by the years of service reached in the calendar year before. The first row starts at 0.</p>
+          <div id="pTiers">${p.tiers.map(tierRow).join("")}</div>
+          <button type="button" class="quiet" id="pTierAdd" style="padding: 6px 12px; font-size: 12.5px;">Add a row</button>
+        </fieldset>
+        <fieldset><legend>Paid holidays</legend><div class="hols">${(me.holidayChoices || []).map((h) => `<label class="check"><input type="checkbox" data-holiday="${esc(h.key)}"${p.holidays.includes(h.key) ? " checked" : ""} /> ${esc(h.label)}</label>`).join("")}</div></fieldset>
+        <fieldset><legend>Parental leave</legend><div class="nums">${n("pParHours", "Extra paid hours", p.parentalPaidHours, "1")}${n("pParWeeks", "Used within (weeks)", p.parentalWindowWeeks, "1")}${n("pParNotice", "Applied for ahead by (days)", p.parentalNoticeDays, "1")}</div></fieldset>
+        <fieldset><legend>Jury duty and unpaid leave</legend><div class="nums">${n("pJuryDays", "Jury duty covered for up to (days)", p.juryMaxDays, "1")}${n("pJuryHours", "Jury duty paid hours a day", p.juryPaidHoursPerDay, "0.25")}${n("pUnpaid", "Unpaid leave, days in one request", p.unpaidLeaveMaxDays, "1")}</div></fieldset>
+        <fieldset><legend>The rest of the policy, in words</legend><label>Shown under "Also", one paragraph a line<textarea id="pNotes" maxlength="4000">${esc(p.notes)}</textarea></label></fieldset>
+        <p class="mut" style="margin: 0 0 10px;">A change applies to requests made from now on. What an existing request already counted for stays as it was.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;"><button type="submit" id="policySave">Save policy</button><button type="button" class="quiet" id="policyCancel">Cancel</button></div>`;
+      $("policyForm").hidden = false; $("policyEditBtn").hidden = true; setStatus("policyStatus", "");
+    }
+    function closePolicyForm() { $("policyForm").hidden = true; $("policyForm").innerHTML = ""; $("policyEditBtn").hidden = !me.canEditPolicy; }
+    $("policyEditBtn").addEventListener("click", openPolicyForm);
+    $("policyForm").addEventListener("click", (ev) => {
+      const t = ev.target;
+      if (t.id === "policyCancel") { closePolicyForm(); setStatus("policyStatus", ""); }
+      else if (t.id === "pTierAdd") { const rows = [...$("pTiers").querySelectorAll(".tier")], last = rows[rows.length - 1]; const from = last ? Number(last.querySelector('[data-tier="fromYears"]').value) + 5 : 0; $("pTiers").insertAdjacentHTML("beforeend", tierRow({ fromYears: from, fullTime: last ? last.querySelector('[data-tier="fullTime"]').value : 0, partTime: last ? last.querySelector('[data-tier="partTime"]').value : 0 })); }
+      else if (t.hasAttribute("data-tier-remove")) { if ($("pTiers").querySelectorAll(".tier").length > 1) t.closest(".tier").remove(); else setStatus("policyStatus", "The policy needs at least one PTO row.", "error"); }
+    });
+    $("policyForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const v = (id) => $(id).value.trim();
+      const body = {
+        fullDayHours: v("pFullDay"), incrementHours: v("pBlock"), newHireWaitDays: v("pWait"), partTimeMinWeeklyHours: v("pPartMin"),
+        tiers: [...$("pTiers").querySelectorAll(".tier")].map((row) => ({ fromYears: row.querySelector('[data-tier="fromYears"]').value, fullTime: row.querySelector('[data-tier="fullTime"]').value, partTime: row.querySelector('[data-tier="partTime"]').value })),
+        holidays: [...$("policyForm").querySelectorAll("[data-holiday]")].filter((c) => c.checked).map((c) => c.dataset.holiday),
+        parentalPaidHours: v("pParHours"), parentalWindowWeeks: v("pParWeeks"), parentalNoticeDays: v("pParNotice"),
+        juryMaxDays: v("pJuryDays"), juryPaidHoursPerDay: v("pJuryHours"), unpaidLeaveMaxDays: v("pUnpaid"), notes: $("pNotes").value
+      };
+      if (Object.entries(body).some(([k, x]) => typeof x === "string" && k !== "notes" && x === "")) return setStatus("policyStatus", "Fill in every number. Use 0 where a rule doesn't apply.", "error");
+      $("policySave").disabled = true;
+      try {
+        const j = await api("/api/pto/policy", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        closePolicyForm();
+        setStatus("policyStatus", j.changed.length ? "Policy saved. It applies to requests made from now on." : "Nothing was changed.");
+        await load(true);
+      } catch (err) { setStatus("policyStatus", err.message, "error"); $("policySave").disabled = false; }
+    });
+
     async function load(again) {
       try {
         const [mine, appr] = await Promise.all([api("/api/pto/mine"), api("/api/pto/approvals")]);
@@ -420,7 +613,9 @@
           overlap = (await api(`/api/pto/calendar?from=${a}&to=${to}`).catch(() => ({ out: [] }))).out;
         }
         if (!again) { renderAsk(); $("fStart").min = addDays(today, -60); syncPartial(); }
-        renderMine(); renderDecide(); renderKronos(); renderRecent();
+        renderMine(); renderDecide(); renderKronos(); renderMyPto(); renderPolicy(); preview();
+        // the audit keeps whatever is typed in its search boxes; a hiccup there doesn't take the rest of the page down
+        await loadAudit().catch((err) => { $("auditBox").hidden = false; setStatus("auditStatus", err.message, "error"); });
         await loadCalendar();
       } catch (err) { setStatus("status", err.message, "error"); }
     }

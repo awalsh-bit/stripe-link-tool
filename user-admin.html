@@ -225,6 +225,7 @@
     .jt-group-label:first-child { margin-top: 2px; }
     .jt-chip.route { background: var(--success-bg); color: var(--success-text); }
     .jt-chip.plan { background: #fef3c7; color: #92400e; }
+    .jt-chip.hr { background: #ede9fe; color: #5b21b6; }
     .jt-chip.count { background: #f3f4f6; color: var(--muted); font-weight: 600; }
     .jt-chip.pages { background: var(--primary-tint); color: var(--primary); }
     .jt-chip.jobcode { background: #1f2937; color: #f9fafb; letter-spacing: 0.05em; }
@@ -1415,6 +1416,7 @@
               ? el("span", { class: "jt-chip jobcode", text: title.code })
               : el("span", { class: "jt-chip nocode", text: "no code yet" }),
             el("span", { text: title.name }),
+            title.isHr ? el("span", { class: "jt-chip hr", text: "HR" }) : null,
             title.notifyWebOrders ? el("span", { class: "jt-chip route", text: "web-order alerts" }) : null,
             title.commissionPlan ? el("span", { class: "jt-chip plan", text: `${title.commissionPlan} plan` }) : null,
             el("span", { class: "jt-chip count", text: `${titleHolderCount(title.name)} on team` })
@@ -1501,6 +1503,13 @@
           <span>
             <span class="t">Receives web-order alerts</span>
             <span class="d" style="display:block;">Everyone with this title gets the green dashboard flag and a claim email from the online shop — when an order lands, and again if a claim is released.</span>
+          </span>
+        </label>
+        <label class="jt-toggle" style="margin-top: 10px;">
+          <input type="checkbox" id="jtHr" ${title?.isHr ? "checked" : ""}>
+          <span>
+            <span class="t">HR</span>
+            <span class="d" style="display:block;">Everyone with this title works the Enter in Kronos list on Time Off, can decide or enter anyone's time off, and can change anyone's work schedule, not only their direct reports'. It doesn't open Employee Profiles or Counseling Records; grant those pages separately.</span>
           </span>
         </label>
         ${title ? `<p class="small-text muted" style="margin: 12px 0 0;">Renaming migrates the ${titleHolderCount(title.name)} teammate(s) holding this title in the same step — routing and commission plans follow the new name.</p>` : ""}`;
@@ -1612,6 +1621,7 @@
             name: document.getElementById("jtName").value.trim(),
             code: document.getElementById("jtCode").value.trim().toUpperCase(),
             notifyWebOrders: document.getElementById("jtNotify").checked,
+            isHr: document.getElementById("jtHr").checked,
             commissionPlan: document.getElementById("jtPlan").value
           };
           const result = jt.item

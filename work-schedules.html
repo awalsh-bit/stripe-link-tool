@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Work Schedules</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface[hidden] { display: none; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 860px; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
+    button:disabled { opacity: .6; cursor: default; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input[type="text"], input[type="search"], input[type="time"] { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    input:disabled { background: #f8fafc; color: var(--muted); }
+    .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag.amber { background: #fef3c7; color: #92400e; } .tag.green { background: #dcfce7; color: #166534; }
+    .empty { color: var(--muted); font-size: 14px; margin: 0; }
+
+    .mine { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 12px 0 8px; }
+    .mine div { border: 1px solid #eef2f7; border-radius: 10px; padding: 8px 10px; font-size: 13px; background: #fff; }
+    .mine div b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
+    .mine div.off { background: #f8fafc; color: var(--muted); }
+    .mine[hidden], .tools[hidden] { display: none; }
+
+    .row { border-top: 1px solid #f1f5f9; padding: 12px 0; }
+    .row:first-child { border-top: none; }
+    .row .line { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; }
+    .row .who b { display: block; font-size: 14.5px; } .row .who span { font-size: 12.5px; color: var(--muted); }
+    .row .what { font-size: 13.5px; }
+    .editor { margin-top: 12px; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; background: #fbfcfd; }
+    table.sched { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .sched th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .sched td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .sched input[type="time"] { margin-top: 0; max-width: 150px; } .sched td.day { font-weight: 700; width: 120px; } .sched td.hrs { color: var(--muted); width: 90px; }
+    label.tick { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; color: var(--text); font-size: 13.5px; font-weight: 600; } label.tick input { accent-color: var(--primary); width: 17px; height: 17px; } label.tick .mut { font-weight: 400; }
+    .editor .acts { display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+    .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; } .tools input { max-width: 340px; margin-top: 0; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; }
+      .mine { grid-template-columns: repeat(2, 1fr); }
+      .row .line { grid-template-columns: 1fr; }
+      /* the week grid on a narrow screen: day and Off on one line, the two times under them */
+      .sched thead { display: none; }
+      .sched tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+      .sched tbody td { padding: 0; border: none; min-width: 0; }
+      .sched tbody td.day { width: auto; align-self: center; } .sched tbody td:nth-child(2) { justify-self: end; align-self: center; }
+      .sched tbody td.hrs { display: none; }
+      .sched input[type="time"] { max-width: none; width: 100%; padding: 8px 10px; }
+      .sched tfoot tr { display: flex; justify-content: space-between; gap: 10px; } .sched tfoot td { border: none; padding: 10px 0 0; }
+      .editor { padding: 12px 10px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Work Schedules" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface" id="mineBox" hidden>
+      <h2>Your schedule</h2>
+      <p class="note" id="mineNote"></p>
+      <div class="mine" id="mineWeek"></div>
+      <p class="mut" id="mineFoot"></p>
+    </div>
+
+    <div class="surface" id="teamBox" hidden>
+      <h2 id="teamTitle">Your team</h2>
+      <p class="note" id="teamNote"></p>
+      <div class="tools" id="teamTools" hidden><input id="teamSearch" type="search" placeholder="Search name, title, department" autocomplete="off" aria-label="Search people" /></div>
+      <div id="teamList"></div>
+    </div>
+
+    <div class="surface" id="jobsBox" hidden>
+      <h2>Standard week for each job</h2>
+      <p class="note">Set the usual hours for a job code once. Everyone holding that job follows it until their supervisor or an executive gives them a schedule of their own. Changing it here changes it for everyone who follows it, and leaves the custom ones alone.</p>
+      <div id="jobList"></div>
+    </div>
+
+    <div class="surface" id="noneBox" hidden>
+      <p class="empty">Your sign-in isn't linked to an employee profile yet, so there's no schedule to show. Ask HR to check the email on your profile.</p>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    async function api(path, method, body) { const r = await fetch(path, { credentials: "same-origin", method: method || "GET", headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+    const WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    const LONG = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+    const SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+    const clock = (t) => { const h = Number(t.slice(0, 2)), m = t.slice(3, 5); return `${h % 12 || 12}${m === "00" ? "" : ":" + m} ${h < 12 ? "AM" : "PM"}`; };
+    const hasDays = (s) => WEEK.some((d) => s && s[d]);
+    // "Mon to Thu 8 AM to 5 PM, Fri 8 AM to 12 PM"
+    function weekText(s) {
+      const runs = [];
+      for (const d of WEEK) {
+        const v = s && s[d]; if (!v || v.off || !v.start || !v.end) continue;
+        const hours = `${clock(v.start)} to ${clock(v.end)}`, last = runs[runs.length - 1];
+        if (last && last.hours === hours && WEEK.indexOf(last.to) === WEEK.indexOf(d) - 1) last.to = d; else runs.push({ from: d, to: d, hours });
+      }
+      return runs.map((r) => `${r.from === r.to ? SHORT[r.from] : SHORT[r.from] + " to " + SHORT[r.to]} ${r.hours}`).join(", ");
+    }
+    const hoursOf = (start, end, lunch) => { if (!start || !end) return 0; const m = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)); const span = (m(end) - m(start)) / 60; return Math.max(0, Math.round((span - (span > 5 ? (lunch || 0) / 60 : 0)) * 100) / 100); };
+
+    let data = { me: null, team: [], jobs: [], isExecutive: false }, open = null; // open: { kind: "person" | "job", code }
+
+    // ---------- your own ----------
+    function renderMine() {
+      const m = data.me;
+      $("mineBox").hidden = !m; $("noneBox").hidden = Boolean(m) || data.team.length > 0 || data.canEditAll;
+      if (!m) return;
+      $("mineNote").innerHTML = m.source === "job" ? `The standard week for <b>${esc(m.title)}</b>${m.weeklyHours ? `, ${m.weeklyHours} hours` : ""}.`
+        : m.source === "custom" ? `Set for you${m.weeklyHours ? `: ${m.weeklyHours} hours a week` : ""}.`
+        : `Nobody has entered your schedule yet. Until then, time off counts Monday to Friday.`;
+      const lunch = m.schedule.lunch || 0;
+      $("mineWeek").hidden = m.source === "none";
+      $("mineWeek").innerHTML = WEEK.map((d) => { const v = m.schedule[d]; const off = !v || v.off || !v.start; return `<div class="${off ? "off" : ""}"><b>${LONG[d]}</b>${off ? "Off" : `${clock(v.start)} to ${clock(v.end)}`}</div>`; }).join("");
+      $("mineFoot").textContent = [lunch ? "Includes an unpaid hour for lunch on days longer than 5 hours." : "", m.scheduleNote, `If it's wrong, ask ${m.supervisorName || "your supervisor"}; they or an executive can change it.`].filter(Boolean).join(" ");
+    }
+
+    // ---------- the editor (people and job codes share it) ----------
+    function editorHtml(kind, row) {
+      const s = row.schedule || {};
+      return `<div class="editor" data-editor>
+        <table class="sched"><thead><tr><th>Day</th><th>Off</th><th>Starts</th><th>Ends</th><th>Hours</th></tr></thead><tbody>${WEEK.map((d) => { const v = s[d] || {}; return `<tr data-day="${d}"><td class="day">${LONG[d]}</td>
+          <td><label class="tick"><input type="checkbox" data-off ${v.off ? "checked" : ""} aria-label="${LONG[d]} off" /> Off</label></td>
+          <td><input type="time" data-start value="${esc(v.start || "")}" aria-label="${LONG[d]} start" ${v.off ? "disabled" : ""} /></td>
+          <td><input type="time" data-end value="${esc(v.end || "")}" aria-label="${LONG[d]} end" ${v.off ? "disabled" : ""} /></td><td class="hrs" data-hrs></td></tr>`; }).join("")}</tbody>
+          <tfoot><tr><td colspan="4" style="text-align:right;font-weight:700">Regular week</td><td data-total style="font-weight:700"></td></tr></tfoot></table>
+        <p style="margin:10px 0"><button type="button" class="link" data-copy>Copy Monday to Tuesday through Friday</button></p>
+        <label class="tick"><input type="checkbox" data-lunch ${s.lunch ? "checked" : ""} /> Takes an unpaid hour for lunch <span class="mut">(comes off every day scheduled for more than 5 hours)</span></label>
+        ${kind === "person" ? `<label style="margin-top:12px">Schedule note<input type="text" data-note maxlength="300" value="${esc(row.scheduleNote || "")}" placeholder="Every other Saturday; on call the first week of the month" /></label>` : ""}
+        <div class="acts"><button type="button" data-save>${kind === "job" ? "Save standard week" : "Save schedule"}</button><button type="button" class="quiet" data-cancel>Cancel</button>
+          ${kind === "person" && row.source === "custom" && row.hasJobSchedule ? `<button type="button" class="link" data-default>Back to the standard week for ${esc(row.title || "their job")}</button>` : ""}
+          ${kind === "job" && hasDays(row.schedule) ? `<button type="button" class="link" data-remove style="color:#991b1b">Remove the standard week</button>` : ""}</div>
+        <div class="status" data-status></div></div>`;
+    }
+    function totals(ed) {
+      const lunch = ed.querySelector("[data-lunch]").checked ? 60 : 0; let total = 0;
+      ed.querySelectorAll("tr[data-day]").forEach((tr) => {
+        const off = tr.querySelector("[data-off]").checked;
+        tr.querySelector("[data-start]").disabled = off; tr.querySelector("[data-end]").disabled = off;
+        const h = off ? 0 : hoursOf(tr.querySelector("[data-start]").value, tr.querySelector("[data-end]").value, lunch);
+        total += h; tr.querySelector("[data-hrs]").textContent = off ? "Off" : h ? h + " hrs" : "";
+      });
+      ed.querySelector("[data-total]").textContent = total ? Math.round(total * 100) / 100 + " hrs" : "Not set";
+    }
+    function readEditor(ed) {
+      const out = {};
+      ed.querySelectorAll("tr[data-day]").forEach((tr) => {
+        const off = tr.querySelector("[data-off]").checked, start = tr.querySelector("[data-start]").value, end = tr.querySelector("[data-end]").value;
+        if (off) out[tr.dataset.day] = { off: true }; else if (start || end) out[tr.dataset.day] = { start, end };
+      });
+      out.lunch = ed.querySelector("[data-lunch]").checked ? 60 : 0;
+      return out;
+    }
+
+    // ---------- the lists ----------
+    const SOURCE = { job: ["", "Standard for the job"], custom: ["amber", "Custom"], none: ["", "Not set"] };
+    function personRow(p) {
+      const [cls, label] = SOURCE[p.source], isOpen = open && open.kind === "person" && open.code === p.code;
+      return `<div class="row" data-person="${esc(p.code)}"><div class="line">
+          <div class="who"><b>${esc(p.name)}</b><span>${esc([p.title, p.department].filter(Boolean).join(" · ") || "No title yet")}</span></div>
+          <div class="what">${p.source === "none" ? `<span class="mut">No schedule yet</span>` : `${esc(weekText(p.schedule))} <span class="mut">· ${p.weeklyHours} hrs</span>`} <span class="tag ${cls}">${label}</span>${p.scheduleNote ? `<div class="mut">${esc(p.scheduleNote)}</div>` : ""}</div>
+          <div>${isOpen ? "" : `<button type="button" class="quiet" data-edit>Edit</button>`}</div></div>${isOpen ? editorHtml("person", p) : ""}</div>`;
+    }
+    function renderTeam() {
+      $("teamBox").hidden = !data.team.length;
+      if (!data.team.length) return;
+      $("teamTitle").textContent = data.canEditAll ? "Everyone's schedule" : "Your team";
+      $("teamNote").textContent = data.isExecutive ? "As an executive you can change anyone's schedule. HR can too, and a supervisor can change the schedules of the people who report to them."
+        : data.canEditAll ? "Your job is marked HR, so you can change anyone's schedule but your own. The standard week for each job is set by an executive." : "The people who report to you. You can change their schedules; yours is changed by your own supervisor.";
+      $("teamTools").hidden = data.team.length < 9;
+      const words = $("teamSearch").value.toLowerCase().split(/\s+/).filter(Boolean);
+      const shown = data.team.filter((p) => { const hay = [p.name, p.title, p.department, p.code].join(" ").toLowerCase(); return words.every((w) => hay.includes(w)); }).sort((a, b) => a.name.localeCompare(b.name));
+      $("teamList").innerHTML = shown.map(personRow).join("") || `<p class="empty">Nobody matches that search.</p>`;
+      $("teamList").querySelectorAll("[data-editor]").forEach(totals);
+    }
+    function jobRow(j) {
+      const isOpen = open && open.kind === "job" && open.code === j.code, set = hasDays(j.schedule), follow = j.holders - j.custom;
+      const who = !j.holders ? "Nobody holds this job" : `${follow} ${follow === 1 ? "person follows" : "people follow"} it${j.custom ? `, ${j.custom} ${j.custom === 1 ? "has" : "have"} a custom schedule` : ""}`;
+      return `<div class="row" data-job="${esc(j.code)}"><div class="line">
+          <div class="who"><b>${esc(j.title)}</b><span>${esc(j.code)} · ${j.holders} ${j.holders === 1 ? "person" : "people"}</span></div>
+          <div class="what">${set ? `${esc(weekText(j.schedule))} <span class="mut">· ${j.weeklyHours} hrs</span><div class="mut">${esc(who)}</div>` : `<span class="mut">No standard week yet</span>`}</div>
+          <div>${isOpen ? "" : `<button type="button" class="quiet" data-edit>${set ? "Edit" : "Set"}</button>`}</div></div>${isOpen ? editorHtml("job", j) : ""}</div>`;
+    }
+    const codeKey = (c) => { const m = /^([A-Z]+)(\d+)$/.exec(c) || [0, c, "0"]; return [m[1], Number(m[2])]; };
+    function renderJobs() {
+      $("jobsBox").hidden = !data.isExecutive;
+      if (!data.isExecutive) return;
+      const list = [...data.jobs].sort((a, b) => { const [al, an] = codeKey(a.code), [bl, bn] = codeKey(b.code); return an - bn || al.localeCompare(bl); });
+      $("jobList").innerHTML = list.map(jobRow).join("") || `<p class="empty">No job title has a job code yet. Add job codes in User Admin first.</p>`;
+      $("jobList").querySelectorAll("[data-editor]").forEach(totals);
+    }
+    function render() { renderMine(); renderTeam(); renderJobs(); }
+
+    // ---------- events ----------
+    async function reload() { data = await api("/api/work-schedules"); render(); }
+    function wire(listId, kind, attr) {
+      const list = $(listId);
+      list.addEventListener("input", (ev) => { const ed = ev.target.closest("[data-editor]"); if (ed) totals(ed); });
+      list.addEventListener("click", async (ev) => {
+        const t = ev.target, row = t.closest(`[data-${attr}]`); if (!row) return;
+        const code = row.dataset[attr], ed = row.querySelector("[data-editor]");
+        if (t.hasAttribute("data-edit")) { open = { kind, code }; return render(); }
+        if (!ed) return;
+        const say = (text, k) => { const s = ed.querySelector("[data-status]"); s.className = "status" + (text ? " show " + (k || "ok") : ""); s.textContent = text || ""; };
+        if (t.hasAttribute("data-cancel")) { open = null; return render(); }
+        if (t.hasAttribute("data-copy")) {
+          const mon = ed.querySelector('tr[data-day="mon"]');
+          ["tue", "wed", "thu", "fri"].forEach((d) => { const tr = ed.querySelector(`tr[data-day="${d}"]`); ["[data-start]", "[data-end]"].forEach((s) => { tr.querySelector(s).value = mon.querySelector(s).value; }); tr.querySelector("[data-off]").checked = mon.querySelector("[data-off]").checked; });
+          return totals(ed);
+        }
+        const body = t.hasAttribute("data-save") ? (kind === "job" ? { schedule: readEditor(ed) } : { schedule: readEditor(ed), scheduleNote: ed.querySelector("[data-note]").value })
+          : t.hasAttribute("data-default") ? { useJobDefault: true } : t.hasAttribute("data-remove") ? { schedule: {} } : null;
+        if (!body) return;
+        t.disabled = true;
+        try { await api(`/api/work-schedules/${kind === "job" ? "jobs" : "people"}/${encodeURIComponent(code)}`, "PUT", body); open = null; await reload(); }
+        catch (err) { say(err.message, "error"); t.disabled = false; }
+      });
+    }
+    wire("teamList", "person", "person"); wire("jobList", "job", "job");
+    $("teamSearch").addEventListener("input", renderTeam);
+    reload().catch((err) => { $("noneBox").hidden = false; $("noneBox").innerHTML = `<p class="empty">${esc(err.message)}</p>`; });
+  </script>
+</body>
+</html>

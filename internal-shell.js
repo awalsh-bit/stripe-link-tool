@@ -227,6 +227,7 @@
         title: "Accounting",
         children: [
           { href: "paid-order-detail.html", title: "Paid Order Detail" },
+          { href: "ticket-audit.html", title: "Ticket Audit" },
           { href: "intent-lookup.html", title: "Issue Refund" },
           { href: "refund-dashboard.html", title: "Refund Dashboard" },
           { href: "incoming-payouts.html", title: "Incoming Payouts" },
@@ -332,6 +333,7 @@
         title: "HR",
         children: [
           { href: "time-off.html", title: "Time Off" },
+          { href: "work-schedules.html", title: "Work Schedules" },
           { href: "employee-profiles.html", title: "Employee Profiles" },
           { href: "employee-counseling.html", title: "Counseling Records" },
           { href: "org-chart.html", title: "Org Chart" },

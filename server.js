@@ -277,14 +277,16 @@ import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSet
 import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
 import { PARTY_MENU, PARTY_SURVEY_KEY, getPartySurveyMeta, setPartySurveyMeta, getPartySurveyResponse, savePartySurveyResponse, listPartySurveyResponses, tallyPartySurvey } from "./lib/party-survey-postgres.js";
 import {
-  EMPLOYMENT_TYPES, WEEK_DAYS, DOCUMENT_CATEGORIES, COUNSELING_KINDS, COUNSELING_ACKNOWLEDGMENTS, PTO_TYPES, PTO_PAID_TYPES, PTO_TYPE_GROUPS, PARENTAL_PAID, PARENTAL_PAID_MAX_DAYS, paidParentalDaysUsed, DOCUMENT_MAX_BYTES as HR_DOCUMENT_MAX_BYTES,
+  EMPLOYMENT_TYPES, WEEK_DAYS, DOCUMENT_CATEGORIES, COUNSELING_KINDS, COUNSELING_ACKNOWLEDGMENTS, PTO_TYPES, PTO_PAID_TYPES, PTO_TYPE_GROUPS, PARENTAL_PAID, PARENTAL_PAID_MAX_DAYS, paidParentalDaysUsed, saveJobSchedule, scheduleHasDays, weeklyHours as scheduleWeeklyHours, DOCUMENT_MAX_BYTES as HR_DOCUMENT_MAX_BYTES,
   normalizeSchedule, listProfileDetails, getProfileDetails, saveProfileDetails, reportsToWouldLoop,
   addEmployeeDocument, listEmployeeDocuments, countEmployeeDocuments, getEmployeeDocument, removeEmployeeDocument,
   listCounselingRecords, getCounselingRecord, countCounselingRecords, listCounselingOverview, addCounselingRecord, addCounselingAddendum, setCounselingFollowUpDone, voidCounselingRecord,
-  publicPto, createPtoRequest, getPtoRequest, listPtoForEmployee, listPendingPto, listKronosQueue, listRecentPtoDecisions, listApprovedPtoBetween, decidePtoRequest, cancelPtoRequest, markPtoKronos, ptoCountsByEmployee
+  publicPto, createPtoRequest, getPtoRequest, listPtoForEmployee, listPendingPto, listKronosQueue, searchPtoRequests, archiveOldPtoRequests, PTO_ARCHIVE_AFTER_DAYS, listApprovedPtoBetween, decidePtoRequest, cancelPtoRequest, markPtoKronos, ptoCountsByEmployee,
+  PTO_HOLIDAYS, getPtoPolicy, savePtoPolicy, planPtoRequest, ptoPolicyNotes, ptoBalance, holidayDates
 } from "./lib/employee-profiles-postgres.js";
-import { placeOrgNode, removeOrgNode, addOrgDottedLine, removeOrgDottedLine, dottedLinesFor, loadOrgContext, reportsToState, syncOrgReportsTo } from "./lib/org-chart-postgres.js";
-import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup } from "./lib/important-dates-postgres.js";
+import { placeOrgNode, removeOrgNode, addOrgDottedLine, removeOrgDottedLine, dottedLinesFor, loadOrgContext, reportsToState, syncOrgReportsTo, scheduleStateFor } from "./lib/org-chart-postgres.js";
+import { ticketKey, collectTicketRecords, buildTicketAudit, searchTicketRecords, mergeTicketHits } from "./lib/ticket-audit.js";
+import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails } from "./lib/important-dates-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
@@ -573,7 +575,7 @@ import {
   keepLastServiceUploadCopy,
   getLastServiceUploadSnapshot
 } from "./lib/service-orders-postgres.js";
-import { salesOrderRowsFromFeed, serviceOrderRowsFromFeed, compareOrderRows, quotesFromFeedRows } from "./lib/epass-feed-orders.js";
+import { salesOrderRowsFromFeed, serviceOrderRowsFromFeed, compareOrderRows, quotesFromFeedRows, routedOrdersFromFeed, truckBoard } from "./lib/epass-feed-orders.js";
 import { listPartsQueue, setPartsEta, markPartsReceived } from "./lib/service-office-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import { parseMaintenanceInvoices } from "./lib/maintenance-invoice-parser.js";
@@ -930,6 +932,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/employee-counseling.html",
   "/org-chart.html",
   "/time-off.html",
+  "/work-schedules.html",
   "/pm-dashboard.html",
   "/pm-route.html",
   "/spec-packages.html",
@@ -949,6 +952,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/cash-projection.html",
   "/satisfaction-results.html",
   "/refund-dashboard.html",
+  "/ticket-audit.html",
   "/signature-builder.html",
   "/clearance.html",
   "/credit-applications.html",
@@ -1034,7 +1038,8 @@ const AUTH_PAGE_PATHS = new Set([
 const EVERYONE_PAGE_PATHS = new Set([
   "/signature-builder.html",
   "/receipts.html",
-  "/time-off.html" // ask for time off, see who's out (Andrew 11/15)
+  "/time-off.html", // ask for time off, see who's out (Andrew 11/15)
+  "/work-schedules.html" // your schedule; your reports' if you supervise anyone (Andrew 11/16)
 ]);
 
 // Executive-only pages: reachable only with is_executive, never grantable.
@@ -1198,6 +1203,7 @@ const PAGE_LABELS = {
   "/employee-counseling.html": "Counseling Records",
   "/org-chart.html": "Org Chart",
   "/time-off.html": "Time Off",
+  "/work-schedules.html": "Work Schedules",
   "/pm-dashboard.html": "Project Manager Dashboard",
   "/pm-route.html": "Project Manager Route Planner",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
@@ -1210,6 +1216,7 @@ const PAGE_LABELS = {
   "/cash-projection.html": "Cash Ops Projection",
   "/satisfaction-results.html": "Satisfaction Results",
   "/refund-dashboard.html": "Refund Dashboard",
+  "/ticket-audit.html": "Ticket Audit",
   "/signature-builder.html": "Email Signature",
   "/clearance.html": "Clearance Hit List (retired)",
   "/credit-applications.html": "Builder Credit Applications",
@@ -1326,6 +1333,7 @@ const PAGE_CATEGORIES = [
     label: "Accounting",
     pages: [
       "/paid-order-detail.html",
+      "/ticket-audit.html",
       "/intent-lookup.html",
       "/refund-dashboard.html",
       "/incoming-payouts.html",
@@ -1350,6 +1358,7 @@ const PAGE_CATEGORIES = [
       "/closed-estimates.html",
       "/service-order-health.html",
       "/shopper-profiles.html",
+      "/ticket-audit.html",
       "/intent-lookup.html",
       "/link-detail-lookup.html",
       "/paid-order-detail.html"
@@ -3286,12 +3295,12 @@ app.post("/api/admin/job-titles", requireExecutiveApi, async (req, res) => {
   try {
     const nameError = validateJobTitleName(req.body?.name);
     if (nameError) return res.status(400).json({ error: nameError });
-    const result = await createJobTitle({ name: req.body.name, code: req.body?.code, notifyWebOrders: Boolean(req.body?.notifyWebOrders), commissionPlan: req.body?.commissionPlan });
+    const result = await createJobTitle({ name: req.body.name, code: req.body?.code, notifyWebOrders: Boolean(req.body?.notifyWebOrders), commissionPlan: req.body?.commissionPlan, isHr: req.body?.isHr === true });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
       action: "job_title_created", targetUserId: null,
-      detail: { name: result.title.name, code: result.title.code, notifyWebOrders: result.title.notifyWebOrders, commissionPlan: result.title.commissionPlan }
+      detail: { name: result.title.name, code: result.title.code, notifyWebOrders: result.title.notifyWebOrders, commissionPlan: result.title.commissionPlan, isHr: result.title.isHr }
     }).catch(() => {});
     return res.json({ ok: true, title: result.title });
   } catch (err) {
@@ -3309,13 +3318,14 @@ app.patch("/api/admin/job-titles/:id", requireExecutiveApi, async (req, res) => 
       name: req.body.name,
       code: req.body?.code,
       notifyWebOrders: Boolean(req.body?.notifyWebOrders),
-      commissionPlan: req.body?.commissionPlan === undefined ? undefined : String(req.body.commissionPlan || "")
+      commissionPlan: req.body?.commissionPlan === undefined ? undefined : String(req.body.commissionPlan || ""),
+      isHr: req.body?.isHr === undefined ? undefined : req.body.isHr === true
     });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
       action: "job_title_updated", targetUserId: null,
-      detail: { name: result.title.name, code: result.title.code, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders, commissionPlan: result.title.commissionPlan }
+      detail: { name: result.title.name, code: result.title.code, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders, commissionPlan: result.title.commissionPlan, isHr: result.title.isHr }
     }).catch(() => {});
     return res.json({ ok: true, title: result.title, migrated: result.migrated });
   } catch (err) {
@@ -10132,16 +10142,31 @@ function ticketTokens(value) {
   return out;
 }
 async function buildTicketStoryLookup() {
+  // A record that cannot be read is skipped, as before, but remembered by
+  // name so Ticket Audit can say which lines are missing instead of showing
+  // a ticket that only looks complete.
+  const unread = [];
+  const safe = (name, reading) => reading.catch((err) => { unread.push(name); console.warn(`Ticket story: could not read ${name} —`, err.message); return []; });
   const [links, terminal, cards, archived, refunds] = await Promise.all([
-    readLinks().catch(() => []), readTerminalPayments().catch(() => []),
-    readServiceCards().catch(() => []), readArchivedServiceCards().catch(() => []),
-    listRefundEvents().catch(() => [])
+    safe("payment links", readLinks()), safe("card reader and saved-card payments", readTerminalPayments()),
+    safe("service requests", readServiceCards()), safe("archived service requests", readArchivedServiceCards()),
+    safe("refunds", listRefundEvents(5000)) // as far back as the record allows, so an old ticket still shows its refund
   ]);
   const byKey = new Map();
-  const put = (field, department, event) => {
+  // Ticket Audit also wants who each line was for and which Stripe payment a
+  // paid line is (neither is sent to Closed Estimates, so they live beside
+  // the events, not on them)...
+  const contactOf = new Map();
+  const intentOf = new Map();
+  const put = (field, department, event, contact) => {
+    if (contact && (contact.name || contact.phone || contact.email) && !contactOf.has(event.id)) contactOf.set(event.id, { name: String(contact.name || "").trim(), phone: String(contact.phone || "").trim(), email: String(contact.email || "").trim() });
     for (const t of ticketTokens(field)) {
-      if (t.bare && department && department !== "Repair Service") continue;
-      const k = t.bare ? `#${t.key}` : t.key;
+      // ...and a number typed with no letters under a department other than
+      // Repair Service. That is never read as a service ticket ("#"); it is
+      // kept apart ("~") so a sales order can still find its payments.
+      const outsideService = t.bare && department && department !== "Repair Service";
+      if (outsideService && department === "refund") continue;
+      const k = !t.bare ? t.key : outsideService ? `~${t.key}` : `#${t.key}`;
       if (!byKey.has(k)) byKey.set(k, []);
       byKey.get(k).push(event);
     }
@@ -10162,7 +10187,7 @@ async function buildTicketStoryLookup() {
       customerName: c.customerName || "", archived: isArchived, queueStatus: c.queueStatus || "",
       card: onFile ? { brand: c.cardBrand || "", last4: c.last4 || "" } : null,
       cardRequired: c.setupIntentStatus !== "not_required"
-    });
+    }, { name: c.customerName, phone: c.customerPhone || c.phone, email: c.customerEmail || c.email });
     if (c.erpOrderEnteredAt) put(c.erpOrderNumber, "Repair Service", { id: `ticket:${c.id}`, kind: "ticket", at: c.erpOrderEnteredAt, by: c.erpOrderEnteredBy || "", ticket: c.erpOrderNumber });
   };
   (Array.isArray(archived) ? archived : []).forEach((c) => addCard(c, true));
@@ -10172,17 +10197,18 @@ async function buildTicketStoryLookup() {
   for (const l of Array.isArray(links) ? links : []) {
     if (!l?.salesOrder) continue;
     const dept = String(l.department || "");
+    const whoFor = { name: l.customerName, phone: l.customerPhone, email: l.customerEmail };
     const paid = !!l.paidDate || Number(l.paidAmount) > 0;
     const cancelled = !paid && l.status !== "card_saved" && (l.status === "deactivated" || l.active === false);
     if (l.workflowType === "card_capture") {
-      put(l.salesOrder, dept, { id: `cardreq:${l.id}`, kind: "card_request", at: l.createdAt || "", by: who(l), state: l.status === "card_saved" ? "saved" : cancelled ? "cancelled" : "waiting" });
+      put(l.salesOrder, dept, { id: `cardreq:${l.id}`, kind: "card_request", at: l.createdAt || "", by: who(l), state: l.status === "card_saved" ? "saved" : cancelled ? "cancelled" : "waiting" }, whoFor);
       if (l.status === "card_saved") put(l.salesOrder, dept, { id: `cardsaved:${l.id}`, kind: "card_saved", at: l.updatedAt || l.createdAt || "", detail: String(l.paymentStatusDetail || "").slice(0, 160) });
       continue;
     }
     const asked = dollars(l.requestedAmount);
-    put(l.salesOrder, dept, { id: `link:${l.id}`, kind: "link_sent", at: l.createdAt || "", by: who(l), amount: asked, deposit: l.workflowType === "hvac_deposit", state: paid ? "paid" : cancelled ? "cancelled" : l.status === "ach_pending" ? "ach_pending" : l.status === "viewed" ? "viewed" : "sent" });
-    if (paid) { put(l.salesOrder, dept, { id: `linkpaid:${l.id}`, kind: "paid", how: "link", at: l.paidDate || l.updatedAt || l.createdAt || "", amount: dollars(l.paidAmount || l.requestedAmount), method: l.paymentMethodType === "us_bank_account" ? "bank transfer" : "card" }); remember(l.paymentIntentId, l.salesOrder, dept); }
-    if (l.balanceChargedAt && Number(l.balancePaidAmount) > 0) { put(l.salesOrder, dept, { id: `linkbal:${l.id}`, kind: "paid", how: "balance", at: l.balanceChargedAt, amount: dollars(l.balancePaidAmount), method: "card" }); remember(l.balancePaymentIntentId, l.salesOrder, dept); }
+    put(l.salesOrder, dept, { id: `link:${l.id}`, kind: "link_sent", at: l.createdAt || "", by: who(l), amount: asked, deposit: l.workflowType === "hvac_deposit", state: paid ? "paid" : cancelled ? "cancelled" : l.status === "ach_pending" ? "ach_pending" : l.status === "viewed" ? "viewed" : "sent" }, whoFor);
+    if (paid) { put(l.salesOrder, dept, { id: `linkpaid:${l.id}`, kind: "paid", how: "link", at: l.paidDate || l.updatedAt || l.createdAt || "", amount: dollars(l.paidAmount || l.requestedAmount), method: l.paymentMethodType === "us_bank_account" ? "bank transfer" : "card" }); remember(l.paymentIntentId, l.salesOrder, dept); if (l.paymentIntentId) intentOf.set(`linkpaid:${l.id}`, String(l.paymentIntentId)); }
+    if (l.balanceChargedAt && Number(l.balancePaidAmount) > 0) { put(l.salesOrder, dept, { id: `linkbal:${l.id}`, kind: "paid", how: "balance", at: l.balanceChargedAt, amount: dollars(l.balancePaidAmount), method: "card" }); remember(l.balancePaymentIntentId, l.salesOrder, dept); if (l.balancePaymentIntentId) intentOf.set(`linkbal:${l.id}`, String(l.balancePaymentIntentId)); }
     if (cancelled) put(l.salesOrder, dept, { id: `linkoff:${l.id}`, kind: "link_cancelled", at: l.deactivatedAt || "", amount: asked, reason: String(l.deactivationReason || "").slice(0, 120) });
   }
 
@@ -10194,8 +10220,9 @@ async function buildTicketStoryLookup() {
       id: `pay:${p.paymentIntentId || p.id}`, kind: "paid", how: p.type === "card_on_file" ? "saved_card" : "reader",
       at: p.paidDate || p.createdAt || "", amount: dollars(p.paidAmount), by: who(p),
       method: p.last4 ? `${p.cardBrand ? p.cardBrand + " " : ""}ending ${p.last4}` : "card", description: String(p.description || "").slice(0, 120)
-    });
+    }, { name: p.customerName, phone: p.customerPhone, email: p.customerEmail });
     remember(p.paymentIntentId, field, String(p.department || ""));
+    if (p.paymentIntentId) intentOf.set(`pay:${p.paymentIntentId}`, String(p.paymentIntentId));
   }
 
   // refunds issued from Agility
@@ -10207,12 +10234,12 @@ async function buildTicketStoryLookup() {
       method: r.last4 ? `${r.cardBrand ? r.cardBrand + " " : ""}ending ${r.last4}` : ""
     };
     const home = filedUnder.get(String(r.paymentIntentId || ""));
-    if (home) put(home.field, home.department, event);
+    if (home) put(home.field, home.department, event, { name: r.customerName, email: r.customerEmail });
     // its own order field too; a bare number here has no department to vouch for it, so it is not trusted
     if (r.salesOrder) put(r.salesOrder, "refund", event);
   }
 
-  return (svNumber) => {
+  const storyFor = (svNumber) => {
     const t = ticketTokens(svNumber)[0];
     if (!t) return null;
     const seen = new Set(); const events = [];
@@ -10238,6 +10265,52 @@ async function buildTicketStoryLookup() {
       openLinks: open.length, openAmount: dollars(open.reduce((sum, e) => sum + (e.amount || 0), 0))
     };
   };
+
+  // Ticket Audit: the same lines for ANY ticket, not only service. A service
+  // ticket also takes the bare numbers filed under Repair Service; any other
+  // ticket takes the bare numbers filed under the other departments, and
+  // those lines are marked `loose` - the letters were never typed, so the
+  // match rests on the digits alone. `contact` is who the lines were for.
+  storyFor.audit = (ticket) => {
+    const t = ticketTokens(ticket)[0];
+    if (!t) return null;
+    const seen = new Set(); const events = [];
+    const take = (k, loose) => { for (const ev of byKey.get(k) || []) if (!seen.has(ev.id)) { seen.add(ev.id); events.push({ ...ev, ...(loose ? { loose: true } : {}), ...(intentOf.has(ev.id) ? { paymentIntentId: intentOf.get(ev.id) } : {}) }); } };
+    const digits = t.key.replace(/^[A-Z]+/, "");
+    if (t.bare) { take(`#${t.key}`); take(`~${t.key}`); }
+    else { take(t.key); if (/^SV/.test(t.key)) take(`#${digits}`); else take(`~${digits}`, true); }
+    if (!events.length) return null;
+    events.sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
+    const contact = { name: "", phone: "", email: "" };
+    for (const ev of events) { const c = contactOf.get(ev.id); if (c) for (const f of ["name", "phone", "email"]) if (!contact[f] && c[f]) contact[f] = c[f]; }
+    return { events, contact };
+  };
+  // Tickets whose Agility payments, links, refunds or service requests were
+  // for this name, phone or email.
+  storyFor.search = (query) => {
+    const raw = String(query || "").trim().toLowerCase();
+    if (raw.length < 3) return [];
+    const digits = raw.replace(/\D/g, "");
+    const byPhone = digits.length >= 7 && !/[a-z@]/.test(raw);
+    const byEmail = raw.includes("@");
+    const label = { request: "Service request", ticket: "Service request", card_request: "Card request link", card_saved: "Card on file", link_sent: "Payment link", link_cancelled: "Payment link", paid: "Payment", refund: "Refund" };
+    const hits = [];
+    for (const [k, list] of byKey) {
+      for (const ev of list) {
+        const c = contactOf.get(ev.id);
+        if (!c) continue;
+        const ok = byPhone ? c.phone.replace(/\D/g, "").includes(digits.slice(-10)) : byEmail ? c.email.toLowerCase().includes(raw) : c.name.toLowerCase().includes(raw);
+        if (!ok) continue;
+        const number = k.startsWith("#") ? `SV${k.slice(1)}` : k.startsWith("~") ? k.slice(1) : k;
+        const tk = ticketKey(number);
+        if (!tk) continue;
+        hits.push({ number, key: tk.key, kind: /^SV/.test(number) ? "service" : "sales", customerName: c.name, when: String(ev.at || ""), what: `${label[ev.kind] || "Record"} in Agility${ev.amount ? " · $" + Number(ev.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""}` });
+      }
+    }
+    return hits;
+  };
+  storyFor.unread = unread;
+  return storyFor;
 }
 
 // Closed estimates (closed-estimates.html): one month at a time or all,
@@ -18240,6 +18313,14 @@ app.post("/api/party-survey/send", requirePartyPlanning, async (req, res) => {
 const requireImportantDates = requirePagePermission("/important-dates.html");
 const importantDateActor = (req) => ({ email: String(req.authUser?.email || "").trim().toLowerCase(), name: req.authUser?.displayName || "" });
 const canManageImportantDates = (req) => canAccessPathForUser(req.authUser, "/important-dates.html");
+// Who an RSVP is waiting on (11/16): everyone with an active sign-in, since
+// that is who sees the RSVP on their dashboard and can answer it. The same
+// roster the party menu survey uses for "hasn't answered". Shown only on the
+// builder page - the dashboard sheet still lists answers, never who is missing.
+async function importantDateAudience() {
+  const seen = new Set();
+  return (await partySurveyAudience()).filter((p) => (seen.has(p.email) ? false : seen.add(p.email)));
+}
 app.get("/api/important-dates/upcoming", async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
@@ -18254,7 +18335,17 @@ app.get("/api/important-dates/:id/signups", async (req, res) => {
     if (!date || date.archived) return res.status(404).json({ error: "That date no longer exists." });
     const signups = await listImportantDateSignups(date.id);
     const me = importantDateActor(req).email;
-    return res.json({ date, signups: signups.map((s) => ({ ...s, mine: s.email === me })), canManage: canManageImportantDates(req) });
+    const canManage = canManageImportantDates(req);
+    // notAnswered: an array for whoever holds the builder page, on an RSVP
+    // date; null when the roster could not be read; left out for everyone else.
+    let notAnswered;
+    if (canManage && date.signupEnabled && date.signupMode === "rsvp") {
+      try {
+        const answered = new Set(signups.filter((s) => s.response).map((s) => s.email));
+        notAnswered = (await importantDateAudience()).filter((p) => !answered.has(p.email)).sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+      } catch (err) { notAnswered = null; console.error("Important date no-answer list failed:", err.message); }
+    }
+    return res.json({ date, signups: signups.map((s) => ({ ...s, mine: s.email === me })), canManage, ...(notAnswered === undefined ? {} : { notAnswered }) });
   } catch (err) { console.error("Important date signups failed:", err.message); return res.status(500).json({ error: "Unable to load the sign-up sheet." }); }
 });
 app.post("/api/important-dates/:id/signups", async (req, res) => {
@@ -18280,6 +18371,15 @@ app.delete("/api/important-dates/:id/signups/:signupId", async (req, res) => {
 app.get("/api/important-dates", requireImportantDates, async (req, res) => {
   try {
     const dates = await listImportantDates({ includeArchived: String(req.query.archived || "") === "1" });
+    // How many people each RSVP is still waiting on. If the roster can't be
+    // read the dates still list; they just carry no "no answer" count.
+    const rsvpDates = dates.filter((d) => d.signupEnabled && d.signupMode === "rsvp");
+    if (rsvpDates.length) {
+      try {
+        const [people, answered] = await Promise.all([importantDateAudience(), listRsvpAnswerEmails()]);
+        for (const d of rsvpDates) { const got = answered.get(d.id) || new Set(); d.rsvp.waiting = people.filter((p) => !got.has(p.email)).length; }
+      } catch (err) { console.error("Important dates no-answer counts failed:", err.message); }
+    }
     return res.json({ kinds: IMPORTANT_DATE_KINDS, days: UPCOMING_WINDOW_DAYS, dates });
   } catch (err) { console.error("Important dates list failed:", err.message); return res.status(500).json({ error: "Unable to load important dates." }); }
 });
@@ -18311,9 +18411,8 @@ app.post("/api/important-dates/:id/archive", requireImportantDates, async (req, 
 //
 // Who can do what:
 //   /employee-profiles.html   grantable (HR). Search people, edit their
-//                             attributes and schedule, keep HR documents,
-//                             decide any time-off request, work the Kronos
-//                             list. Email stays in User Admin (changing it
+//                             attributes, keep HR documents, see their
+//                             schedule and time off. Email stays in User Admin (changing it
 //                             moves the login account) and the job title
 //                             stays executive-only (it sets the pay plan).
 //   /employee-counseling.html grantable on its own and needed IN ADDITION to
@@ -18323,14 +18422,23 @@ app.post("/api/important-dates/:id/archive", requireImportantDates, async (req, 
 //   /time-off.html            everyone: ask for time off, see who's out
 //                             (names and dates only), approve your own
 //                             reports' requests.
+//   HR (a job title with the HR box ticked in User Admin, or an executive):
+//                             decide or enter anyone's time off, work the
+//                             Enter in Kronos list, change anyone's schedule.
 // Nothing here emails or texts anyone - notices go to the Agility dashboard.
 // ---------------------------------------------------------------------------
 const HR_PROFILES_PAGE = "/employee-profiles.html";
 const HR_COUNSELING_PAGE = "/employee-counseling.html";
 const requireEmployeeProfiles = requirePagePermission(HR_PROFILES_PAGE);
 const hrActor = (req) => ({ byEmail: String(req.authUser?.email || "").trim().toLowerCase(), byName: req.authUser?.displayName || req.authUser?.email || "" });
-const isHrUser = (req) => Boolean(req.authUser) && (isExecutiveUser(req.authUser) || canAccessPathForUser(req.authUser, HR_PROFILES_PAGE));
-const canUseCounseling = (req) => isHrUser(req) && canAccessPathForUser(req.authUser, HR_COUNSELING_PAGE) && req.authUser.kind === "db";
+// Two different things, deliberately separate:
+//   holdsProfilesPage  may open Employee Profiles (a page grant);
+//   "HR" (me.hr from ptoIdentity) is anyone whose JOB TITLE has the HR box
+//   ticked in User Admin, plus executives. HR works the Enter in Kronos
+//   list, can decide or enter anyone's time off, and can change anyone's
+//   work schedule outside the reporting line.
+const holdsProfilesPage = (req) => Boolean(req.authUser) && (isExecutiveUser(req.authUser) || canAccessPathForUser(req.authUser, HR_PROFILES_PAGE));
+const canUseCounseling = (req) => holdsProfilesPage(req) && canAccessPathForUser(req.authUser, HR_COUNSELING_PAGE) && req.authUser.kind === "db";
 function requireCounseling(req, res, next) {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   if (req.authUser.kind !== "db") return res.status(403).json({ error: "Counseling records need your own named account, so every view is logged to a person." });
@@ -18371,8 +18479,21 @@ function orgLineFor(entry, org) {
     dottedTo: dottedLinesFor(s.jobCode, org, { excluding: entry.code }).map((d) => ({ jobCode: d.jobCode, title: titleOf(d.jobCode), people: d.holders.map(personOf) }))
   };
 }
-function hrProfileShape(entry, details, { executive = false, names = new Map(), accounts = null, org = null } = {}) {
+// A person's schedule can be changed by their direct supervisor (the person
+// in their Reports to), by HR (a job title with the HR box ticked), or by an
+// executive. Nobody but an executive changes their own.
+function canEditScheduleOf(executive, viewer, entryCode, reportsToCode) {
+  if (executive) return true;
+  const me = viewer?.code || "";
+  if (!me || me === normalizeEmployeeCode(entryCode)) return false;
+  return Boolean(viewer.hr) || reportsToCode === me;
+}
+const SCHEDULE_EDIT_DENIED = "Only their supervisor, HR or an executive can change a schedule.";
+async function hrViewer(req) { const me = await ptoIdentity(req); return { code: me.entry ? normalizeEmployeeCode(me.entry.code) : "", hr: me.hr }; }
+function hrProfileShape(entry, details, { executive = false, names = new Map(), accounts = null, org = null, viewer = null } = {}) {
   const d = details || {};
+  // the schedule they actually work: their own, or their job code's default
+  const sched = org ? scheduleStateFor(entry, org) : { schedule: d.schedule || {}, source: scheduleHasDays(d.schedule) ? "custom" : "none", weeklyHours: d.weeklyHours || 0, jobSchedule: {}, jobTitle: "" };
   const manager = d.reportsToCode ? names.get(d.reportsToCode) : null;
   return {
     code: entry.code, name: entry.name, email: entry.email, department: entry.department, title: entry.commissionPlan,
@@ -18383,7 +18504,9 @@ function hrProfileShape(entry, details, { executive = false, names = new Map(), 
     ...orgLineFor(entry, org),
     employmentType: d.employmentType || "", workPhone: d.workPhone || "", mobilePhone: d.mobilePhone || "",
     emergencyName: d.emergencyName || "", emergencyPhone: d.emergencyPhone || "", emergencyRelation: d.emergencyRelation || "",
-    schedule: d.schedule || {}, scheduleNote: d.scheduleNote || "", weeklyHours: d.weeklyHours || 0, hrNote: d.hrNote || "",
+    schedule: sched.schedule, scheduleSource: sched.source, hasJobSchedule: scheduleHasDays(sched.jobSchedule), jobTitle: sched.jobTitle,
+    canEditSchedule: canEditScheduleOf(executive, viewer, entry.code, d.reportsToCode || ""),
+    scheduleNote: d.scheduleNote || "", weeklyHours: sched.weeklyHours, hrNote: d.hrNote || "",
     detailsUpdatedAt: d.detailsUpdatedAt || null, detailsUpdatedBy: d.detailsUpdatedBy || ""
   };
 }
@@ -18393,7 +18516,7 @@ app.get("/api/employee-profiles", requireEmployeeProfiles, async (req, res) => {
     const executive = isExecutiveUser(req.authUser);
     const counseling = canUseCounseling(req);
     await syncOrgReportsTo().catch((err) => console.error("Org chart sync failed:", err.message));
-    const org = await loadOrgContext();
+    const [org, viewer] = await Promise.all([loadOrgContext(), hrViewer(req)]);
     const [names, details, docCounts, ptoCounts, counselCounts, users, departments, titles] = await Promise.all([
       hrDirectory(), Promise.resolve(org.details), countEmployeeDocuments(), ptoCountsByEmployee(centralDateToday()),
       counseling ? countCounselingRecords() : Promise.resolve(new Map()),
@@ -18403,7 +18526,7 @@ app.get("/api/employee-profiles", requireEmployeeProfiles, async (req, res) => {
     const employees = [...names.values()].map((entry) => {
       const code = normalizeEmployeeCode(entry.code);
       return {
-        ...hrProfileShape(entry, details.get(code), { executive, names, accounts, org }),
+        ...hrProfileShape(entry, details.get(code), { executive, names, accounts, org, viewer }),
         documentCount: docCounts.get(code) || 0,
         pto: ptoCounts.get(code) || { pending: 0, nextOut: "" },
         ...(counseling ? { counseling: counselCounts.get(code) || { total: 0, openFollowUps: 0 } } : {})
@@ -18429,7 +18552,7 @@ app.get("/api/employee-profiles/:code", requireEmployeeProfiles, async (req, res
     if (!entry) return res.status(404).json({ error: "No employee has that code." });
     const [details, all, documents, timeOff] = await Promise.all([getProfileDetails(code), listProfileDetails(), listEmployeeDocuments(code, { includeRemoved: true }), listPtoForEmployee(code, { limit: 60 })]);
     const directReports = [...all.entries()].filter(([, d]) => d.reportsToCode === code).map(([c]) => names.get(c)).filter((e) => e && !e.archived).map((e) => ({ code: e.code, name: e.name }));
-    return res.json({ employee: hrProfileShape(entry, details, { executive: isExecutiveUser(req.authUser), names, org: await loadOrgContext() }), documents, timeOff, directReports });
+    return res.json({ employee: hrProfileShape(entry, details, { executive: isExecutiveUser(req.authUser), names, org: await loadOrgContext(), viewer: await hrViewer(req) }), documents, timeOff, directReports });
   } catch (err) { console.error("Employee profile load failed:", err.message); return res.status(500).json({ error: "Unable to load that profile." }); }
 });
 
@@ -18470,11 +18593,22 @@ app.put("/api/employee-profiles/:code", requireEmployeeProfiles, async (req, res
 
     // --- the HR details
     const patch = {};
-    for (const k of ["employmentType", "workPhone", "mobilePhone", "emergencyName", "emergencyPhone", "emergencyRelation", "schedule", "scheduleNote", "hrNote"]) if (has(k)) patch[k] = b[k];
+    for (const k of ["employmentType", "workPhone", "mobilePhone", "emergencyName", "emergencyPhone", "emergencyRelation", "scheduleNote", "hrNote"]) if (has(k)) patch[k] = b[k];
     // Reports to normally follows the Org Chart. Choosing someone here is
     // HR's pick when the boss's job code is shared, and an override when
     // the chart had its own answer; choosing the chart's answer is neither.
-    const lineBefore = reportsToState(current, await loadOrgContext());
+    const orgBefore = await loadOrgContext();
+    const lineBefore = reportsToState(current, orgBefore);
+    const viewer = await hrViewer(req);
+    if (has("schedule") || has("scheduleNote")) {
+      if (!canEditScheduleOf(executive, viewer, code, lineBefore.storedCode)) return res.status(403).json({ error: SCHEDULE_EDIT_DENIED });
+      if (has("schedule")) {
+        // a week identical to the job code's default isn't a custom schedule: keep following the default
+        let clean; try { clean = normalizeSchedule(b.schedule); } catch (err) { return res.status(400).json({ error: err.message }); }
+        const jobDefault = scheduleStateFor(current, orgBefore).jobSchedule;
+        patch.schedule = scheduleHasDays(jobDefault) && JSON.stringify(clean) === JSON.stringify(normalizeSchedule(jobDefault)) ? {} : clean;
+      }
+    }
     if (has("reportsToCode") && normalizeEmployeeCode(b.reportsToCode) !== lineBefore.storedCode) {
       const mgr = normalizeEmployeeCode(b.reportsToCode);
       patch.reportsToCode = mgr;
@@ -18488,9 +18622,8 @@ app.put("/api/employee-profiles/:code", requireEmployeeProfiles, async (req, res
         if (await reportsToWouldLoop(code, mgr)) return res.status(400).json({ error: `${manager.name} already reports up to ${current.name}, so that would make a loop.` });
       }
     }
-    // Validate the details before touching the directory row, so a bad
-    // schedule can't leave a half-saved profile.
-    if (has("schedule")) { try { normalizeSchedule(b.schedule); } catch (err) { return res.status(400).json({ error: err.message }); } }
+    // (the schedule was validated above, before anything is written, so a
+    // bad one can't leave a half-saved profile)
     if (has("employmentType") && String(b.employmentType || "").trim() && !EMPLOYMENT_TYPES.includes(String(b.employmentType).trim())) return res.status(400).json({ error: "Choose an employment type from the list." });
 
     const entry = await upsertEmployeeDirectoryEntry(
@@ -18513,7 +18646,7 @@ app.put("/api/employee-profiles/:code", requireEmployeeProfiles, async (req, res
     // a new title can move this person, and the people under them, on the chart
     const rerouted = await syncOrgReportsTo({ force: true }).catch((err) => { console.error("Org chart sync failed:", err.message); return []; });
     const [fresh, org] = await Promise.all([hrDirectory(), loadOrgContext()]);
-    return res.json({ ok: true, rerouted: rerouted.length, employee: hrProfileShape(fresh.get(code) || entry, org.details.get(code) || details, { executive, names: fresh, org }) });
+    return res.json({ ok: true, rerouted: rerouted.length, employee: hrProfileShape(fresh.get(code) || entry, org.details.get(code) || details, { executive, names: fresh, org, viewer }) });
   } catch (err) {
     if (/^(Choose |A person)/.test(err.message || "")) return res.status(400).json({ error: err.message });
     console.error("Employee profile save failed:", err.message);
@@ -18545,7 +18678,7 @@ async function orgChartPayload(req, org = null) {
   const current = o.entries.filter((e) => !e.archived);
   const uncodedTitles = o.titles.filter((t) => !t.code).map((t) => ({ title: t.name, people: current.filter((e) => e.commissionPlan === t.name).map((e) => ({ code: e.code, name: e.name })).sort(byName) }));
   const noTitle = current.filter((e) => !o.titles.some((t) => t.name === e.commissionPlan)).map((e) => ({ code: e.code, name: e.name })).sort(byName);
-  return { nodes, uncodedTitles, noTitle, canOpenProfiles: isHrUser(req), canManageTitles: isExecutiveUser(req.authUser) };
+  return { nodes, uncodedTitles, noTitle, canOpenProfiles: holdsProfilesPage(req), canManageTitles: isExecutiveUser(req.authUser) };
 }
 // After any change to the chart: re-route everyone, and say who moved.
 async function orgChartAfterChange(req, action, detail) {
@@ -18606,8 +18739,82 @@ app.post("/api/employee-profiles/:code/reports-to-auto", requirePagePermission(H
     const org = await loadOrgContext();
     const state = reportsToState(names.get(code), org);
     hrAudit(req, "employee_reports_to_automatic", { code, reportsTo: state.storedCode, source: state.source });
-    return res.json({ ok: true, source: state.source, ...(isHrUser(req) ? { employee: hrProfileShape(names.get(code), org.details.get(code), { executive: isExecutiveUser(req.authUser), names, org }) } : {}) });
+    return res.json({ ok: true, source: state.source, ...(holdsProfilesPage(req) ? { employee: hrProfileShape(names.get(code), org.details.get(code), { executive: isExecutiveUser(req.authUser), names, org, viewer: await hrViewer(req) }) } : {}) });
   } catch (err) { console.error("Reports-to reset failed:", err.message); return res.status(500).json({ error: "Unable to put that back to automatic." }); }
+});
+
+// ---- Work schedules --------------------------------------------------------
+// Each JOB CODE carries a default week; a person follows it until their
+// supervisor or an executive sets one just for them. /work-schedules.html is
+// open to everyone: your own schedule, your direct reports' (editable), and
+// for executives everyone's plus the job-code defaults.
+function workScheduleRow(entry, org) {
+  const s = scheduleStateFor(entry, org);
+  return {
+    code: entry.code, name: entry.name, title: entry.commissionPlan, department: entry.department, jobCode: s.jobCode,
+    schedule: s.schedule, source: s.source, weeklyHours: s.weeklyHours, scheduleNote: s.scheduleNote, hasJobSchedule: scheduleHasDays(s.jobSchedule)
+  };
+}
+app.get("/api/work-schedules", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    await syncOrgReportsTo().catch(() => {}); // "your team" is whoever the Org Chart says reports to you now
+    const [org, me] = await Promise.all([loadOrgContext(), ptoIdentity(req)]);
+    const executive = isExecutiveUser(req.authUser);
+    const viewerCode = me.entry ? normalizeEmployeeCode(me.entry.code) : "";
+    const current = org.entries.filter((e) => !e.archived);
+    const reportsTo = (e) => org.details.get(normalizeEmployeeCode(e.code))?.reportsToCode || "";
+    const mine = me.entry ? { ...workScheduleRow(me.entry, org), supervisorName: org.people.get(reportsTo(me.entry))?.name || "" } : null;
+    const all = executive || me.hr; // executives and HR see everyone; a supervisor sees their own reports
+    const team = current.filter((e) => (all ? normalizeEmployeeCode(e.code) !== viewerCode : viewerCode && reportsTo(e) === viewerCode)).map((e) => workScheduleRow(e, org));
+    const jobs = !executive ? [] : org.titles.filter((t) => t.code).map((t) => {
+      const code = String(t.code).toUpperCase(), def = org.jobSchedules.get(code), holders = (org.holders.get(code) || []).map((c) => org.people.get(c));
+      return {
+        code, title: t.name, schedule: def?.schedule || {}, weeklyHours: scheduleWeeklyHours(def?.schedule || {}), updatedAt: def?.updatedAt || null, updatedBy: def?.updatedBy || "",
+        holders: holders.length, custom: holders.filter((e) => scheduleStateFor(e, org).source === "custom").length
+      };
+    });
+    return res.json({ me: mine, team, jobs, isExecutive: executive, canEditAll: all, weekDays: WEEK_DAYS });
+  } catch (err) { console.error("Work schedules load failed:", err.message); return res.status(500).json({ error: "Unable to load schedules." }); }
+});
+// One person's schedule: { schedule, scheduleNote } sets it for them,
+// { useJobDefault: true } puts them back on their job code's default.
+app.put("/api/work-schedules/people/:code", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const code = normalizeEmployeeCode(req.params.code);
+    const org = await loadOrgContext();
+    const entry = org.people.get(code);
+    if (!entry || entry.archived) return res.status(404).json({ error: "No current employee has that code." });
+    if (!canEditScheduleOf(isExecutiveUser(req.authUser), await hrViewer(req), code, org.details.get(code)?.reportsToCode || "")) return res.status(403).json({ error: SCHEDULE_EDIT_DENIED });
+    const b = req.body || {}, patch = {};
+    if (b.useJobDefault === true) { patch.schedule = {}; patch.scheduleNote = ""; } // the note described the custom week
+    else {
+      let clean; try { clean = normalizeSchedule(b.schedule); } catch (err) { return res.status(400).json({ error: err.message }); }
+      const jobDefault = scheduleStateFor(entry, org).jobSchedule;
+      patch.schedule = scheduleHasDays(jobDefault) && JSON.stringify(clean) === JSON.stringify(normalizeSchedule(jobDefault)) ? {} : clean;
+    }
+    if (Object.prototype.hasOwnProperty.call(b, "scheduleNote")) patch.scheduleNote = b.scheduleNote;
+    await saveProfileDetails(code, patch, hrActor(req));
+    const fresh = await loadOrgContext();
+    const person = workScheduleRow(fresh.people.get(code), fresh);
+    hrAudit(req, "employee_schedule_saved", { code, source: person.source, weeklyHours: person.weeklyHours });
+    return res.json({ ok: true, person });
+  } catch (err) { console.error("Work schedule save failed:", err.message); return res.status(500).json({ error: "Unable to save that schedule." }); }
+});
+// The default week for a job code. An empty week removes the default.
+app.put("/api/work-schedules/jobs/:code", requireExecutiveApi, async (req, res) => {
+  try {
+    const code = normalizeEmployeeCode(req.params.code);
+    const org = await loadOrgContext();
+    if (!org.titleByCode.has(code)) return res.status(404).json({ error: "No job title has that job code." });
+    let saved; try { saved = await saveJobSchedule(code, req.body?.schedule, { byName: hrActor(req).byName }); } catch (err) { return res.status(400).json({ error: err.message }); }
+    const fresh = await loadOrgContext();
+    const holders = (fresh.holders.get(code) || []).map((c) => fresh.people.get(c));
+    const custom = holders.filter((e) => scheduleStateFor(e, fresh).source === "custom").length;
+    hrAudit(req, scheduleHasDays(saved) ? "job_schedule_saved" : "job_schedule_removed", { jobCode: code, weeklyHours: scheduleWeeklyHours(saved), following: holders.length - custom, custom });
+    return res.json({ ok: true, job: { code, title: fresh.titleByCode.get(code)?.name || code, schedule: saved, weeklyHours: scheduleWeeklyHours(saved), holders: holders.length, custom, updatedBy: hrActor(req).byName, updatedAt: new Date().toISOString() } });
+  } catch (err) { console.error("Job schedule save failed:", err.message); return res.status(500).json({ error: "Unable to save that default." }); }
 });
 
 // ---- HR documents ----------------------------------------------------------
@@ -18707,12 +18914,15 @@ app.post("/api/employee-counseling/:id/attachments", requireCounseling, async (r
 // into Kronos. Agility doesn't talk to Kronos; that last step is by hand.
 const ptoDayLabel = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const ptoRangeLabel = (r) => (r.startDate === r.endDate ? ptoDayLabel(r.startDate) : `${ptoDayLabel(r.startDate)} – ${ptoDayLabel(r.endDate)}`);
-const ptoLengthLabel = (r) => (r.hours != null ? `${r.hours} hour${r.hours === 1 ? "" : "s"}` : `${r.workDays} working day${r.workDays === 1 ? "" : "s"}${r.scheduledHours ? ` (${r.scheduledHours} hours)` : ""}`);
-// The people who hold the Employee Profiles grant; executives when nobody does yet.
+const ptoLengthLabel = (r) => (r.hours != null ? `${r.hours} hour${r.hours === 1 ? "" : "s"}${r.partDay ? `, ${r.partDay.offText}${r.partDay.workText ? ` (working ${r.partDay.workText} that day)` : ""}` : ""}` : `${r.workDays} working day${r.workDays === 1 ? "" : "s"}${r.scheduledHours ? ` (${r.scheduledHours} hours)` : ""}`);
+// The job titles with the HR box ticked (User Admin -> Job Titles), by lower-cased name.
+async function hrTitleNames() { return new Set((await listJobTitles()).filter((t) => t.isHr).map((t) => t.name.toLowerCase())); }
+// Everyone holding an HR title who can sign in; executives when nobody does yet.
 async function hrNoticeEmails() {
-  const users = await listUsersWithAccess().catch(() => []);
+  const [users, entries, titles] = await Promise.all([listUsersWithAccess().catch(() => []), listEmployeeDirectory().catch(() => []), hrTitleNames().catch(() => new Set())]);
   const active = users.filter((u) => u.email && u.status !== "disabled");
-  const hr = active.filter((u) => !u.isExecutive && (u.grantedPages || []).includes(HR_PROFILES_PAGE));
+  const hrEmails = new Set(entries.filter((e) => !e.archived && e.email && titles.has(String(e.commissionPlan || "").toLowerCase())).map((e) => String(e.email).toLowerCase()));
+  const hr = active.filter((u) => hrEmails.has(String(u.email).toLowerCase()));
   return [...new Set((hr.length ? hr : active.filter((u) => u.isExecutive)).map((u) => String(u.email).toLowerCase()))];
 }
 function ptoNotify({ refId, severity, title, body, emails }) {
@@ -18733,62 +18943,107 @@ async function ptoDottedEmails(request, exceptEmail = "") {
 }
 async function ptoIdentity(req) {
   const email = String(req.authUser?.email || "").trim().toLowerCase();
-  const entry = email ? await findEmployeeDirectoryEntryByEmail(email).catch(() => null) : null;
-  return { email, name: req.authUser?.displayName || email, entry: entry && !entry.archived ? entry : null };
+  const found = email ? await findEmployeeDirectoryEntryByEmail(email).catch(() => null) : null;
+  const entry = found && !found.archived ? found : null;
+  // HR = an executive, or a current employee whose job title has the HR box ticked
+  const hr = isExecutiveUser(req.authUser) || Boolean(entry && entry.commissionPlan && (await hrTitleNames().catch(() => new Set())).has(String(entry.commissionPlan).toLowerCase()));
+  return { email, name: req.authUser?.displayName || email, entry, hr };
 }
 // May this person decide this request? Never their own (executives excepted).
 function canDecidePto(req, me, r) {
   if (isExecutiveUser(req.authUser)) return true;
   if (me.email && r.employeeEmail === me.email) return false;
   if (me.entry && normalizeEmployeeCode(me.entry.code) === r.employeeCode) return false;
-  return isHrUser(req) || (Boolean(me.email) && r.approverEmail === me.email);
+  return me.hr || (Boolean(me.email) && r.approverEmail === me.email);
 }
 
 app.get("/api/pto/mine", async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
     const me = await ptoIdentity(req);
-    const hr = isHrUser(req);
+    const hr = me.hr;
     await syncOrgReportsTo().catch(() => {}); // so "goes to" names the chart's current answer
+    const policy = await getPtoPolicy();
     let profile = null, requests = [];
     if (me.entry) {
       const code = normalizeEmployeeCode(me.entry.code);
-      const [details, names, list] = await Promise.all([getProfileDetails(code), hrDirectory(), listPtoForEmployee(code, { limit: 80 })]);
+      const [details, names, list, org] = await Promise.all([getProfileDetails(code), hrDirectory(), listPtoForEmployee(code, { limit: 80 }), loadOrgContext()]);
       const manager = details.reportsToCode ? names.get(details.reportsToCode) : null;
-      profile = { code: me.entry.code, name: me.entry.name, approverName: manager && !manager.archived && manager.email ? manager.name : "", schedule: details.schedule, scheduleNote: details.scheduleNote, weeklyHours: details.weeklyHours };
+      const sched = scheduleStateFor(me.entry, org); // their own schedule, or their job code's default
+      profile = { code: me.entry.code, name: me.entry.name, approverName: manager && !manager.archived && manager.email ? manager.name : "", supervisorName: manager && !manager.archived ? manager.name : "", schedule: sched.schedule, scheduleNote: details.scheduleNote, weeklyHours: sched.weeklyHours };
       requests = list;
+      // where their PTO stands this year under the policy
+      profile.balance = await ptoBalance(code, { year: Number(centralDateToday().slice(0, 4)), hireDate: me.entry.hireDate || "", employmentType: details.employmentType, policy }).catch(() => null);
     }
     const waiting = hr ? await listPendingPto({ all: true }) : await listPendingPto({ approverEmail: me.email });
     const mine = waiting.filter((r) => canDecidePto(req, me, r));
     let people = [];
     if (hr) people = [...(await hrDirectory()).values()].filter((e) => !e.archived).map((e) => ({ code: e.code, name: e.name }));
-    return res.json({ today: centralDateToday(), profile, requests, types: PTO_TYPES, ptoTypes: PTO_PAID_TYPES, typeGroups: PTO_TYPE_GROUPS, parentalPaid: { type: PARENTAL_PAID, maxDays: PARENTAL_PAID_MAX_DAYS }, isHr: hr, toDecide: mine.length, kronosToDo: hr ? (await listKronosQueue()).length : 0, people });
+    return res.json({ today: centralDateToday(), profile, requests, types: PTO_TYPES, ptoTypes: PTO_PAID_TYPES, typeGroups: PTO_TYPE_GROUPS, parentalPaid: { type: PARENTAL_PAID, maxDays: ptoParentalMaxDays(policy) }, policy, holidayChoices: PTO_HOLIDAYS, canEditPolicy: isExecutiveUser(req.authUser), isHr: hr, toDecide: mine.length, kronosToDo: hr ? (await listKronosQueue()).length : 0, people });
   } catch (err) { console.error("Time off load failed:", err.message); return res.status(500).json({ error: "Unable to load your time off." }); }
 });
 
+const ptoParentalMaxDays = (policy) => Math.floor(policy.parentalPaidHours / policy.fullDayHours + 1e-9);
+// Who a request is for (HR may file for someone else), with the week they
+// work and the policy in force. Returns { status, error } when it can't be.
+async function ptoRequestContext(req, body) {
+  const me = await ptoIdentity(req);
+  const names = await hrDirectory();
+  // HR can file a request for someone who doesn't use Agility.
+  let employee = me.entry;
+  const forCode = normalizeEmployeeCode(body.forCode || "");
+  if (forCode && (!me.entry || forCode !== normalizeEmployeeCode(me.entry.code))) {
+    if (!me.hr) return { status: 403, error: "You can only ask for your own time off." };
+    employee = names.get(forCode);
+    if (!employee || employee.archived) return { status: 400, error: "Choose a current employee." };
+  }
+  if (!employee) return { status: 400, error: "We couldn't match your sign-in to an employee profile. Ask HR to check the email on your profile." };
+  const code = normalizeEmployeeCode(employee.code);
+  const [details, policy, org] = await Promise.all([getProfileDetails(code), getPtoPolicy(), loadOrgContext()]);
+  return { me, names, employee, code, details, policy, schedule: scheduleStateFor(employee, org).schedule };
+}
+// What the policy has to say about a request: where the person's PTO stands
+// for that year, and anything the approver should know. Never a refusal.
+async function ptoPolicyView(plan, { code, hireDate, employmentType, policy, excludeId = null }) {
+  const start = plan.start || plan.startDate;
+  const balance = plan.ptoHours == null ? null : await ptoBalance(code, { year: Number(start.slice(0, 4)), hireDate: hireDate || "", employmentType, policy, excludeId }).catch(() => null);
+  return { balance, notes: ptoPolicyNotes(plan, { policy, balance, today: centralDateToday() }) };
+}
+// A dry run of a request: the same checks as sending it, nothing saved. The
+// form shows the answer as the person fills it in.
+app.post("/api/pto/preview", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const b = req.body || {};
+    const ctx = await ptoRequestContext(req, b);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+    let plan;
+    try { plan = planPtoRequest({ type: b.type, startDate: b.startDate, endDate: b.endDate || b.startDate, startTime: b.startTime, endTime: b.endTime, schedule: ctx.schedule, policy: ctx.policy, today: centralDateToday() }); }
+    catch (err) { return res.json({ ok: false, error: err.message }); }
+    const view = await ptoPolicyView(plan, { code: ctx.code, hireDate: ctx.employee.hireDate, employmentType: ctx.details.employmentType, policy: ctx.policy });
+    const hrs = (n) => `${n} hour${n === 1 ? "" : "s"}`;
+    const summary = plan.hours != null
+      ? `${hrs(plan.hours)} off, ${plan.partDay.offText}.${plan.partDay.workText ? ` The regular day is ${plan.partDay.regularText}, so that leaves ${plan.partDay.workText}.` : ""}`
+      : `${plan.workDays} working day${plan.workDays === 1 ? "" : "s"}${plan.scheduledHours ? ` (${hrs(plan.scheduledHours)})` : ""}${plan.fromSchedule ? " on the regular schedule" : ". No regular schedule is on file, so this counts Monday to Friday"}.`;
+    return res.json({ ok: true, summary, ptoHours: plan.ptoHours, ...view });
+  } catch (err) { console.error("Time off preview failed:", err.message); return res.status(500).json({ error: "Unable to check that request." }); }
+});
 app.post("/api/pto/requests", async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
-    const me = await ptoIdentity(req);
     const b = req.body || {};
-    const names = await hrDirectory();
-    // HR can file a request for someone who doesn't use Agility.
-    let employee = me.entry;
-    const forCode = normalizeEmployeeCode(b.forCode || "");
-    if (forCode && (!me.entry || forCode !== normalizeEmployeeCode(me.entry.code))) {
-      if (!isHrUser(req)) return res.status(403).json({ error: "You can only ask for your own time off." });
-      employee = names.get(forCode);
-      if (!employee || employee.archived) return res.status(400).json({ error: "Choose a current employee." });
-    }
-    if (!employee) return res.status(400).json({ error: "We couldn't match your sign-in to an employee profile. Ask HR to check the email on your profile." });
-    const code = normalizeEmployeeCode(employee.code);
+    // A page loaded before part-day requests asked which hours still sends a bare count. Taking it as a whole day would be wrong, so say what to do.
+    if (b.hours != null && String(b.hours).trim() !== "" && !b.startTime && !b.endTime) return res.status(400).json({ error: "Part of a day now asks which hours you'll be off. Reload this page and enter the time you'll be out from, and until." });
+    const ctx = await ptoRequestContext(req, b);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+    const { me, names, employee, code, policy } = ctx;
     await syncOrgReportsTo().catch(() => {}); // route on the Org Chart as it stands now
     const details = await getProfileDetails(code);
     const manager = details.reportsToCode ? names.get(details.reportsToCode) : null;
     const approver = manager && !manager.archived && manager.email ? { code: manager.code, name: manager.name, email: manager.email } : null;
     const request = await createPtoRequest({
-      employee: { code, name: employee.name, email: employee.email }, type: b.type, startDate: b.startDate, endDate: b.endDate || b.startDate, hours: b.hours, note: b.note,
-      approver, schedule: details.schedule, byEmail: me.email, byName: me.name, today: centralDateToday()
+      employee: { code, name: employee.name, email: employee.email }, type: b.type, startDate: b.startDate, endDate: b.endDate || b.startDate, startTime: b.startTime, endTime: b.endTime, note: b.note,
+      approver, schedule: ctx.schedule, policy, byEmail: me.email, byName: me.name, today: centralDateToday()
     });
     hrAudit(req, "pto_requested", { requestId: request.id, code, start: request.startDate, end: request.endDate, approver: request.approverEmail || "hr", onBehalf: request.employeeEmail !== me.email });
     ptoNotify({
@@ -18838,9 +19093,9 @@ app.post("/api/pto/requests/:id/cancel", async (req, res) => {
     const before = await getPtoRequest(req.params.id);
     if (!before) return res.status(404).json({ error: "That request no longer exists." });
     const own = (me.email && before.employeeEmail === me.email) || (me.entry && normalizeEmployeeCode(me.entry.code) === before.employeeCode);
-    if (!own && !isHrUser(req)) return res.status(403).json({ error: "You can only cancel your own request." });
+    if (!own && !me.hr) return res.status(403).json({ error: "You can only cancel your own request." });
     if (!["pending", "approved"].includes(before.status)) return res.status(409).json({ error: `That request is already ${before.status}.` });
-    if (own && !isHrUser(req) && before.status === "approved" && before.endDate < centralDateToday()) return res.status(400).json({ error: "That time off has already passed. Ask HR to correct it." });
+    if (own && !me.hr && before.status === "approved" && before.endDate < centralDateToday()) return res.status(400).json({ error: "That time off has already passed. Ask HR to correct it." });
     const request = await cancelPtoRequest(before.id, { reason: req.body?.reason, byName: me.name });
     if (!request) return res.status(409).json({ error: "That request changed while you were looking at it. Reload and try again." });
     hrAudit(req, "pto_cancelled", { requestId: request.id, code: request.employeeCode, was: before.status, kronosEntered: Boolean(before.kronosEnteredAt) });
@@ -18864,8 +19119,10 @@ app.post("/api/pto/requests/:id/cancel", async (req, res) => {
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to cancel that request." }); }
 });
 
-app.post("/api/pto/requests/:id/kronos", requireEmployeeProfiles, async (req, res) => {
+app.post("/api/pto/requests/:id/kronos", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
+    if (!(await ptoIdentity(req)).hr) return res.status(403).json({ error: "The Enter in Kronos list is for HR. An executive ticks the HR box on a job title in User Admin." });
     const action = String(req.body?.action || "");
     const request = await markPtoKronos(req.params.id, { action, byName: hrActor(req).byName });
     if (!request) return res.status(409).json({ error: "That one was already ticked off, or the request changed. Reload the list." });
@@ -18879,19 +19136,80 @@ app.get("/api/pto/approvals", async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
     const me = await ptoIdentity(req);
-    const hr = isHrUser(req);
-    const [pending, recent, kronos] = await Promise.all([
+    const hr = me.hr;
+    const [pending, kronos] = await Promise.all([
       hr ? listPendingPto({ all: true }) : listPendingPto({ approverEmail: me.email }),
-      hr ? listRecentPtoDecisions({ all: true }) : listRecentPtoDecisions({ approverEmail: me.email }),
       hr ? listKronosQueue() : Promise.resolve([])
     ]);
     // whoever decides a paid parental request sees what the person has already had this year
+    const [policy, names, allDetails] = pending.length ? await Promise.all([getPtoPolicy(), hrDirectory(), listProfileDetails()]) : [null, new Map(), new Map()];
     const withUsage = await Promise.all(pending.map(async (r) => ({
       ...r, canDecide: canDecidePto(req, me, r),
-      ...(r.type === PARENTAL_PAID ? { parentalPaid: { used: await paidParentalDaysUsed(r.employeeCode, r.startDate, { excludeId: r.id }), max: PARENTAL_PAID_MAX_DAYS } } : {})
+      // where their PTO stands and anything else the policy says, for whoever decides
+      ...(await ptoPolicyView({ ...r, askedOn: String(r.createdAt || "").slice(0, 10) }, { code: r.employeeCode, hireDate: names.get(r.employeeCode)?.hireDate, employmentType: allDetails.get(r.employeeCode)?.employmentType || "", policy, excludeId: r.id }).catch(() => ({ balance: null, notes: [] }))),
+      ...(r.type === PARENTAL_PAID ? { parentalPaid: { used: await paidParentalDaysUsed(r.employeeCode, r.startDate, { excludeId: r.id }), max: ptoParentalMaxDays(policy) } } : {})
     })));
-    return res.json({ isHr: hr, pending: withUsage, recent, kronos });
+    return res.json({ isHr: hr, pending: withUsage, kronos });
   } catch (err) { console.error("Time off approvals failed:", err.message); return res.status(500).json({ error: "Unable to load requests." }); }
+});
+
+// The Time Off policy (Andrew 11/16): the company's written policy as the
+// numbers Agility applies - PTO hours by tenure, the 4-hour block, paid
+// holidays, parental leave, jury duty, unpaid leave. Everyone signed in can
+// read it (it comes down with /api/pto/mine); only executives change it. A
+// change applies to requests made from then on; what an existing request
+// already counted for is left as it was.
+app.put("/api/pto/policy", requireExecutiveApi, async (req, res) => {
+  try {
+    const before = await getPtoPolicy();
+    const policy = await savePtoPolicy(req.body || {}, { byName: hrActor(req).byName });
+    const changed = Object.keys(policy).filter((k) => !["updatedAt", "updatedBy"].includes(k) && JSON.stringify(policy[k]) !== JSON.stringify(before[k]));
+    hrAudit(req, "pto_policy_saved", { changed, before: Object.fromEntries(changed.map((k) => [k, before[k]])), after: Object.fromEntries(changed.map((k) => [k, policy[k]])) });
+    return res.json({ ok: true, policy, changed });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save the policy." }); }
+});
+
+// The request audit (Andrew 11/16; it replaced "Decided in the last 45
+// days"): every request and what became of it, searchable by person and by
+// date range. HR and executives search everyone's; anyone else gets only the
+// requests that were routed to them to approve, which for most people is
+// none. With nothing to search on it returns the 25 nearest the top.
+//
+// Requests whose last day out is more than a year past are moved to
+// pto_requests_archive so the live table stays small. They are still found
+// here when the search asks for them (archived=1). The move is checked at
+// most twice a day, when someone opens the audit; a request still waiting on
+// a decision or on Kronos is never moved.
+let ptoArchiveSweptAt = 0;
+async function sweepPtoArchive() {
+  if (Date.now() - ptoArchiveSweptAt < 12 * 60 * 60 * 1000) return 0;
+  ptoArchiveSweptAt = Date.now();
+  try {
+    const moved = await archiveOldPtoRequests({ today: centralDateToday() });
+    if (moved) {
+      console.log(`Time off: moved ${moved} request(s) more than ${PTO_ARCHIVE_AFTER_DAYS} days past to the archive.`);
+      recordAudit({ ip: "", actorUserId: null, action: "pto_requests_archived", targetUserId: null, detail: { count: moved, olderThanDays: PTO_ARCHIVE_AFTER_DAYS } }).catch(() => {});
+    }
+    return moved;
+  } catch (err) { ptoArchiveSweptAt = 0; console.error("Time off archive sweep failed:", err.message); return 0; }
+}
+app.get("/api/pto/audit", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const me = await ptoIdentity(req);
+    await sweepPtoArchive();
+    const q = String(req.query.q || "").trim().slice(0, 80), from = String(req.query.from || "").trim(), to = String(req.query.to || "").trim();
+    if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) || (to && !/^\d{4}-\d{2}-\d{2}$/.test(to))) return res.status(400).json({ error: "Pick valid dates." });
+    const includeArchived = String(req.query.archived || "") === "1";
+    const searching = Boolean(q || from || to || includeArchived);
+    const found = await searchPtoRequests({ q, from, to, all: me.hr, approverEmail: me.email, includeArchived, limit: searching ? 300 : 25 });
+    // Who gets the box at all: HR, anyone mid-search, and a manager with at
+    // least one request ever routed to them - even if all of theirs are old
+    // enough to be archived, so they can still tick "include archived".
+    let show = me.hr || searching || found.requests.length > 0;
+    if (!show && me.email) show = (await searchPtoRequests({ approverEmail: me.email, includeArchived: true, limit: 1 })).requests.length > 0;
+    return res.json({ isHr: me.hr, show, searching, archiveAfterDays: PTO_ARCHIVE_AFTER_DAYS, ...found });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to search requests." }); }
 });
 
 // Who's out. Everyone signed in gets names, departments and dates - never
@@ -18903,7 +19221,10 @@ app.get("/api/pto/calendar", async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || (Date.parse(to) - Date.parse(from)) / 86400000 > 100) return res.status(400).json({ error: "Pick a range of up to three months." });
     const [rows, names, departments] = await Promise.all([listApprovedPtoBetween(from, to), hrDirectory(), listDepartments()]);
     // department rides along so the calendar can be filtered; still no kind and no note
-    return res.json({ from, to, departments: departments.map((d) => d.name), out: rows.map((r) => ({ ...publicPto(r), department: names.get(r.employeeCode)?.department || "" })) });
+    // the paid holidays in view, so a closed day reads as closed
+    const policy = await getPtoPolicy().catch(() => null), holidays = [];
+    if (policy) for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) for (const [day, label] of holidayDates(y, policy.holidays)) if (day >= from && day <= to) holidays.push({ date: day, label });
+    return res.json({ from, to, departments: departments.map((d) => d.name), holidays, out: rows.map((r) => ({ ...publicPto(r), department: names.get(r.employeeCode)?.department || "" })) });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to load the calendar." }); }
 });
 
@@ -21018,32 +21339,90 @@ app.get("/api/install-damage/lookup", requirePagePermission("/install-damage.htm
   }
 });
 
-// Truck-first lookup: routes (D01, D02…) come from the Sales Order Health
-// snapshot's Route column. The installer taps their truck, sees that run's
-// stops, taps the job — then the normal invoice lookup takes over.
-app.get("/api/install-damage/routes", requirePagePermission("/install-damage.html"), async (req, res) => {
+// Truck-first lookup: the installer taps their truck (D01, D02…), sees that
+// run's stops, taps the job — then the normal invoice lookup takes over.
+//
+// Where the trucks come from (Andrew 11/16: the form "isn't double checking
+// ePASS data ... almost like it stops checking at some point"). It used to
+// read the Sales Order Health snapshot, a copy rebuilt minutes after each pull
+// at the end of the post-processing queue, and the page asked once when it
+// opened and never again — with the day it was opened on baked into every
+// later request. Now:
+//  - the stops are read from the open-orders table the 15-minute ePASS pull
+//    replaces, so they are as current as the last pull, whatever the queue
+//    behind it is doing;
+//  - the server works out the day on every request and ignores a day sent by
+//    the page, so a form left open since yesterday gets today's stops;
+//  - every answer carries when ePASS was last read (asOf) and whether that is
+//    too long ago to trust (stale), and the page shows it.
+// A Sales Order Health upload done by hand is still honoured, but only when
+// the pull has gone quiet and the upload is the newer of the two.
+const INSTALL_DAMAGE_STALE_MINUTES = 45;      // the pull runs every 15 minutes and takes about 5
+const INSTALL_DAMAGE_BOARD_CACHE_MS = 20000;  // many phones, one read
+let installDamageBoardCache = { at: 0, value: null, pending: null };
+
+async function buildInstallDamageTruckBoard() {
+  let feed = null;
+  try { feed = await routedOrdersFromFeed(); }
+  catch (err) { console.error("Install-damage routed-orders read failed:", err.message); }
+  const feedAt = feed?.receivedAt ? Date.parse(feed.receivedAt) : 0;
+  let rows = feed?.rows || [], asOf = feed?.receivedAt || null, source = feed ? "epass-feed" : "";
+  const feedFresh = feedAt > 0 && Date.now() - feedAt < INSTALL_DAMAGE_STALE_MINUTES * 60000;
+  if (!feedFresh) {
+    try {
+      const snap = await getSalesOrderSnapshot();
+      const snapAt = snap?.uploadedAt ? Date.parse(snap.uploadedAt) : 0;
+      const byHand = !!snap && String(snap.uploadedByEmail || "").trim().toLowerCase() !== "epass-agent";
+      // A copy the feed made of itself is never newer than the feed; only use
+      // it when the feed table couldn't be read at all.
+      if (snap && snapAt && ((byHand && snapAt > feedAt) || !feedAt)) {
+        rows = snap.rows || []; asOf = snap.uploadedAt; source = byHand ? "upload" : "epass-feed-copy";
+      }
+    } catch (err) { console.error("Install-damage snapshot fallback failed:", err.message); }
+  }
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  return { ...truckBoard(rows, today), asOf, source };
+}
+
+async function getInstallDamageTruckBoard() {
+  const c = installDamageBoardCache;
+  if (!c.value || Date.now() - c.at >= INSTALL_DAMAGE_BOARD_CACHE_MS) {
+    if (!c.pending) {
+      c.pending = buildInstallDamageTruckBoard()
+        .then((value) => { c.value = value; c.at = Date.now(); return value; })
+        .finally(() => { c.pending = null; });
+    }
+    await c.pending;
+  }
+  // Age is worked out per answer, not cached with the board.
+  const board = c.value;
+  const asOfMs = board.asOf ? Date.parse(board.asOf) : 0;
+  const ageMinutes = asOfMs ? Math.max(0, Math.round((Date.now() - asOfMs) / 60000)) : null;
+  return { ...board, ageMinutes, stale: ageMinutes == null || ageMinutes > INSTALL_DAMAGE_STALE_MINUTES };
+}
+
+// The whole day in one answer: every truck with its stops. The page keeps it
+// and asks again whenever it comes back into view, every couple of minutes
+// while it is open, and when a truck is tapped.
+app.get("/api/install-damage/trucks", requirePagePermission("/install-damage.html"), async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
-    const snapshot = await getSalesOrderSnapshot();
-    const rows = (snapshot?.rows || []).filter((r) => String(r.route || "").trim() && String(r.invoice || "").trim());
-    if (!rows.length) return res.json({ routes: [], date: "", today: false, uploadedAt: snapshot?.uploadedAt || null });
+    const b = await getInstallDamageTruckBoard();
+    return res.json({ date: b.date, today: b.today, asOf: b.asOf, ageMinutes: b.ageMinutes, stale: b.stale, source: b.source, routes: b.routes });
+  } catch (err) {
+    console.error("Install-damage trucks failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the trucks." });
+  }
+});
 
-    // Prefer today's routed stops; on a stale snapshot fall back to the most
-    // recent routed day on file so the picker still works (and says so).
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
-    const dates = [...new Set(rows.map((r) => String(r.schedDate || "").slice(0, 10)).filter(Boolean))].sort();
-    const active = dates.includes(today) ? today : (dates.filter((d) => d <= today).pop() || dates[dates.length - 1] || "");
-
-    const counts = {};
-    rows.filter((r) => String(r.schedDate || "").slice(0, 10) === active).forEach((r) => {
-      const key = String(r.route).trim().toUpperCase();
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    return res.json({
-      date: active,
-      today: active === today,
-      uploadedAt: snapshot?.uploadedAt || null,
-      routes: Object.keys(counts).sort().map((route) => ({ route, count: counts[route] }))
-    });
+// The two calls the page made before 11/16. Kept so a form already open on a
+// phone keeps working — and gets the same live, today-dated answer — until it
+// is next reloaded.
+app.get("/api/install-damage/routes", requirePagePermission("/install-damage.html"), async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const b = await getInstallDamageTruckBoard();
+    return res.json({ date: b.date, today: b.today, uploadedAt: b.asOf, routes: b.routes.map((r) => ({ route: r.route, count: r.count })) });
   } catch (err) {
     console.error("Install-damage routes failed:", err.message);
     return res.status(500).json({ error: "Unable to load the trucks." });
@@ -21051,24 +21430,13 @@ app.get("/api/install-damage/routes", requirePagePermission("/install-damage.htm
 });
 
 app.get("/api/install-damage/route-orders", requirePagePermission("/install-damage.html"), async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const route = String(req.query.route || "").trim().toUpperCase().slice(0, 20);
-    const date = String(req.query.date || "").slice(0, 10);
-    if (!route) return res.json({ route, date, orders: [] });
-    const snapshot = await getSalesOrderSnapshot();
-    const orders = (snapshot?.rows || [])
-      .filter((r) =>
-        String(r.route || "").trim().toUpperCase() === route &&
-        String(r.invoice || "").trim() &&
-        (!date || String(r.schedDate || "").slice(0, 10) === date))
-      .slice(0, 80)
-      .map((r) => ({
-        invoice: String(r.invoice).trim().toUpperCase(),
-        name: r.name || "",
-        address: [r.address, r.zip].filter(Boolean).join(", "),
-        reference: r.reference || ""
-      }));
-    return res.json({ route, date, orders });
+    const b = await getInstallDamageTruckBoard();
+    // The day is the server's, never the one the page was opened on.
+    const orders = route ? (b.routes.find((r) => r.route === route)?.orders || []) : [];
+    return res.json({ route, date: b.date, orders });
   } catch (err) {
     console.error("Install-damage route-orders failed:", err.message);
     return res.status(500).json({ error: "Unable to load that truck's stops." });
@@ -22912,6 +23280,57 @@ app.post("/api/link-detail-lookup/repair", requirePagePermission("/link-detail-l
     return res.status(400).json({
       error: err.message || "Unable to create Wilson queue record from Stripe."
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Ticket Audit (ticket-audit.html): everything on file for one ticket, in
+// the order it happened - quote, order, payments, delivery, service, return,
+// refund. Reads only; lib/ticket-audit.js lists the records it draws on.
+// Executives and people granted the page. The Refund button on a payment
+// line calls Issue Refund's own routes below, so refunding still takes the
+// Issue Refund grant (canRefund tells the page whether to offer it).
+// ---------------------------------------------------------------------------
+const TICKET_AUDIT_PAGE = "/ticket-audit.html";
+app.get("/api/ticket-audit/search", requirePagePermission(TICKET_AUDIT_PAGE), async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().slice(0, 80);
+    if (q.length < 3) return res.status(400).json({ error: "Enter at least 3 characters: a ticket number, a name, a phone number or an email." });
+    const [fromRecords, fromLedger] = await Promise.all([
+      searchTicketRecords(q).catch((err) => { console.warn("Ticket Audit: record search failed —", err.message); return []; }),
+      buildTicketStoryLookup().then((storyFor) => storyFor.search(q)).catch((err) => { console.warn("Ticket Audit: ledger search failed —", err.message); return []; })
+    ]);
+    return res.json({ query: q, results: mergeTicketHits([...fromRecords, ...fromLedger], 40) });
+  } catch (err) {
+    console.error("Ticket Audit search failed:", err.message);
+    return res.status(500).json({ error: "Unable to search tickets." });
+  }
+});
+app.get("/api/ticket-audit/ticket/:number", requirePagePermission(TICKET_AUDIT_PAGE), async (req, res) => {
+  try {
+    let rec = await collectTicketRecords(String(req.params.number || "").slice(0, 60));
+    if (rec.error) return res.status(400).json({ error: rec.error });
+    if (rec.choices) return res.json({ choices: rec.choices });
+    // A web order that was keyed into ePASS: show the ePASS ticket, which carries the web order's own lines too.
+    let cameFrom = "";
+    const entered = rec.web ? rec.webOrders[0]?.epass_ticket : "";
+    if (entered && ticketKey(entered)) {
+      const onward = await collectTicketRecords(entered).catch(() => null);
+      if (onward && !onward.error && !onward.choices) { cameFrom = rec.webOrders[0].order_number; rec = onward; }
+    }
+    // A hiccup reading the payment ledgers must not blank the page: the
+    // timeline names the Agility records it could not read instead.
+    let ledger = null, ledgerMissing = [];
+    try { const storyFor = await buildTicketStoryLookup(); ledger = storyFor.audit(rec.key); ledgerMissing = storyFor.unread; }
+    catch (err) { ledgerMissing = ["payments, payment links, refunds and service requests"]; console.warn("Ticket Audit: payment ledgers unavailable —", err.message); }
+    const audit = buildTicketAudit(rec, ledger);
+    // Which Stripe payment a line is only matters to someone who can refund it.
+    const canRefund = isExecutiveUser(req.authUser) || canAccessPathForUser(req.authUser, "/intent-lookup.html");
+    if (!canRefund) for (const e of audit.events) e.payment = null;
+    return res.json({ ...audit, cameFrom, missing: [...new Set([...ledgerMissing, ...(rec.unread || [])])], found: audit.events.length > 0, canRefund });
+  } catch (err) {
+    console.error("Ticket Audit lookup failed:", err.message);
+    return res.status(500).json({ error: "Unable to load that ticket." });
   }
 });
 

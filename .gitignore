@@ -69,3 +69,7 @@ service_call_journey/service_call_journey/Claude outputs/
 service_call_journey/**/reference/data/
 service_call_journey/**/reference/*.xlsx
 service_call_journey/**/reference/*.zip
+
+# Supplier asset-library downloads (print-size TIFs and JPGs, 11/17): originals stay on this
+# machine. Only the small web copies made from them go to the shop, and those do not live here.
+supplier-digital-assets/

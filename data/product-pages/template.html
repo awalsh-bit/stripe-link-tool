@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <base href="/">
+  <title>{{PAGE_TITLE}} | Wilson AC &amp; Appliance</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- Express shop product page. This file is the template every model shares:
+       the server fills the double-brace names from the model's record in this folder and
+       from the live shop catalog (lib/shop-product-page.js). It is never served
+       as it stands. Header, fonts and photos are ordinary cached files. -->
+  <link rel="stylesheet" href="site-header.css">
+  <style>
+    @font-face { font-family: "Familjen Grotesk"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("fonts/familjen-grotesk-latin-wght-normal.woff2") format("woff2-variations"); }
+    @font-face { font-family: "Public Sans"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("fonts/public-sans-latin-wght-normal.woff2") format("woff2-variations"); }
+    @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
+    /* the shop's tokens (shop.html, #site-theme) */
+    :root {
+      --f-display: "Familjen Grotesk", "Public Sans", system-ui, sans-serif;
+      --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --bg: #F2F1EE;
+      --surface: #FFFFFF;
+      --sunk: #EDEAE4;
+      --ink: #24211E;
+      --ink-2: #45403A;
+      --muted: #655E56;
+      --line: #DDD8D0;
+      --accent: #67533E;
+      --accent-dark: #52412F;
+      --accent-soft: #F1ECE5;
+      --copper: #BE7D3C;
+      --copper-text: #96602A;
+      --copper-soft: #F6EBDD;
+      --ok: #21692C;
+      --ok-text: #1D5E27;
+      --ok-bg: #E3F1E5;
+      --warn: #7a5a1e;
+      --r: 6px;
+      --ribbon-h: 44px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { font-family: var(--f-body); font-size: 15px; line-height: 1.55; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: -.005em; }
+    button { font-family: inherit; }
+    img { display: block; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--r); font-size: 15px; font-weight: 600; padding: 12px 18px; border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: background .15s, border-color .15s; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .btn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+    .btn.ghost:hover { border-color: var(--ink); }
+    .btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    /* the shop's department ribbon */
+    .dept-nav { display: flex; align-items: center; gap: 26px; white-space: nowrap; }
+    .dept-link { font-family: var(--f-display); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); padding: 12px 0; margin: 0; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; white-space: nowrap; text-decoration: none; }
+    .dept-link:hover, .dept-link.here { border-bottom-color: var(--accent); color: var(--accent); }
+    .dept-link.outlet { color: var(--copper); }
+    .dept-link.outlet:hover { border-bottom-color: var(--copper); color: var(--copper); }
+    @media (max-width: 640px) { .dept-link { font-size: 12px; letter-spacing: .08em; } .dept-nav { gap: 18px; } }
+
+    /* ---- product page ---- */
+    main.pdp { max-width: 1180px; margin: 0 auto; padding: 18px 20px 72px; }
+    .crumbs ol { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); margin: 14px 0 0; }
+    .crumbs li { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .crumbs li + li::before { content: "/"; color: #B9B2A8; }
+    .crumbs a { color: var(--muted); text-decoration: none; }
+    .crumbs a:hover { color: var(--accent); text-decoration: underline; }
+    .crumbs .here { color: var(--ink); font-family: var(--f-mono); font-size: 12.5px; }
+    @media (max-width: 640px) { .crumbs li:first-child { display: none; } .crumbs li:nth-child(2)::before { content: none; } }
+
+    .pdp-top { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 16px; }
+
+    /* gallery: one swipeable stage; thumbnails, arrows and the counter only when there is more than one picture */
+    .gallery { position: sticky; top: calc(66px + var(--ribbon-h) + 18px); min-width: 0; }
+    .g-stage { position: relative; background: #fff; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+    .g-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+    .g-track::-webkit-scrollbar { display: none; }
+    .g-track:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .g-slide { position: relative; flex: 0 0 100%; aspect-ratio: 1 / 1; scroll-snap-align: center; scroll-snap-stop: always; }
+    .g-slide img { position: absolute; inset: 6%; width: 88%; height: 88%; object-fit: contain; }
+    .g-slide.fill img { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .g-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); color: var(--ink); cursor: pointer; display: grid; place-items: center; transition: border-color .15s; }
+    .g-nav:hover { border-color: var(--ink); }
+    .g-nav svg { width: 18px; height: 18px; }
+    .g-nav.prev { left: 10px; } .g-nav.next { right: 10px; }
+    .g-count { position: absolute; right: 10px; bottom: 10px; background: rgba(36,33,30,.72); color: #fff; border-radius: 3px; padding: 2px 8px; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .g-thumbs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .g-thumb { position: relative; aspect-ratio: 1 / 1; padding: 0; background: #fff; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; cursor: pointer; }
+    .g-thumb img { position: absolute; inset: 8%; width: 84%; height: 84%; object-fit: contain; }
+    .g-thumb.fill img { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .g-thumb:hover { border-color: var(--muted); }
+    .g-thumb[aria-current="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+
+    /* buy box */
+    .buy { min-width: 0; padding-top: 4px; position: sticky; top: var(--buy-top, calc(66px + var(--ribbon-h) + 18px)); }
+    .b-eyebrow { font-family: var(--f-display); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--copper-text); }
+    .buy h1 { font-size: clamp(29px, 3.3vw, 40px); line-height: 1.08; letter-spacing: -.012em; margin: 8px 0 8px; text-wrap: balance; }
+    .b-sub { font-size: 16px; color: var(--muted); }
+    .b-model { margin-top: 8px; font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
+    .b-lead { margin: 20px 0 0; font-size: 16.5px; line-height: 1.6; color: var(--ink-2); max-width: 54ch; }
+    .b-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 22px 0 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+    .b-facts > div { padding: 12px 10px 11px; text-align: center; min-width: 0; }
+    .b-facts > div + div { border-left: 1px solid var(--line); }
+    .b-facts dt { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1.15; letter-spacing: -.005em; }
+    .b-facts dt.long { font-size: 13px; letter-spacing: .06em; padding: 4px 0 3px; }
+    .b-facts dd { margin-top: 3px; font-size: 11.5px; color: var(--muted); letter-spacing: .02em; }
+    .b-buy { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
+    .b-price-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; }
+    .b-price { font-family: var(--f-display); font-weight: 600; font-size: 34px; line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .b-stock { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; color: var(--ok-text); }
+    .b-price.text { font-size: 24px; }
+    .b-price-note { margin-top: 8px; font-size: 13.5px; color: var(--muted); max-width: 46ch; }
+    .b-stock.none { color: var(--muted); }
+    .b-stock.none::before { background: #B9B2A8; }
+    .b-stock::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+    .b-stock span { font-weight: 400; color: var(--muted); }
+    .b-cta { margin-top: 16px; }
+    .b-cta .btn { width: 100%; min-height: 54px; font-size: 16.5px; }
+    .in-cart { display: flex; align-items: center; justify-content: center; min-height: 54px; border: 1px solid var(--ok); border-radius: var(--r); background: var(--ok-bg); color: var(--ok-text); font-weight: 700; font-size: 16px; }
+    .b-assure { list-style: none; margin-top: 16px; display: grid; gap: 9px; font-size: 14px; color: var(--ink-2); }
+    .b-assure li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; }
+    .b-assure svg { width: 18px; height: 18px; margin-top: 2px; color: var(--copper); }
+    .b-assure a { color: var(--accent); font-weight: 600; white-space: nowrap; }
+
+    /* features + specs */
+    .pdp-more { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 56px; padding-top: 48px; border-top: 1px solid var(--line); }
+    .kicker { font-family: var(--f-display); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--copper-text); }
+    .pdp-more h2 { font-size: clamp(24px, 2.6vw, 30px); line-height: 1.15; margin: 6px 0 18px; }
+    .feat-list { list-style: none; }
+    .feat-list li { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 14px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .feat-list li:first-child { border-top: 1px solid var(--line); }
+    .f-n { font-family: var(--f-mono); font-size: 13px; color: var(--copper-text); padding-top: 4px; }
+    .feat-list h3 { font-size: 20px; line-height: 1.2; }
+    .feat-list p { margin-top: 6px; font-size: 15.5px; line-height: 1.6; color: var(--ink-2); max-width: 56ch; }
+    .also { margin-top: 30px; }
+    .also h3 { font-family: var(--f-body); font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    .also ul { list-style: none; display: grid; gap: 8px; }
+    .also li { position: relative; padding-left: 18px; font-size: 14.5px; line-height: 1.45; color: var(--ink-2); }
+    .also li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--copper); }
+    .specs-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 26px 26px 22px; }
+    .specs-card h2 { margin-bottom: 14px; }
+    .specs > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; }
+    .specs > div:first-child { border-top: 1px solid var(--line); }
+    .specs dt { color: var(--muted); flex: 0 1 auto; }
+    .specs dd { font-weight: 600; text-align: right; flex: 0 1 62%; }
+    .doc { display: flex; align-items: center; gap: 12px; min-height: 52px; margin-top: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); text-decoration: none; }
+    .doc:hover { border-color: var(--ink); }
+    .doc-ic { flex: 0 0 auto; font-family: var(--f-mono); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: #fff; background: var(--copper-text); border-radius: 3px; padding: 4px 6px; }
+    .doc-tx { min-width: 0; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+    .doc-tx small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+    .spec-note { margin-top: 12px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .spec-note a { color: var(--accent); font-weight: 600; white-space: nowrap; }
+
+    /* Wilson's close */
+    .wilson { margin-top: 56px; background: var(--accent-soft); border: 1px solid var(--line); border-radius: var(--r); padding: 30px 32px; display: flex; align-items: center; gap: 20px 40px; flex-wrap: wrap; }
+    .wilson > div { flex: 1 1 380px; min-width: 0; }
+    .wilson h2 { font-size: clamp(22px, 2.4vw, 28px); line-height: 1.15; margin: 6px 0 8px; }
+    .wilson p:not(.kicker) { font-size: 15px; color: var(--ink-2); max-width: 60ch; }
+    .wilson .btn { flex: 0 0 auto; }
+
+    footer { background: var(--ink); }
+    .foot-inner { max-width: 1180px; margin: 0 auto; padding: 20px; font-size: 12.5px; color: rgba(255,255,255,.72); line-height: 1.6; text-align: center; }
+
+    /* phone: the price and button follow you down the page */
+    .buy-bar { display: none; }
+
+    @media (max-width: 900px) {
+      main.pdp { padding: 14px 16px 40px; }
+      .pdp-top, .pdp-more { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+      .pdp-more { margin-top: 40px; padding-top: 36px; gap: 36px; }
+      .gallery, .buy { position: static; }
+      .g-nav { display: none; }
+      .g-thumbs { display: flex; overflow-x: auto; scrollbar-width: none; gap: 8px; }
+      .g-thumbs::-webkit-scrollbar { display: none; }
+      .g-thumb { flex: 0 0 60px; }
+      .specs-card { padding: 20px 18px 18px; }
+      .wilson { margin-top: 40px; padding: 24px 20px; }
+      main.pdp { padding-bottom: 40px; }
+      .foot-inner { padding-bottom: 96px; }
+      .buy-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; display: flex; align-items: center; gap: 14px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(36,33,30,.10); transform: translateY(110%); transition: transform .2s ease; }
+      .buy-bar.show { transform: translateY(0); }
+      .buy-bar .bb-info { min-width: 0; flex: 1 1 auto; }
+      .buy-bar .bb-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .buy-bar .bb-price.text { font-size: 16px; }
+      .buy-bar .bb-price { font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+      .buy-bar .btn { flex: 0 0 auto; min-height: 46px; padding: 10px 20px; }
+      .buy-bar .in-cart { flex: 0 0 auto; min-height: 46px; padding: 0 16px; font-size: 14.5px; }
+    }
+    @media (max-width: 420px) {
+      .b-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .b-facts > div:nth-child(3) { border-left: 0; }
+      .b-facts > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+      .specs > div { gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .buy-bar { transition: none; } }
+  </style>
+</head>
+<body>
+
+  <header id="siteTop"></header>
+  <template id="shopRibbonTpl">
+    <div class="ribbon-inner">
+      <nav class="dept-nav" aria-label="Departments">
+{{DEPT_LINKS}}
+      </nav>
+    </div>
+  </template>
+  <script src="site-header.js"></script>
+  <script>
+    mountSiteHeader("siteTop", {
+      mode: "photo",
+      current: "express",
+      tag: "Express<br>Assortment",
+      leftHtml: `<a class="menu-btn" href="/shop.html" aria-label="Shop by category"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="menu-btn-label">Shop by Category</span></a>`,
+      rightHtml: `<a class="util-btn cart-btn" href="/shop.html" aria-label="Cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></a>`,
+      below: document.getElementById("shopRibbonTpl").content.cloneNode(true),
+      ribbonHeight: "44px",
+      // the search box searches the shop
+      search: { placeholder: "Search", onSubmit(v) { const q = String(v || "").trim(); location.href = "/shop.html" + (q ? "?q=" + encodeURIComponent(q) : ""); } }
+    });
+  </script>
+
+  <main class="pdp">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <ol>
+{{CRUMBS}}
+      </ol>
+    </nav>
+
+    <div class="pdp-top">
+      <section class="gallery" aria-label="Photos of the {{BRAND}} {{MODEL}}">
+        <div class="g-stage">
+          <div class="g-track" id="gTrack"{{TRACK_ATTRS}}>
+{{SLIDES}}
+          </div>
+{{STAGE_CONTROLS}}
+        </div>
+{{THUMBS}}
+      </section>
+
+      <section class="buy" aria-labelledby="pTitle">
+        <p class="b-eyebrow">{{EYEBROW}}</p>
+        <h1 id="pTitle">{{TITLE}}</h1>
+        <p class="b-sub">{{SUB}}</p>
+        <p class="b-model">Model {{MODEL}}</p>
+        <p class="b-lead">{{LEAD}}</p>
+        <dl class="b-facts">
+{{FACTS}}
+        </dl>
+        <div class="b-buy">
+{{OFFER}}
+        </div>
+      </section>
+    </div>
+
+    <div class="pdp-more">
+      <section aria-labelledby="whyH">
+        <p class="kicker">{{FEATURE_KICKER}}</p>
+        <h2 id="whyH">Why this {{NOUN}}</h2>
+        <ol class="feat-list">
+{{FEATURES}}
+        </ol>
+{{ALSO}}
+      </section>
+
+      <section class="specs-card" aria-labelledby="specH">
+        <p class="kicker">The details</p>
+        <h2 id="specH">Specifications</h2>
+        <dl class="specs">
+{{SPECS}}
+        </dl>
+{{DOCS}}
+        <p class="spec-note">Figures are {{BRAND}}'s published specifications. For installation, {{BRAND}}'s installation instructions give the final dimensions and cutout. Or call <a href="tel:512-894-0907">512-894-0907</a>.</p>
+      </section>
+    </div>
+
+    <section class="wilson" aria-labelledby="wilsonH">
+      <div>
+        <p class="kicker">Express Assortment</p>
+        <h2 id="wilsonH">Better choices, already made.</h2>
+        <p>Every model here is selected through decades of sales and service experience and kept in stock for quick delivery in the Wilson AC &amp; Appliance local area.</p>
+      </div>
+      <a class="btn ghost" href="/shop.html">Back to the shop</a>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="foot-inner">
+      Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · 512-894-0907 · wilsonappliance.com<br>
+      Express Assortment — in-stock models for quick delivery. Open Box and Display units are sold as-is where noted, one of each — first come, first served.
+      Nothing is charged online; a Wilson team member confirms every order before payment.
+    </div>
+  </footer>
+
+  <div class="buy-bar" id="buyBar" aria-hidden="true">{{BUYBAR}}</div>
+
+  <script>
+    // Gallery. The stage is a row of pictures you can swipe; the arrows,
+    // thumbnails and arrow keys move the same row. With one picture there
+    // are no controls and none of this does anything.
+    (function () {
+      const track = document.getElementById("gTrack");
+      const slides = Array.from(track.querySelectorAll(".g-slide"));
+      const thumbRow = document.getElementById("gThumbs");
+      const thumbs = thumbRow ? Array.from(thumbRow.querySelectorAll(".g-thumb")) : [];
+      const count = document.getElementById("gCount");
+      const n = slides.length;
+      if (n < 2) return;
+      const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let at = 0;
+      let heading = null; // where an arrow, thumbnail or key is taking the row; swipes leave it empty
+      let rest = 0;
+      function show(i) {
+        at = i;
+        if (count) count.textContent = (i + 1) + " / " + n;
+        thumbs.forEach((t, k) => t.setAttribute("aria-current", k === i ? "true" : "false"));
+        const t = thumbs[i];
+        if (t && thumbRow.scrollWidth > thumbRow.clientWidth) thumbRow.scrollTo({ left: t.offsetLeft - (thumbRow.clientWidth - t.clientWidth) / 2, behavior: calm ? "auto" : "smooth" });
+      }
+      function go(i) {
+        i = (i + n) % n;
+        heading = i;
+        track.scrollTo({ left: i * track.clientWidth, behavior: calm ? "auto" : "smooth" });
+        show(i);
+      }
+      // While the row is gliding to a chosen picture, the pictures it passes
+      // don't count: a second quick click steps on from where it is heading.
+      function settle() {
+        heading = null;
+        const i = Math.round(track.scrollLeft / track.clientWidth);
+        if (i !== at && i >= 0 && i < n) show(i);
+      }
+      track.addEventListener("scroll", () => {
+        clearTimeout(rest);
+        rest = setTimeout(settle, 140);
+        if (heading !== null) return;
+        const i = Math.round(track.scrollLeft / track.clientWidth);
+        if (i !== at && i >= 0 && i < n) show(i);
+      }, { passive: true });
+      document.querySelectorAll(".g-nav").forEach((b) => b.addEventListener("click", () => go(at + (b.classList.contains("next") ? 1 : -1))));
+      thumbs.forEach((t, k) => t.addEventListener("click", () => go(k)));
+      track.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight") { e.preventDefault(); go(at + 1); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); go(at - 1); }
+      });
+      window.addEventListener("resize", () => track.scrollTo({ left: at * track.clientWidth, behavior: "auto" }));
+    })();
+
+    // Whichever of the photos and the buy box is shorter stays in view while
+    // the other scrolls. A buy box taller than the screen is held by its
+    // bottom edge instead, so the button is never cut off.
+    (function () {
+      const buy = document.querySelector(".buy");
+      if (!buy) return;
+      const set = () => buy.style.setProperty("--buy-top", Math.min(128, window.innerHeight - buy.offsetHeight - 20) + "px");
+      set();
+      window.addEventListener("resize", set);
+      if ("ResizeObserver" in window) new ResizeObserver(set).observe(buy);
+      // phone: bring this model's department into view in the ribbon
+      const here = document.querySelector(".dept-link.here"), row = here && here.closest(".ribbon-inner");
+      if (row && row.scrollWidth > row.clientWidth) row.scrollLeft = here.offsetLeft - (row.clientWidth - here.offsetWidth) / 2;
+    })();
+
+    // phone: the price and button ride along the bottom whenever the main
+    // button is off the screen
+    (function () {
+      const bar = document.getElementById("buyBar");
+      const main = document.getElementById("ctaMain");
+      if (bar && main && "IntersectionObserver" in window) {
+        // the fixed header covers the top of the screen, so a button under it counts as out of view
+        new IntersectionObserver(([en]) => {
+          const on = !en.isIntersecting;
+          bar.classList.toggle("show", on);
+          bar.setAttribute("aria-hidden", on ? "false" : "true");
+          bar.querySelectorAll("a").forEach((b) => { b.tabIndex = on ? 0 : -1; });
+        }, { threshold: 0, rootMargin: "-160px 0px 0px 0px" }).observe(main);
+      }
+    })();
+  </script>
+</body>
+</html>

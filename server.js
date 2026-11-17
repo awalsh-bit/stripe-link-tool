@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
+import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage } from "./lib/shop-product-page.js";
 import {
   readLinks,
   writeLinks,
@@ -841,6 +842,8 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
   "/api/shop/unit-photo/", // phone photos of outlet units (Express Assortment Catalog page)
   "/api/shop/spec-sheet/", // manufacturer sell sheets / spec sheets linked from an open tile — only files named in data/shop-spec-sheets.json
+  "/p/", // product pages (11/17, one test item to start): /p/<MODEL>, drawn from data/product-pages — see the routes above express.static
+  "/product-photos/", // their web-sized photos: product-photos/<MODEL>/*.webp, WebP only
   "/api/shop/model-photo/", // hand-picked model pictures — actual photos and supplier assets (Express Assortment Catalog page); only GET answers without a login
   "/api/shop/zip-check",
   "/api/shop/register",
@@ -6370,6 +6373,58 @@ app.post("/api/hr/phone-screen", requirePagePermission("/hr-phone-screen.html"),
   }
 });
 
+// ---------------------------------------------------------------------------
+// PUBLIC: Express shop product pages (Andrew 11/17: "I want to see the test
+// item on the shop"). /p/<MODEL> is drawn from the model's record and the
+// shared template in data/product-pages (lib/shop-product-page.js). Price and
+// stock are never in the record: they come from the live catalog here, under
+// the tile's own advertised-price rules, for the unit "?add=" would put in
+// the cart (new before open box). The real price of a unit below its
+// advertised-price floor never leaves this function. A model with no record
+// goes to the shop. Nothing links to these pages yet.
+// Registered before express.static so the photo route, with its week-long
+// cache, answers instead of the static handler.
+// ---------------------------------------------------------------------------
+const SHOP_PRODUCT_PAGE_DIR = path.join(__dirname, "data", "product-pages");
+const SHOP_PRODUCT_PHOTO_DIR = path.join(__dirname, "product-photos");
+app.get("/p/:model", async (req, res) => {
+  try {
+    const rec = await loadProductPage(SHOP_PRODUCT_PAGE_DIR, req.params.model);
+    if (!rec) return res.redirect(302, "/shop.html");
+    const key = normalizeModelKey(rec.model);
+    let live = { paused: false, unit: null, sheets: [] };
+    try {
+      const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
+      const u = catalog.items
+        .filter((i) => normalizeModelKey(i.model) === key && !i.gridHidden)
+        .sort((a, b) => (a.condition === "open") - (b.condition === "open"))[0];
+      live.paused = !!catalog.paused;
+      live.unit = u
+        ? { price: u.price, noPrice: !!u.noPrice, mapPublic: !!u.mapPublic, mapFloor: u.mapFloor ?? null, source: u.source || "clearance", stockLevel: u.stockLevel || "", condition: u.condition || "", serialType: u.serialType || "", hideStockBadge: !!u.hideStockBadge }
+        : null;
+      live.sheets = (await loadShopData()).specSheets?.byModel?.[key] || [];
+    } catch (err) {
+      // The catalog can't be read: the page still opens, with no price and the phone number.
+      console.error("Product page: catalog unavailable —", err.message);
+      live = { paused: true, unit: null, sheets: [] };
+    }
+    const html = renderProductPage(await loadProductPageTemplate(SHOP_PRODUCT_PAGE_DIR), rec, live);
+    res.setHeader("Cache-Control", "no-store"); // price and stock are live
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    return res.type("html").send(html);
+  } catch (err) {
+    console.error("Product page failed:", err.message);
+    return res.redirect(302, "/shop.html");
+  }
+});
+app.get("/product-photos/:model/:file", (req, res) => {
+  const file = productPhotoFile(SHOP_PRODUCT_PHOTO_DIR, req.params.model, req.params.file);
+  if (!file) return res.status(404).send("Not found.");
+  res.setHeader("Cache-Control", "public, max-age=604800");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  return res.sendFile(file, { headers: { "Content-Type": "image/webp" } }, (err) => { if (err && !res.headersSent) res.status(404).send("Not found."); });
+});
+
 app.use(express.static(__dirname, { index: false }));
 
 app.get("/", (req, res) => {
@@ -6411,6 +6466,38 @@ async function readSecretMenuFile() {
   return JSON.parse(await fs.readFile(path.join(__dirname, "data", "secret-menu.json"), "utf8"));
 }
 
+// Inventory for the old list's models (Andrew 11/17), in Inventory Lookup's
+// own numbers so the two screens never disagree: `ats` is what a salesperson
+// can promise today (serial type ALL, not written to an order); `onHand` is
+// every unit in the building. Counts only: no cost, no serials, no customer
+// names. If the ePASS snapshot can't be read the cards simply carry no
+// inventory line, rather than a zero that would read as "none on hand".
+async function secretMenuStock(models) {
+  try {
+    const index = await getInventoryIndex(false);
+    if (!index?.snapshotAt) return { byKey: {}, asOf: null };
+    const byKey = {};
+    for (const model of models) {
+      const key = promoModelKey(model);
+      if (!key) continue;
+      const m = index.models.get(key);
+      byKey[key] = {
+        onHand: m?.onHand || 0,
+        ats: m?.ats || 0,
+        openBox: Math.max(0, (m?.available || 0) - (m?.ats || 0)),
+        spoken: m?.spoken || 0,
+        likely: m?.likely || 0,
+        display: m?.display || 0,
+        exclusive: m?.exclusive || 0
+      };
+    }
+    return { byKey, asOf: index.snapshotAt };
+  } catch (err) {
+    console.warn("Secret Menu: inventory lookup failed —", err.message);
+    return { byKey: {}, asOf: null };
+  }
+}
+
 app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (req, res) => {
   try {
     const cards = await listPromoCards({ channel: "secret" }).catch(() => []);
@@ -6428,11 +6515,13 @@ app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (r
     // carries its new expiration from the database; the rest go by the file.
     const data = await readSecretMenuFile();
     const dates = await listSecretMenuItemDates().catch(() => ({}));
-    const items = (Array.isArray(data.items) ? data.items : []).map((item) => ({ ...item, expiration: secretMenuItemExpiration(item, dates) }));
+    const listed = Array.isArray(data.items) ? data.items : [];
+    const stock = await secretMenuStock(listed.map((item) => item.model));
+    const items = listed.map((item) => ({ ...item, expiration: secretMenuItemExpiration(item, dates), stock: stock.byKey[promoModelKey(item.model)] || null }));
     res.setHeader("Cache-Control", "no-store");
     return res.json({
       ...data,
-      _meta: { ...(data._meta || {}), source: "file", today: promoToday(), canReactivate: isExecutiveUser(req.authUser) },
+      _meta: { ...(data._meta || {}), source: "file", today: promoToday(), canReactivate: isExecutiveUser(req.authUser), stockAsOf: stock.asOf },
       items,
       cards: []
     });

@@ -8,43 +8,52 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
-    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    :root { --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f7f8fc; }
+    /* Colour scheme (11/17). Brand colour comes only from the shell's --primary variables, so green, purple and
+       red restyle this page with everything else. For the dark scheme, every neutral grey below is written as
+       var(--name, light grey): the light schemes use the grey as written, and dark supplies the name -
+       --surface and --surface-2 from the shell, the rest here. Status pills keep their own colours. */
+    html[data-theme="dark"] { --soft-2: #1e293b; --hair: #273246; --ink-2: #cbd5e1; --warn-ink: #fcd34d; --bad-ink: #fca5a5; --good-ink: #86efac; }
+    /* On this page .note is ordinary helper text, not the amber warning the shell's dark scheme assumes. */
+    html[data-theme="dark"] .note { color: var(--muted) !important; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px 20px 48px; }
+    /* Every control takes the page typeface (a browser otherwise draws buttons and fields in its own default). */
+    button, input, select, textarea { font-family: inherit; }
     .wrap { max-width: 1100px; margin: 0 auto; }
-    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface { background: var(--surface, #fff); border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
     .surface[hidden] { display: none; }
     h2 { margin: 0 0 6px; font-size: 22px; }
     .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 860px; }
     .mut { color: var(--muted); font-size: 12.5px; }
     button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
     button:hover { background: var(--primary-hover); }
-    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.quiet { background: var(--soft-2, #eef2f7); color: var(--text); } button.quiet:hover { background: var(--soft-2, #e2e8f0); }
     button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
     button:disabled { opacity: .6; cursor: default; }
     label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
-    input[type="text"], input[type="search"], input[type="time"] { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
-    input:disabled { background: #f8fafc; color: var(--muted); }
+    input[type="text"], input[type="search"], input[type="time"] { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: var(--surface, #fff); color: var(--text); }
+    input:disabled { background: var(--surface-2, #f8fafc); color: var(--muted); }
     .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
-    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--soft-2, #eef2f7); color: var(--ink-2, #475569); white-space: nowrap; }
     .tag.amber { background: #fef3c7; color: #92400e; } .tag.green { background: #dcfce7; color: #166534; }
     .empty { color: var(--muted); font-size: 14px; margin: 0; }
 
     .mine { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 12px 0 8px; }
-    .mine div { border: 1px solid #eef2f7; border-radius: 10px; padding: 8px 10px; font-size: 13px; background: #fff; }
+    .mine div { border: 1px solid var(--hair, #eef2f7); border-radius: 10px; padding: 8px 10px; font-size: 13px; background: var(--surface, #fff); }
     .mine div b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
-    .mine div.off { background: #f8fafc; color: var(--muted); }
+    .mine div.off { background: var(--surface-2, #f8fafc); color: var(--muted); }
     .mine[hidden], .tools[hidden] { display: none; }
 
-    .row { border-top: 1px solid #f1f5f9; padding: 12px 0; }
+    .row { border-top: 1px solid var(--hair, #f1f5f9); padding: 12px 0; }
     .row:first-child { border-top: none; }
     .row .line { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; }
     .row .who b { display: block; font-size: 14.5px; } .row .who span { font-size: 12.5px; color: var(--muted); }
     .row .what { font-size: 13.5px; }
-    .editor { margin-top: 12px; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; background: #fbfcfd; }
+    .editor { margin-top: 12px; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--surface-2, #fbfcfd); }
     table.sched { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     .sched th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-    .sched td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .sched td { padding: 7px 8px; border-bottom: 1px solid var(--hair, #f1f5f9); vertical-align: middle; }
     .sched input[type="time"] { margin-top: 0; max-width: 150px; } .sched td.day { font-weight: 700; width: 120px; } .sched td.hrs { color: var(--muted); width: 90px; }
     label.tick { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; color: var(--text); font-size: 13.5px; font-weight: 600; } label.tick input { accent-color: var(--primary); width: 17px; height: 17px; } label.tick .mut { font-weight: 400; }
     .editor .acts { display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
@@ -56,7 +65,7 @@
       .row .line { grid-template-columns: 1fr; }
       /* the week grid on a narrow screen: day and Off on one line, the two times under them */
       .sched thead { display: none; }
-      .sched tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+      .sched tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid var(--hair, #f1f5f9); }
       .sched tbody td { padding: 0; border: none; min-width: 0; }
       .sched tbody td.day { width: auto; align-self: center; } .sched tbody td:nth-child(2) { justify-self: end; align-self: center; }
       .sched tbody td.hrs { display: none; }
@@ -93,6 +102,8 @@
     <div class="surface" id="noneBox" hidden>
       <p class="empty">Your sign-in isn't linked to an employee profile yet, so there's no schedule to show. Ask HR to check the email on your profile.</p>
     </div>
+
+    <div id="internal-shell-footer"></div>
   </div>
 
   <script src="internal-shell.js"></script>
@@ -147,7 +158,7 @@
         ${kind === "person" ? `<label style="margin-top:12px">Schedule note<input type="text" data-note maxlength="300" value="${esc(row.scheduleNote || "")}" placeholder="Every other Saturday; on call the first week of the month" /></label>` : ""}
         <div class="acts"><button type="button" data-save>${kind === "job" ? "Save standard week" : "Save schedule"}</button><button type="button" class="quiet" data-cancel>Cancel</button>
           ${kind === "person" && row.source === "custom" && row.hasJobSchedule ? `<button type="button" class="link" data-default>Back to the standard week for ${esc(row.title || "their job")}</button>` : ""}
-          ${kind === "job" && hasDays(row.schedule) ? `<button type="button" class="link" data-remove style="color:#991b1b">Remove the standard week</button>` : ""}</div>
+          ${kind === "job" && hasDays(row.schedule) ? `<button type="button" class="link" data-remove style="color:var(--bad-ink, #991b1b)">Remove the standard week</button>` : ""}</div>
         <div class="status" data-status></div></div>`;
     }
     function totals(ed) {

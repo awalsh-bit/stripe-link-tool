@@ -8,19 +8,28 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
-    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    :root { --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f7f8fc; }
+    /* Colour scheme (11/17). Brand colour comes only from the shell's --primary variables, so green, purple and
+       red restyle this page with everything else. For the dark scheme, every neutral grey below is written as
+       var(--name, light grey): the light schemes use the grey as written, and dark supplies the name -
+       --surface and --surface-2 from the shell, the rest here. Status pills keep their own colours. */
+    html[data-theme="dark"] { --soft-2: #1e293b; --hair: #273246; --ink-2: #cbd5e1; --warn-ink: #fcd34d; --bad-ink: #fca5a5; --good-ink: #86efac; }
+    /* On this page .note is ordinary helper text, not the amber warning the shell's dark scheme assumes. */
+    html[data-theme="dark"] .note { color: var(--muted) !important; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px 20px 48px; }
+    /* Every control takes the page typeface (a browser otherwise draws buttons and fields in its own default). */
+    button, input, select, textarea { font-family: inherit; }
     .wrap { max-width: 1100px; margin: 0 auto; }
-    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface { background: var(--surface, #fff); border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
     h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 10px; font-size: 15px; }
     .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
-    button.quiet { background: #eef2f7; color: var(--text); } button.danger { background: #fee2e2; color: #991b1b; } button:disabled { opacity: .6; cursor: default; }
+    button.quiet { background: var(--soft-2, #eef2f7); color: var(--text); } button.danger { background: #fee2e2; color: #991b1b; } button:disabled { opacity: .6; cursor: default; }
     button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; }
     label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
-    input[type="text"], input[type="date"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; }
+    input[type="text"], input[type="date"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: var(--surface, #fff); }
     textarea { min-height: 64px; resize: vertical; }
     .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
     .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c12 { grid-column: span 12; }
@@ -29,13 +38,13 @@
     .status { display: none; margin: 10px 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
     table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-    td { padding: 9px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    td { padding: 9px 8px; border-bottom: 1px solid var(--hair, #f1f5f9); vertical-align: top; }
     tr.past td { color: var(--muted); } tr.archived td { opacity: .55; }
     .kind { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
     .mut { color: var(--muted); font-size: 12.5px; }
     .soon { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #166534; margin-left: 6px; }
     /* a date's list opens in its own full-width row, so it shows on a phone too */
-    tr.sheet-row td { background: #fafbfc; padding: 12px 14px 14px; }
+    tr.sheet-row td { background: var(--surface-2, #fafbfc); padding: 12px 14px 14px; }
     .sheet .line { display: flex; gap: 8px; align-items: center; padding: 3px 0; font-size: 13px; }
     .sheet .line span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .rsvp-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 26px; }
@@ -45,7 +54,7 @@
     @media (max-width: 760px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .c3, .c4, .c6 { grid-column: span 12; } .check { margin-top: 0; } .hide-sm { display: none; } .only-sm { display: block; } .rsvp-cols { grid-template-columns: 1fr; }
       /* on a phone each date is a block, not a table row, so nothing runs off the side */
       #rows, #rows tr, #rows td { display: block; } thead { display: none; }
-      #rows tr { padding: 10px 0; border-bottom: 1px solid #f1f5f9; } #rows tr[hidden], #rows td.hide-sm { display: none; }
+      #rows tr { padding: 10px 0; border-bottom: 1px solid var(--hair, #f1f5f9); } #rows tr[hidden], #rows td.hide-sm { display: none; }
       #rows td { border: none; padding: 2px 0; white-space: normal !important; text-align: left !important; }
       #rows td:nth-child(1), #rows td:nth-child(2) { display: inline-block; vertical-align: top; margin-right: 8px; }
       #rows tr.sheet-row { padding: 0 0 10px; } #rows tr.sheet-row td { display: block; margin: 0; padding: 12px; border-radius: 10px; }
@@ -142,7 +151,7 @@
     // under the title.
     function sheetSummary(d) {
       if (d.signupMode !== "rsvp") return `${d.signupCount} signed up`;
-      return `RSVP · <strong>${d.rsvp.yes} coming</strong>${d.rsvp.people > d.rsvp.yes ? ` (${d.rsvp.people} people)` : ""} · ${d.rsvp.no} no${d.rsvp.waiting == null ? "" : ` · <strong>${d.rsvp.waiting} no answer</strong>`} <span class="mut">· ${d.signupGuestMax === 0 ? "no guests" : "up to +" + d.signupGuestMax}</span>${d.rsvp.over ? ` <span style="color:#b45309; font-weight:700;" title="Answered before the guest limit was lowered. Their answers are unchanged — ask them to update, or remove the line.">· ${d.rsvp.over} over the limit</span>` : ""}`;
+      return `RSVP · <strong>${d.rsvp.yes} coming</strong>${d.rsvp.people > d.rsvp.yes ? ` (${d.rsvp.people} people)` : ""} · ${d.rsvp.no} no${d.rsvp.waiting == null ? "" : ` · <strong>${d.rsvp.waiting} no answer</strong>`} <span class="mut">· ${d.signupGuestMax === 0 ? "no guests" : "up to +" + d.signupGuestMax}</span>${d.rsvp.over ? ` <span style="color:var(--warn-ink, #b45309); font-weight:700;" title="Answered before the guest limit was lowered. Their answers are unchanged — ask them to update, or remove the line.">· ${d.rsvp.over} over the limit</span>` : ""}`;
     }
     const sheetLinks = (d) => `<button type="button" class="link" data-sheet="${d.id}">${d.signupMode === "rsvp" ? "view names" : "view"}</button> · <button type="button" class="link" data-csv="${d.id}" title="Download the ${d.signupMode === "rsvp" ? "RSVP answers, and who hasn't answered," : "sign-up sheet"} as a spreadsheet">export CSV</button>`;
 
@@ -158,7 +167,7 @@
         return `<tr class="${past ? "past" : ""} ${d.archived ? "archived" : ""}">
           <td style="white-space: nowrap;">${when}${d.time ? `<div class="mut">${esc(d.time)}</div>` : ""}</td>
           <td><span class="kind" style="background:${k.color}">${esc(k.label)}</span></td>
-          <td><strong>${esc(d.title)}</strong>${soon && !d.archived ? `<span class="soon">on dashboards</span>` : ""}${d.archived ? `<span class="soon" style="background:#f1f5f9;color:#6b7280;">archived</span>` : ""}${d.details ? `<div class="mut">${esc(d.details)}</div>` : ""}${d.signupEnabled ? `<div class="only-sm" style="font-size: 13px; margin-top: 5px;">${sheetSummary(d)}<br>${sheetLinks(d)}</div>` : ""}</td>
+          <td><strong>${esc(d.title)}</strong>${soon && !d.archived ? `<span class="soon">on dashboards</span>` : ""}${d.archived ? `<span class="soon" style="background:#f1f5f9;color:var(--muted);">archived</span>` : ""}${d.details ? `<div class="mut">${esc(d.details)}</div>` : ""}${d.signupEnabled ? `<div class="only-sm" style="font-size: 13px; margin-top: 5px;">${sheetSummary(d)}<br>${sheetLinks(d)}</div>` : ""}</td>
           <td class="hide-sm">${d.signupEnabled ? `${sheetSummary(d)} ${sheetLinks(d)}` : `<span class="mut">—</span>`}</td>
           <td class="hide-sm mut">${esc(d.createdBy)}</td>
           <td style="white-space: nowrap; text-align: right;">
@@ -219,13 +228,13 @@
       try {
         const d = await api(`/api/important-dates/${id}/signups`);
         const byName = (a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "en", { sensitivity: "base" });
-        const rm = (s) => `<button type="button" class="link" style="color:#b91c1c" data-rm="${s.id}">remove</button>`;
+        const rm = (s) => `<button type="button" class="link" style="color:var(--bad-ink, #b91c1c)" data-rm="${s.id}">remove</button>`;
         if (d.date.signupMode === "rsvp") {
           const yes = d.signups.filter((s) => s.response === "yes").sort(byName), no = d.signups.filter((s) => s.response === "no").sort(byName);
           const other = d.signups.filter((s) => s.response !== "yes" && s.response !== "no"); // lines added before this date became an RSVP
           const people = yes.reduce((n, s) => n + 1 + (s.guests || 0), 0);
           const col = (title, count, extra, lines, empty) => `<div><h4>${title} · <b>${count}</b>${extra}</h4>${lines.join("") || `<div class="mut">${empty}</div>`}</div>`;
-          const answer = (s) => `<div class="line"><span><strong>${esc(s.name || s.email)}</strong>${s.response === "yes" && s.guests ? " +" + s.guests : ""}${s.response === "yes" && s.guests > d.date.signupGuestMax ? ` <span style="color:#b45309; font-weight:700;">(over the limit of ${d.date.signupGuestMax})</span>` : ""}${s.item ? ` <span class="mut">· ${esc(s.item)}</span>` : ""}</span>${rm(s)}</div>`;
+          const answer = (s) => `<div class="line"><span><strong>${esc(s.name || s.email)}</strong>${s.response === "yes" && s.guests ? " +" + s.guests : ""}${s.response === "yes" && s.guests > d.date.signupGuestMax ? ` <span style="color:var(--warn-ink, #b45309); font-weight:700;">(over the limit of ${d.date.signupGuestMax})</span>` : ""}${s.item ? ` <span class="mut">· ${esc(s.item)}</span>` : ""}</span>${rm(s)}</div>`;
           el.innerHTML = `<div class="rsvp-cols">
             ${col("Coming", yes.length, people > yes.length ? ` <span style="text-transform:none; letter-spacing:0;">(${people} people with guests)</span>` : "", yes.map(answer), "Nobody yet.")}
             ${col("Can't make it", no.length, "", no.map(answer), "Nobody.")}

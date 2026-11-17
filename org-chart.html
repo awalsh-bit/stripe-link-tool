@@ -8,11 +8,20 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
-    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; --line: #94a3b8; --dotted: #7c3aed; }
+    :root { --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f7f8fc; --line: #94a3b8; --dotted: #7c3aed; }
+    /* Colour scheme (11/17). Brand colour comes only from the shell's --primary variables, so green, purple and
+       red restyle this page with everything else. For the dark scheme, every neutral grey below is written as
+       var(--name, light grey): the light schemes use the grey as written, and dark supplies the name -
+       --surface and --surface-2 from the shell, the rest here. Status pills keep their own colours. */
+    html[data-theme="dark"] { --soft-2: #1e293b; --hair: #273246; --ink-2: #cbd5e1; --warn-ink: #fcd34d; --bad-ink: #fca5a5; --good-ink: #86efac; }
+    /* On this page .note is ordinary helper text, not the amber warning the shell's dark scheme assumes. */
+    html[data-theme="dark"] .note { color: var(--muted) !important; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px 20px 48px; }
+    /* Every control takes the page typeface (a browser otherwise draws buttons and fields in its own default). */
+    button, input, select, textarea { font-family: inherit; }
     .wrap { max-width: 1500px; margin: 0 auto; }
-    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface { background: var(--surface, #fff); border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
     .surface[hidden] { display: none; }
     h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 8px; font-size: 15px; }
     .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 900px; }
@@ -20,20 +29,20 @@
     a { color: var(--primary); font-weight: 600; }
     button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
     button:hover { background: var(--primary-hover); }
-    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.quiet { background: var(--soft-2, #eef2f7); color: var(--text); } button.quiet:hover { background: var(--soft-2, #e2e8f0); }
     button.danger { background: #fee2e2; color: #991b1b; } button.danger:hover { background: #fecaca; }
     button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
     button:disabled { opacity: .6; cursor: default; }
     label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
-    select { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    select { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: var(--surface, #fff); color: var(--text); }
     .status { display: none; margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
-    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--soft-2, #eef2f7); color: var(--ink-2, #475569); white-space: nowrap; }
     .tag.amber { background: #fef3c7; color: #92400e; } .tag.red { background: #fee2e2; color: #991b1b; } .tag.violet { background: #ede9fe; color: #5b21b6; }
 
     .bar { display: flex; gap: 14px 22px; flex-wrap: wrap; align-items: center; }
-    .seg { display: inline-flex; background: #eef2f7; border-radius: 12px; padding: 3px; }
+    .seg { display: inline-flex; background: var(--soft-2, #eef2f7); border-radius: 12px; padding: 3px; }
     .seg button { background: none; color: var(--muted); padding: 7px 14px; border-radius: 9px; }
-    .seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+    .seg button.on { background: var(--surface, #fff); color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
     .seg button[data-mode="dotted"].on { color: var(--dotted); }
     .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); align-items: center; }
     .legend i { display: inline-block; width: 30px; border-top: 2px solid var(--line); vertical-align: middle; margin-right: 6px; } .legend i.d { border-top: 2px dashed var(--dotted); }
@@ -41,38 +50,38 @@
     .zones { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
     .zone { border: 2px dashed #cbd5e1; border-radius: 14px; padding: 12px 14px; min-height: 62px; }
     .zone h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 8px; }
-    .zone.drop { border-color: var(--primary); background: #eef7f0; }
+    .zone.drop { border-color: var(--primary); background: var(--primary-tint); }
     #topZone { display: flex; flex-direction: column; justify-content: center; }
     .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-    .chip { border: 1.5px solid var(--border); background: #fff; border-radius: 10px; padding: 6px 10px; font-size: 13px; cursor: grab; color: var(--text); font-weight: 600; text-align: left; }
-    .chip:hover { background: #f8fafc; border-color: #b7c2d0; } .chip b { color: var(--muted); font-size: 11px; margin-right: 6px; } .chip span { font-weight: 400; color: var(--muted); }
+    .chip { border: 1.5px solid var(--border); background: var(--surface, #fff); border-radius: 10px; padding: 6px 10px; font-size: 13px; cursor: grab; color: var(--text); font-weight: 600; text-align: left; }
+    .chip:hover { background: var(--surface-2, #f8fafc); border-color: #b7c2d0; } .chip b { color: var(--muted); font-size: 11px; margin-right: 6px; } .chip span { font-weight: 400; color: var(--muted); }
 
-    .scroll { overflow: auto; border: 1px solid #eef2f7; border-radius: 14px; background: #fbfcfd; margin-top: 16px; max-height: 76vh; }
+    .scroll { overflow: auto; border: 1px solid var(--hair, #eef2f7); border-radius: 14px; background: var(--surface-2, #fbfcfd); margin-top: 16px; max-height: 76vh; }
     .scroll.tall { max-height: none; } /* outline view: let the page scroll, not a box inside it */
     .canvas { position: relative; margin: 24px; }
     .canvas svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
     .canvas path.solid { fill: none; stroke: var(--line); stroke-width: 2; }
     .canvas path.dot { fill: none; stroke: var(--dotted); stroke-width: 2; stroke-dasharray: 6 5; }
     .canvas circle.dotend { fill: var(--dotted); }
-    .box:focus-visible, .chip:focus-visible { outline: 3px solid rgba(33, 105, 44, .45); outline-offset: 2px; }
-    .box { position: absolute; width: 204px; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 9px 11px 10px; cursor: grab; text-align: left; font-weight: 400; color: var(--text); box-shadow: 0 2px 6px rgba(15, 23, 42, .05); }
-    .box:hover { background: #fff; border-color: #94a3b8; }
-    .box.vacant { border-style: dashed; background: #f8fafc; }
-    .box.sel { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(33, 105, 44, .18); }
-    .box.drop { border-color: var(--primary); background: #eef7f0; } .box.drop.dotdrop { border-color: var(--dotted); background: #f5f3ff; }
+    .box:focus-visible, .chip:focus-visible { outline: 3px solid rgba(var(--primary-rgb), .45); outline-offset: 2px; }
+    .box { position: absolute; width: 204px; background: var(--surface, #fff); border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 9px 11px 10px; cursor: grab; text-align: left; font-weight: 400; color: var(--text); box-shadow: 0 2px 6px rgba(15, 23, 42, .05); }
+    .box:hover { background: var(--surface, #fff); border-color: #94a3b8; }
+    .box.vacant { border-style: dashed; background: var(--surface-2, #f8fafc); }
+    .box.sel { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .18); }
+    .box.drop { border-color: var(--primary); background: var(--primary-tint); } .box.drop.dotdrop { border-color: var(--dotted); background: #f5f3ff; }
     .box.dragging { opacity: .45; }
     .box .jc { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; color: var(--muted); }
     .box .ti { font-size: 13.5px; font-weight: 700; line-height: 1.25; margin: 1px 0 5px; }
-    .box .p { font-size: 12.5px; line-height: 1.35; padding-top: 3px; border-top: 1px solid #f1f5f9; margin-top: 3px; }
+    .box .p { font-size: 12.5px; line-height: 1.35; padding-top: 3px; border-top: 1px solid var(--hair, #f1f5f9); margin-top: 3px; }
     .box .p .tag { margin-left: 4px; }
     .box .vac { font-size: 12px; color: var(--muted); font-style: italic; }
     .empty { color: var(--muted); font-size: 14px; margin: 0; padding: 28px; text-align: center; }
 
-    .panel { position: fixed; right: 18px; top: 86px; width: 350px; max-height: calc(100vh - 110px); overflow-y: auto; background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 18px 50px rgba(15, 23, 42, .22); z-index: 40; }
+    .panel { position: fixed; right: 18px; top: 86px; width: 350px; max-height: calc(100vh - 110px); overflow-y: auto; background: var(--surface, #fff); border-radius: 16px; padding: 18px; box-shadow: 0 18px 50px rgba(15, 23, 42, .22); z-index: 40; }
     .panel[hidden] { display: none; }
-    .panel .x { position: absolute; right: 10px; top: 10px; background: #eef2f7; color: var(--text); padding: 4px 10px; }
+    .panel .x { position: absolute; right: 10px; top: 10px; background: var(--soft-2, #eef2f7); color: var(--text); padding: 4px 10px; }
     .panel h3 { font-size: 17px; margin: 0 28px 2px 0; }
-    .panel section { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eef2f7; }
+    .panel section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hair, #eef2f7); }
     .panel .who { font-size: 13.5px; margin: 0 0 8px; } .panel .who b { display: block; }
     .panel .dl { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
     .panel .dl span { background: #f5f3ff; color: #5b21b6; border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 12.5px; font-weight: 600; display: inline-flex; gap: 4px; align-items: center; }
@@ -80,7 +89,7 @@
     .panel .row { display: flex; gap: 8px; align-items: flex-end; } .panel .row label { flex: 1; }
 
     table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-    td { padding: 9px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    td { padding: 9px 8px; border-bottom: 1px solid var(--hair, #f1f5f9); vertical-align: top; }
     .todo h3 { margin-top: 16px; } .todo h3:first-child { margin-top: 0; }
 
     @media (max-width: 760px) {
@@ -116,6 +125,8 @@
     </div>
 
     <div class="surface todo" id="todo" hidden></div>
+
+    <div id="internal-shell-footer"></div>
   </div>
 
   <aside class="panel" id="panel" hidden aria-label="Selected job"></aside>

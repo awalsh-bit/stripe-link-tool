@@ -22459,6 +22459,11 @@ app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), as
 
     const normalizedLinks = links.map((row) => normalizeLinkRecord({ ...row }));
 
+    // Two link rows carrying one Stripe payment: the row paid first is the
+    // payment, the others are flagged so Paid History shows them for what
+    // they are and an executive can remove them.
+    flagDuplicatePaidLinkRows(normalizedLinks);
+
     // Refunds issued in Agility ride Paid History as negative rows with
     // their own receipt actions (refund receipt PDF/email).
     const refundRows = refundEvents.map((event) => ({
@@ -22488,7 +22493,8 @@ app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), as
     });
 
     res.json({
-      rows: combinedRows
+      rows: combinedRows,
+      canRemoveDuplicates: isExecutiveUser(req.authUser)
     });
   } catch (err) {
     res.status(400).json({
@@ -25454,6 +25460,14 @@ app.patch("/api/payment-links/:id/status", requirePagePermission("/dashboard.htm
       });
     }
 
+    // Reactivating a duplicate would switch a Stripe link back on that
+    // another row has already been paid through.
+    if (status === "sent" && (isDuplicateLinkRecord(record) || findLinkRowHoldingPayment(links, record, { anyOnLink: true }))) {
+      return res.status(400).json({
+        error: "This row is a duplicate record of a link that has already been paid, so it can't be reactivated. Make a new link on Create Link instead."
+      });
+    }
+
     if (record.paymentLinkId) {
       const stripeUpdate = {
         active: status === "sent"
@@ -25485,6 +25499,94 @@ app.patch("/api/payment-links/:id/status", requirePagePermission("/dashboard.htm
   }
 });
 
+
+// ---------------------------------------------------------------------------
+// One Stripe payment, one row (Andrew 11/17).
+// Before 11/16, asking for the same link twice could file a second row that
+// pointed at the first row's Stripe link. Stripe has one payment on that
+// link, so a row that "finds" it second must not be marked paid as well:
+// that is how S00065174 showed one $9,831.00 payment twice after a Sync.
+// A row in that position is closed as a duplicate instead - deactivated, no
+// money, no payment intent, paymentStatusDetail = DUPLICATE_LINK_DETAIL - so
+// the webhook, Sync and Reactivate all leave it alone from then on.
+// ---------------------------------------------------------------------------
+const DUPLICATE_LINK_DETAIL = "duplicate_record";
+
+function isDuplicateLinkRecord(row) {
+  return String(row?.paymentStatusDetail || "") === DUPLICATE_LINK_DETAIL;
+}
+
+function formatLinkMoment(isoValue) {
+  const date = new Date(isoValue || "");
+  if (!Number.isFinite(date.getTime())) return "earlier";
+  return date.toLocaleString("en-US", {
+    timeZone: APP_TIMEZONE, month: "numeric", day: "numeric", year: "2-digit", hour: "numeric", minute: "2-digit"
+  });
+}
+
+// The other row, if any, that already carries this Stripe payment (paid, or a
+// bank transfer on its way): same payment intent or checkout session. With
+// anyOnLink, any such row on the same Stripe link counts.
+function findLinkRowHoldingPayment(links, record, { paymentIntentId = "", sessionId = "", anyOnLink = false } = {}) {
+  const linkId = String(record?.paymentLinkId || "").trim();
+  return links.find((row) => {
+    if (!row || row.id === record.id || isDuplicateLinkRecord(row)) return false;
+    const status = normalizeLinkRecord({ ...row }).status;
+    if (status !== "paid" && status !== "ach_pending") return false;
+    if (paymentIntentId && row.paymentIntentId === paymentIntentId) return true;
+    if (sessionId && row.checkoutSessionId === sessionId) return true;
+    if (!linkId || String(row.paymentLinkId || "").trim() !== linkId) return false;
+    // Same Stripe link: certain when asked for, or when the paid row predates
+    // the days Agility kept the intent and session ids.
+    return anyOnLink || (!row.paymentIntentId && !row.checkoutSessionId);
+  }) || null;
+}
+
+function closeLinkRecordAsDuplicate(record, holder) {
+  const holderPaid = normalizeLinkRecord({ ...holder }).status === "paid";
+  record.status = "deactivated";
+  record.active = false;
+  record.paidAmount = 0;
+  record.paidDate = "";
+  record.paymentIntentId = "";
+  record.checkoutSessionId = "";
+  record.customerId = "";
+  record.paymentMethodId = "";
+  record.paymentStatusDetail = DUPLICATE_LINK_DETAIL;
+  record.deactivatedAt = new Date().toISOString();
+  record.deactivationReason = holderPaid
+    ? `Duplicate record. Stripe has one payment on this link and it is recorded on the row paid ${formatLinkMoment(holder.paidDate)}. No second payment was taken.`
+    : `Duplicate record. The bank transfer on this link is tracked on the row created ${formatLinkMoment(holder.createdAt)}. No second payment was taken.`;
+}
+
+// Of several paid rows carrying one payment intent, the row it was recorded
+// on first is the payment; the others are copies.
+function pickOriginalPaidLinkRow(group) {
+  const time = (value) => { const t = new Date(value || 0).getTime(); return Number.isFinite(t) ? t : 0; };
+  return [...group].sort((a, b) =>
+    (time(a.paidDate) - time(b.paidDate)) || (time(a.createdAt) - time(b.createdAt)) || String(a.id).localeCompare(String(b.id))
+  )[0];
+}
+
+// Marks the copies (duplicateOfId / duplicateOfPaidDate) on a list of
+// normalized link rows, for Paid History. Nothing is saved.
+function flagDuplicatePaidLinkRows(rows) {
+  const byIntent = new Map();
+  for (const row of rows) {
+    if (row.status !== "paid" || !row.paymentIntentId) continue;
+    if (!byIntent.has(row.paymentIntentId)) byIntent.set(row.paymentIntentId, []);
+    byIntent.get(row.paymentIntentId).push(row);
+  }
+  for (const group of byIntent.values()) {
+    if (group.length < 2) continue;
+    const original = pickOriginalPaidLinkRow(group);
+    for (const row of group) {
+      if (row === original) continue;
+      row.duplicateOfId = original.id;
+      row.duplicateOfPaidDate = original.paidDate || "";
+    }
+  }
+}
 
 // Force-syncs a local payment_links row with the live state in Stripe.
 // Use case: webhook missed / silently dropped, dashboard still shows the
@@ -25520,18 +25622,60 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
       limit: 10
     });
 
-    const paidSession = sessions.data.find((s) => s.payment_status === "paid");
+    const intentIdOfSession = (s) =>
+      typeof s?.payment_intent === "string" ? s.payment_intent : s?.payment_intent?.id || "";
+    const holderOfSession = (s) =>
+      findLinkRowHoldingPayment(links, record, { paymentIntentId: intentIdOfSession(s), sessionId: s.id });
+    const paidSessions = sessions.data.filter((s) => s.payment_status === "paid");
+    // A payment another row already carries belongs to that row, not this one.
+    const paidSession = paidSessions.find((s) => !holderOfSession(s)) || paidSessions[0];
+    const duplicateOf = paidSession ? holderOfSession(paidSession) : null;
 
-    if (paidSession) {
-      const paymentIntentId =
-        typeof paidSession.payment_intent === "string"
-          ? paidSession.payment_intent
-          : paidSession.payment_intent?.id || "";
+    if (paidSession && duplicateOf) {
+      if (record.status === "paid") {
+        // Both rows were marked paid before this check existed. A paid row is
+        // only undone by an executive, from Paid History.
+        return res.json({
+          success: true,
+          record: normalizeLinkRecord({ ...record }),
+          changes: [],
+          sessionCount: sessions.data.length,
+          duplicateOfId: duplicateOf.id,
+          message: "This row and another row both record the same Stripe payment. An executive can remove the duplicate from Paid History."
+        });
+      }
+      if (!isDuplicateLinkRecord(record)) {
+        closeLinkRecordAsDuplicate(record, duplicateOf);
+        changes.push(
+          `closed as a duplicate: Stripe has one payment on this link and it is already recorded on the row paid ${formatLinkMoment(duplicateOf.paidDate)}. No second payment was taken.`
+        );
+      }
+    } else if (paidSession) {
+      const paymentIntentId = intentIdOfSession(paidSession);
       const paymentIntent = paymentIntentId
         ? await retrievePaymentIntentWithDetails(paymentIntentId)
         : null;
 
-      applyPaidLinkState(record, paidSession, paymentIntent);
+      // A hand sync has no Stripe event to date the payment by. A card payment
+      // is dated by its charge even when the link also offered bank transfer
+      // (it used to be stamped with the moment Sync was pressed); only a real
+      // bank transfer keeps "now", since its charge is made days before the
+      // money lands.
+      const syncedCharge =
+        paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
+          ? paymentIntent.latest_charge
+          : null;
+      const paidHow = String(syncedCharge?.payment_method_details?.type || "");
+      const chargedAtSec = paidHow && paidHow !== "us_bank_account"
+        ? getSucceededStripeChargeCreatedSec(paymentIntent)
+        : null;
+
+      applyPaidLinkState(
+        record,
+        paidSession,
+        paymentIntent,
+        chargedAtSec ? { paidDateIso: new Date(chargedAtSec * 1000).toISOString() } : {}
+      );
       if (beforeStatus !== "paid") {
         changes.push(`status: ${beforeStatus} -> paid`);
       }
@@ -25575,7 +25719,14 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
         const paymentIntent = piId
           ? await retrievePaymentIntentWithDetails(piId)
           : null;
-        if (paymentIntent && isAchPendingIntent(paymentIntent, record)) {
+        const achHolder = findLinkRowHoldingPayment(links, record, { paymentIntentId: piId, sessionId: achCandidate.id });
+        if (achHolder && paymentIntent && isAchPendingIntent(paymentIntent, achHolder)) {
+          // The transfer is already tracked on another row sharing this link.
+          if (!isDuplicateLinkRecord(record)) {
+            closeLinkRecordAsDuplicate(record, achHolder);
+            changes.push("closed as a duplicate: the bank transfer on this link is already tracked on another row. No second payment was taken.");
+          }
+        } else if (paymentIntent && isAchPendingIntent(paymentIntent, record)) {
           applyAchPendingState(record, achCandidate, paymentIntent);
           record.deactivatedAt = "";
           record.deactivationReason = "";
@@ -25624,6 +25775,77 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
   } catch (err) {
     return res.status(500).json({
       error: err.message || "Unable to sync from Stripe."
+    });
+  }
+});
+
+// Executives remove a duplicate paid row from Paid History (Andrew 11/17).
+// Allowed only when another link row carries the same Stripe payment intent
+// and this row is not the one the payment was recorded on first. Nothing is
+// refunded or changed in Stripe: the money was only ever taken once. The row
+// stays on file as a closed duplicate, and the removal is in the audit log.
+app.post("/api/payment-links/:id/remove-duplicate", requireExecutiveApi, async (req, res) => {
+  try {
+    const links = await readLinks();
+    const record = links.find((row) => row.id === req.params.id);
+
+    if (!record) {
+      return res.status(404).json({ error: "Payment link record not found." });
+    }
+
+    normalizeLinkRecord(record);
+
+    if (record.status !== "paid" || !record.paymentIntentId) {
+      return res.status(400).json({ error: "This row isn't a paid link, so there is nothing to remove." });
+    }
+
+    const group = links.filter((row) =>
+      row.paymentIntentId === record.paymentIntentId && normalizeLinkRecord({ ...row }).status === "paid"
+    );
+
+    if (group.length < 2) {
+      return res.status(400).json({
+        error: "No other row carries this payment, so this row is not a duplicate. Nothing was changed."
+      });
+    }
+
+    const original = pickOriginalPaidLinkRow(group);
+
+    if (original.id === record.id) {
+      return res.status(400).json({
+        error: `This is the row the payment was first recorded on (${formatLinkMoment(record.paidDate)}). Remove the later copy instead.`
+      });
+    }
+
+    const removed = {
+      paymentIntentId: record.paymentIntentId,
+      amount: Number(record.paidAmount || 0),
+      shownAsPaid: record.paidDate || ""
+    };
+
+    closeLinkRecordAsDuplicate(record, original);
+    record.updatedAt = new Date().toISOString();
+    await writeLinks(links);
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null, action: "payment_link_duplicate_removed", targetUserId: null,
+      detail: {
+        id: record.id, keptId: original.id, paymentIntentId: removed.paymentIntentId,
+        salesOrder: record.salesOrder || "", customerName: record.customerName || "",
+        amount: removed.amount, shownAsPaid: removed.shownAsPaid, originalPaid: original.paidDate || ""
+      }
+    }).catch(() => {});
+
+    const amountText = `$${removed.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return res.json({
+      success: true,
+      record: normalizeLinkRecord({ ...record }),
+      keptId: original.id,
+      message: `Removed. ${record.salesOrder || "This order"} now shows the ${amountText} payment once, on the row paid ${formatLinkMoment(original.paidDate)}. Nothing was changed in Stripe.`
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to remove the duplicate."
     });
   }
 });
@@ -25862,11 +26084,15 @@ async function processCheckoutSessionWebhookEvent(event) {
   }
 
   const links = await readLinks();
-  const record = links.find((row) =>
-    row.paymentLinkId === session.payment_link ||
-    row.checkoutSessionId === session.id ||
-    row.paymentIntentId === session.payment_intent
-  );
+  // The row that already carries this session or payment wins, so a re-sent
+  // event can't land on a newer row that only shares the Stripe link; a row
+  // closed as a duplicate is never picked up through that shared link.
+  const record =
+    links.find((row) =>
+      row.checkoutSessionId === session.id ||
+      (session.payment_intent && row.paymentIntentId === session.payment_intent)
+    ) ||
+    links.find((row) => row.paymentLinkId === session.payment_link && !isDuplicateLinkRecord(row));
 
   if (!record) {
     // Surface webhook misses so we can find them in Render Logs — this is

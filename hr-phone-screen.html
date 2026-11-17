@@ -10,7 +10,7 @@
   <style>
     :root {
       --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
-      --border: #dbe1ea; --primary: var(--primary); --primary-hover: var(--primary-hover);
+      --border: #dbe1ea;
       --success-bg: #ecfdf5; --success-text: #065f46;
       --error-bg: #fef2f2; --error-text: #991b1b;
       --warn-bg: #fffbeb; --warn-text: #92400e;
@@ -53,6 +53,10 @@
     .rec-option.advance.on { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
     .rec-option.maybe.on { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
     .rec-option.pass.on { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+    /* Dark scheme: the shell lightens every label; a chosen option keeps its own light chip, so it keeps its dark ink. */
+    html[data-theme="dark"] label.rec-option.advance.on { color: #065f46 !important; }
+    html[data-theme="dark"] label.rec-option.maybe.on { color: #92400e !important; }
+    html[data-theme="dark"] label.rec-option.pass.on { color: #991b1b !important; }
     datalist { color: var(--text); }
     @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .surface { padding: 16px; } body { padding: 14px 8px; } }
   </style>

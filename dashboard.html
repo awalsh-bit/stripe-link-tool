@@ -993,6 +993,85 @@
       box-shadow: inset 4px 0 0 #ef4444;
     }
 
+    /* A second record of a payment another row already carries (11/17). */
+    .paid-row-duplicate {
+      background: #fffbeb;
+      box-shadow: inset 4px 0 0 #f59e0b;
+    }
+
+    .paid-row-duplicate .amount {
+      color: #92400e;
+      text-decoration: line-through;
+    }
+
+    .dup-pill {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .dup-note {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #92400e;
+    }
+
+    .dup-notice {
+      margin: 0 0 12px;
+      padding: 12px 14px;
+      border: 1px solid #f59e0b;
+      border-radius: 12px;
+      background: #fffbeb;
+      color: #78350f;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .dup-notice strong { color: #78350f; }
+
+    .dup-notice ul {
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+    }
+
+    .dup-notice li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 12px;
+    }
+
+    .dup-notice li span { flex: 1 1 260px; min-width: 0; }
+
+    .btn-dup-remove {
+      border-color: #b45309;
+      color: #92400e;
+      background: #fff;
+      font-weight: 700;
+    }
+
+    .btn-dup-remove:hover { background: #fef3c7; }
+
+    html[data-theme="dark"] .paid-row-duplicate { background: rgba(245, 158, 11, 0.10); }
+    html[data-theme="dark"] .paid-row-duplicate .amount,
+    html[data-theme="dark"] .dup-note { color: #fcd34d; }
+    html[data-theme="dark"] .dup-pill { background: rgba(245, 158, 11, 0.22); color: #fcd34d; }
+    html[data-theme="dark"] .dup-notice { background: rgba(245, 158, 11, 0.10); color: #fde68a; }
+    html[data-theme="dark"] .dup-notice strong { color: #fde68a; }
+    html[data-theme="dark"] .btn-dup-remove { background: transparent; color: #fcd34d; border-color: #f59e0b; }
+    html[data-theme="dark"] .btn-dup-remove:hover { background: rgba(245, 158, 11, 0.18); }
+
     .amount-refund {
       color: #991b1b;
       font-weight: 700;
@@ -1438,6 +1517,8 @@
           </div>
         </div>
 
+        <div id="duplicateNotice" class="dup-notice" role="status" hidden></div>
+
         <div class="table-wrap">
           <table>
             <thead>
@@ -1609,6 +1690,9 @@
   const paidEmployeeFilterEl = document.getElementById("paidEmployeeFilter");
 
   let allRows = [];
+  // Paid rows that are a second record of another row's payment carry
+  // duplicateOfId (set by the server); only executives are offered Remove.
+  let canRemoveDuplicates = false;
   const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
   // Employee filters: "All employees" + everyone in the directory, by name.
@@ -1831,11 +1915,15 @@
 
   // ACH has two waits: the customer still has to verify micro-deposits
   // (Stripe: requires_action), or the debit is in transit (processing).
+  // A row closed because it shared its Stripe link with a row that was paid.
+  function isClosedDuplicate(row) {
+    return row.status === "deactivated" && row.paymentStatusDetail === "duplicate_record";
+  }
   function achDetailLabel(row) {
     return row.paymentStatusDetail === "requires_action" ? "ACH — Verify Hold" : "ACH Pending";
   }
   function statusText(row) {
-    if (row.status === "deactivated") return "Deactivated";
+    if (row.status === "deactivated") return isClosedDuplicate(row) ? "Duplicate" : "Deactivated";
     if (row.status === "ach_pending") return achDetailLabel(row);
     if (row.status === "viewed") return "Viewed";
     return "Sent";
@@ -2222,6 +2310,7 @@
     }
 
     allRows = data.rows || [];
+    canRemoveDuplicates = data.canRemoveDuplicates === true;
     renderDashboard();
   }
 
@@ -2273,6 +2362,7 @@
         continue;
       }
       if (row.status !== "paid") continue;
+      if (row.duplicateOfId) continue; // a second record of a payment already counted
       const amount = Number(row.paidAmount) || 0;
       total += amount;
       count++;
@@ -2399,7 +2489,7 @@
             <div class="button-row">
               ${["sent", "viewed"].includes(row.status)
                 ? `<button class="btn-icon btn-icon-danger" data-action="deactivate" data-id="${row.id}" type="button" aria-label="Deactivate link" title="Deactivate — closes the link so the customer can no longer pay on it (see the Actions ? for details)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>`
-                : row.status === "deactivated"
+                : row.status === "deactivated" && !isClosedDuplicate(row)
                   ? `<button class="btn-icon btn-icon-go" data-action="reactivate" data-id="${row.id}" type="button" aria-label="Reactivate link" title="Reactivate — turns the link back on at the same amount and URL (see the Actions ? for details)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 00-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"></path></svg></button>`
                   : ""
               }
@@ -2447,15 +2537,28 @@
           tr.classList.add("paid-row-refund");
         }
         const isRefund = row.type === "refund";
+        const isDuplicate = Boolean(row.duplicateOfId);
+        if (isDuplicate) {
+          tr.classList.add("paid-row-duplicate");
+        }
         tr.innerHTML = `
           <td data-label="Customer">${escapeHtml(row.customerName || "-")}</td>
           <td data-label="Employee">${escapeHtml(row.creatorName || "-")}</td>
-          <td data-label="Reference">${formatReference(row)}</td>
-          <td data-label="Type"><span class="${paidTypeClass(row)}">${paidTypeLabel(row)}</span></td>
+          <td data-label="Reference">${formatReference(row)}${isDuplicate
+            ? `<div class="dup-note">Same Stripe payment as the row paid ${formatDate(row.duplicateOfPaidDate)}. Not a second charge.</div>`
+            : ""}</td>
+          <td data-label="Type"><span class="${paidTypeClass(row)}">${paidTypeLabel(row)}</span>${isDuplicate ? `<span class="dup-pill">Duplicate</span>` : ""}</td>
           <td data-label="Paid Amount" class="amount${isRefund ? " amount-refund" : ""}">${formatMoney(row.paidAmount)}</td>
           <td data-label="Paid Date">${formatDate(row.paidDate)}</td>
           <td data-label="Receipt" class="action-cell">
-            ${row.paymentIntentId || row.refundId
+            ${isDuplicate
+              ? `<div class="button-row">
+                   <button class="btn-secondary btn-pill-sm" type="button"
+                     data-copy-intent="${escapeHtml(row.paymentIntentId)}"
+                     title="Copy the payment intent — it is the same one as on the original row">${ICON_COPY}<span>Copy PI</span></button>
+                   ${duplicateRemoveButton(row)}
+                 </div>`
+              : row.paymentIntentId || row.refundId
               ? `<div class="button-row">
                    ${row.paymentIntentId ? `<button class="btn-secondary btn-pill-sm" type="button"
                      data-copy-intent="${escapeHtml(row.paymentIntentId)}"
@@ -2483,6 +2586,7 @@
         paidTableBody.appendChild(tr);
       }
     }
+    renderDuplicateNotice();
     attachReceiptActions();
     attachTextLinkActions();
 
@@ -2528,6 +2632,82 @@
     allRows = allRows.map((row) => row.id === updated.id ? { ...row, ...updated } : row);
     renderDashboard();
   }
+
+  // ---- Duplicate paid rows (11/17) ----------------------------------------
+  // Two link rows can carry one Stripe payment when a link was asked for
+  // twice before 11/16 and Sync was pressed on the stuck second row. The
+  // server flags the later copy; an executive removes it here. Removing
+  // touches nothing in Stripe: the money was only taken once.
+  function duplicateRemoveButton(row) {
+    return canRemoveDuplicates
+      ? `<button class="btn-secondary btn-pill-sm btn-dup-remove" type="button" data-action="remove-duplicate" data-id="${escapeHtml(String(row.id))}"
+           title="Remove this duplicate row. The payment stays on the original row; nothing changes in Stripe.">Remove duplicate</button>`
+      : `<span class="dup-note" style="margin-top:0">An executive can remove this row.</span>`;
+  }
+
+  // Shown whatever the Paid History filters are set to, so a duplicate on
+  // another day is not missed.
+  function renderDuplicateNotice() {
+    const box = document.getElementById("duplicateNotice");
+    if (!box) return;
+    const dups = allRows
+      .filter((row) => row.duplicateOfId && row.status === "paid")
+      .sort((a, b) => new Date(b.paidDate || 0) - new Date(a.paidDate || 0));
+    if (!dups.length) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+    const shown = dups.slice(0, 8);
+    box.hidden = false;
+    box.innerHTML = `
+      <strong>${dups.length === 1 ? "1 row in Paid History is" : `${dups.length} rows in Paid History are`} a second record of a payment that is already on another row.</strong>
+      No money was taken twice, and the View Summary totals leave ${dups.length === 1 ? "it" : "them"} out.
+      <ul>
+        ${shown.map((row) => `<li>
+          <span>${escapeHtml(row.customerName || "-")} · ${escapeHtml(row.salesOrder || row.reference || "-")} · ${formatMoney(row.paidAmount)} · shown as paid ${formatDate(row.paidDate)}. The payment itself is the row paid ${formatDate(row.duplicateOfPaidDate)}.</span>
+          ${duplicateRemoveButton(row)}
+        </li>`).join("")}
+      </ul>
+      ${dups.length > shown.length ? `<div class="dup-note">And ${dups.length - shown.length} more. They appear here as these are removed.</div>` : ""}
+    `;
+  }
+
+  async function removeDuplicatePayment(id) {
+    const row = allRows.find((item) => String(item.id) === String(id));
+    if (!row) return;
+    const confirmed = window.confirm(
+      "Remove this duplicate row?\n\n" +
+      `${row.customerName || "This client"} · ${row.salesOrder || row.reference || ""} · ${formatMoney(row.paidAmount)}, shown as paid ${formatDate(row.paidDate)}.\n\n` +
+      `The payment stays on the row paid ${formatDate(row.duplicateOfPaidDate)}. Nothing is refunded and nothing changes in Stripe.`
+    );
+    if (!confirmed) return;
+
+    const res = await fetch(`/api/payment-links/${encodeURIComponent(id)}/remove-duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      await refreshDashboardData({ silent: true });
+      throw new Error(data.error || "Unable to remove the duplicate.");
+    }
+    await refreshDashboardData({ silent: true });
+    window.alert(data.message || "Removed.");
+  }
+
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest && event.target.closest('button[data-action="remove-duplicate"]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+      await removeDuplicatePayment(button.dataset.id);
+    } catch (err) {
+      window.alert(err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
 
   async function syncLinkFromStripe(id) {
     const res = await fetch(`/api/payment-links/${id}/sync-from-stripe`, {
@@ -3871,6 +4051,7 @@
             ${item(badge("status-ach-pending", ACH_ICON, "ACH — Verify Hold"), "ACH — Verify Hold", "The customer chose to pay from a bank account and Stripe could not confirm the account instantly, so it sent two micro-deposits. Nothing is collected until the customer enters those amounts on the link.", "Next: ACH Pending once they verify. The link stays open; Deactivate is withheld so the verification is not broken. If it stalls, text the link again — the same page finishes verification.")}
             ${item(badge("status-ach-pending", ACH_ICON, "ACH Pending"), "ACH Pending", "The bank debit has been submitted and is in transit. Banks take 3–5 business days to settle; the money is not ours until Stripe reports it paid. The row shows green.", "Next: Paid (moves to Paid History) — or back to the queue if the bank returns the debit. Copy intent gives the Stripe payment id for a lookup.")}
             ${item(badge("status-deactivated", "", "Deactivated"), "Deactivated", "Turned off by someone here (the reason shows under the pill). The customer sees that the link is no longer active and cannot pay on it.", "Deactivated links leave the default view. To find one, change the status dropdown (next to the search box) from Active queue only to Queue and deactivated or Deactivated only; Reactivate is on the row.")}
+            ${item(badge("status-deactivated", "", "Duplicate"), "Duplicate", "A second row that pointed at the same Stripe link as a row that has been paid. Stripe has one payment on that link and it is recorded on the paid row, so this row is closed with no money on it.", "It cannot be reactivated. If the client owes another payment, make a new link on Create Link.")}
             ${item(badge("status-paid", "", "Paid"), "Paid", "Stripe confirmed the payment. The link leaves this list and appears in Paid History with the receipt tools.", "If Stripe shows paid and the row still says Sent or Viewed, the sync button (circular arrows) pulls the latest status in case a webhook was missed.")}
             <h4>Row colors and age</h4>
             ${item(swatch("background:#fffdf5;box-shadow:inset 4px 0 0 #facc15", "yellow bar"), "3–4 days open", "A Sent or Viewed link that has been open three or four days. Age counts from the day it was sent.")}
@@ -3890,7 +4071,7 @@
             ${item(`<button type="button" class="btn-secondary" tabindex="-1">Copy link</button>`, "Copy link", "Copies the customer's payment URL so you can paste it into an email, a Podium conversation, or a note. It is the same link that was sent; sharing it again never creates a second charge.")}
             ${item(`<button type="button" class="btn-secondary" tabindex="-1">Text link</button>`, "Text link", "Opens a send row under the link. The customer's phone from the link is filled in and can be changed. <strong>Send Text</strong> sends the link from the showroom number; <strong>Send Reminder</strong> sends the gentler 'your payment link is still waiting' version for a link that has been sitting. Replies land in Podium, not on your phone. Available while the link is Sent, Viewed, or ACH in progress.", "On an ACH link that is waiting on micro-deposit verification, this is how you nudge the customer — the same page finishes the verification.")}
             <h4>By status</h4>
-            <p><strong>Sent / Viewed:</strong> Deactivate, Sync, Copy link, Text link (Copy intent once a payment attempt exists). <strong>ACH:</strong> Sync, Copy intent, Copy link, Text link — Deactivate is withheld so a verification in progress is not broken. <strong>Deactivated:</strong> Reactivate, Sync, Copy link.</p>
+            <p><strong>Sent / Viewed:</strong> Deactivate, Sync, Copy link, Text link (Copy intent once a payment attempt exists). <strong>ACH:</strong> Sync, Copy intent, Copy link, Text link — Deactivate is withheld so a verification in progress is not broken. <strong>Deactivated:</strong> Reactivate, Sync, Copy link. <strong>Duplicate:</strong> Sync, Copy link.</p>
           `
         }
       };

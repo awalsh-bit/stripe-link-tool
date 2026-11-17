@@ -8,23 +8,32 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
-    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    :root { --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f7f8fc; }
+    /* Colour scheme (11/17). Brand colour comes only from the shell's --primary variables, so green, purple and
+       red restyle this page with everything else. For the dark scheme, every neutral grey below is written as
+       var(--name, light grey): the light schemes use the grey as written, and dark supplies the name -
+       --surface and --surface-2 from the shell, the rest here. Status pills keep their own colours. */
+    html[data-theme="dark"] { --soft-2: #1e293b; --hair: #273246; --ink-2: #cbd5e1; --warn-ink: #fcd34d; --bad-ink: #fca5a5; --good-ink: #86efac; }
+    /* On this page .note is ordinary helper text, not the amber warning the shell's dark scheme assumes. */
+    html[data-theme="dark"] .note { color: var(--muted) !important; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px 20px 48px; }
+    /* Every control takes the page typeface (a browser otherwise draws buttons and fields in its own default). */
+    button, input, select, textarea { font-family: inherit; }
     .wrap { max-width: 1100px; margin: 0 auto; }
-    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface { background: var(--surface, #fff); border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
     .surface[hidden] { display: none; }
     h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 10px; font-size: 15px; }
     .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
     .mut { color: var(--muted); font-size: 12.5px; }
     button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
     button:hover { background: var(--primary-hover); }
-    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.quiet { background: var(--soft-2, #eef2f7); color: var(--text); } button.quiet:hover { background: var(--soft-2, #e2e8f0); }
     button.danger { background: #fee2e2; color: #991b1b; } button.danger:hover { background: #fecaca; }
     button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
     button:disabled { opacity: .6; cursor: default; }
     label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
-    input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: var(--surface, #fff); color: var(--text); }
     .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
     .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c9 { grid-column: span 9; } .c12 { grid-column: span 12; }
     #forBox[hidden] { display: none; } #forBox label { max-width: 520px; } /* HR only, on a row of its own */
@@ -32,22 +41,22 @@
     .check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; font-weight: 600; color: var(--text); margin-top: 26px; }
     .check input { width: 17px; height: 17px; accent-color: var(--primary); }
     .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
-    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--soft-2, #eef2f7); color: var(--ink-2, #475569); white-space: nowrap; }
     .tag.amber { background: #fef3c7; color: #92400e; } .tag.green { background: #dcfce7; color: #166534; } .tag.red { background: #fee2e2; color: #991b1b; } .tag.blue { background: #dbeafe; color: #1e40af; }
     table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-    td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    td { padding: 10px 8px; border-bottom: 1px solid var(--hair, #f1f5f9); vertical-align: top; }
     .empty { color: var(--muted); font-size: 14px; margin: 0; }
     .audit-acts { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; } .audit-acts .check { margin: 0; }
     #auditList tr.arch td { color: var(--muted); } #auditList td.acts { text-align: right; white-space: nowrap; }
-    .preview { font-size: 13.5px; color: var(--text); background: #f4f7f5; border-radius: 10px; padding: 9px 12px; }
+    .preview { font-size: 13.5px; color: var(--text); background: var(--primary-wash); border-radius: 10px; padding: 9px 12px; }
     .preview.no { background: #fff7ed; color: #9a3412; } .preview ul, .policy-notes { margin: 6px 0 0; padding-left: 18px; } .preview li { margin-top: 2px; }
-    .heads-up { color: #92400e; font-size: 12.5px; margin: 2px 0; }
-    .day .closed { display: block; font-size: 11px; font-weight: 700; color: #92400e; margin-top: 3px; }
+    .heads-up { color: var(--warn-ink, #92400e); font-size: 12.5px; margin: 2px 0; }
+    .day .closed { display: block; font-size: 11px; font-weight: 700; color: var(--warn-ink, #92400e); margin-top: 3px; }
     /* the policy, as everyone reads it */
     .policy h3 { margin: 16px 0 4px; font-size: 14px; } .policy p { margin: 0 0 6px; font-size: 13.5px; max-width: 860px; }
     .policy table { max-width: 560px; margin: 6px 0 8px; } .policy td, .policy th { padding: 6px 8px; }
-    .policy-edit { border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-top: 14px; background: #fbfcfd; }
+    .policy-edit { border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-top: 14px; background: var(--surface-2, #fbfcfd); }
     .policy-edit fieldset { border: none; padding: 0; margin: 0 0 14px; } .policy-edit legend { font-weight: 800; font-size: 14px; padding: 0; margin-bottom: 8px; }
     .policy-edit .nums { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
     .policy-edit .tier { display: grid; grid-template-columns: repeat(3, minmax(0, 150px)) auto; gap: 8px 12px; align-items: end; margin-bottom: 8px; }
@@ -64,22 +73,22 @@
     .calhead h3 { margin: 0; font-size: 17px; min-width: 170px; }
     .calhead .grow { flex: 1; }
     .calhead select { width: auto; min-width: 190px; margin-top: 0; }
-    .seg { display: inline-flex; background: #eef2f7; border-radius: 12px; padding: 3px; }
+    .seg { display: inline-flex; background: var(--soft-2, #eef2f7); border-radius: 12px; padding: 3px; }
     .seg button { background: none; color: var(--muted); padding: 6px 14px; border-radius: 9px; }
     .seg button:hover { background: none; color: var(--text); }
-    .seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+    .seg button.on { background: var(--surface, #fff); color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
     .cal.week .day { min-height: 260px; } .cal.week .day .who { white-space: normal; overflow: visible; }
     .dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
     .dow span { padding: 0 6px; }
     .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-    .day { min-height: 86px; border: 1px solid #eef2f7; border-radius: 10px; padding: 5px 6px; background: #fff; overflow: hidden; }
-    .day.other { background: #fafbfc; } .day.other .n { color: #cbd5e1; }
-    .day.weekend { background: #f8fafc; }
+    .day { min-height: 86px; border: 1px solid var(--hair, #eef2f7); border-radius: 10px; padding: 5px 6px; background: var(--surface, #fff); overflow: hidden; }
+    .day.other { background: var(--surface-2, #fafbfc); } .day.other .n { color: #cbd5e1; }
+    .day.weekend { background: var(--surface-2, #f8fafc); }
     .day.today { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
     .day .n { font-size: 12px; font-weight: 700; color: var(--muted); } .day .n .wd { display: none; }
     .day .who { display: block; font-size: 12px; background: #dbeafe; color: #1e3a8a; border-radius: 6px; padding: 2px 6px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .day .who.me { background: #dcfce7; color: #14532d; }
-    .day .who.part { background: #eef2f7; color: #334155; }
+    .day .who.part { background: var(--soft-2, #eef2f7); color: var(--ink-2, #334155); }
 
     @media (max-width: 760px) {
       body { padding: 14px 12px 40px; } .surface { padding: 16px; }
@@ -184,6 +193,8 @@
       <form class="policy-edit" id="policyForm" hidden autocomplete="off"></form>
       <div class="status" id="policyStatus"></div>
     </div>
+
+    <div id="internal-shell-footer"></div>
   </div>
 
   <script src="internal-shell.js"></script>
@@ -366,7 +377,7 @@
             <p><b>${esc(fmtRange(r.startDate, r.endDate))}</b> · ${esc(lengthText(r))}</p>
             ${r.note ? `<p>“${esc(r.note)}”</p>` : ""}
             <p class="mut">Asked ${esc(fmtStamp(r.createdAt))}${r.requestedByEmail && r.requestedByEmail !== r.employeeEmail ? ` (entered by ${esc(r.requestedBy)})` : ""} · ${r.approverName ? "goes to " + esc(r.approverName) : "no manager on file, so it goes to HR"}</p>
-            ${r.parentalPaid ? `<p class="mut"${r.parentalPaid.used + r.workDays > r.parentalPaid.max ? ` style="color:#991b1b;font-weight:600"` : ""}>Paid parental leave: ${r.parentalPaid.used ? `${r.parentalPaid.used} of ${r.parentalPaid.max} days already approved in the last 12 months` : `none in the last 12 months`}${r.parentalPaid.used + r.workDays > r.parentalPaid.max ? `. This request would make it ${r.parentalPaid.used + r.workDays}.` : "."}</p>` : ""}
+            ${r.parentalPaid ? `<p class="mut"${r.parentalPaid.used + r.workDays > r.parentalPaid.max ? ` style="color:var(--bad-ink, #991b1b);font-weight:600"` : ""}>Paid parental leave: ${r.parentalPaid.used ? `${r.parentalPaid.used} of ${r.parentalPaid.max} days already approved in the last 12 months` : `none in the last 12 months`}${r.parentalPaid.used + r.workDays > r.parentalPaid.max ? `. This request would make it ${r.parentalPaid.used + r.workDays}.` : "."}</p>` : ""}
             ${r.partDay && r.partDay.workText ? `<p class="mut">That day: working ${esc(r.partDay.workText)} instead of ${esc(r.partDay.regularText)}.</p>` : ""}
             ${r.balance && r.balance.hours != null && r.balance.basis !== "none" && !r.balance.partial ? `<p class="mut">PTO for ${r.balance.year}: ${esc(hoursText(r.balance.hours))}, ${esc(hoursText(r.balance.used))} used${r.balance.pending ? `, ${esc(hoursText(r.balance.pending))} more waiting` : ""}. This takes ${esc(hoursText(r.ptoHours))}.</p>` : ""}
             ${(r.notes || []).map((n) => `<p class="heads-up">${esc(n)}</p>`).join("")}
@@ -554,7 +565,7 @@
         ${p.updatedAt ? `<p class="mut" style="margin-top:10px;">Last changed ${esc(niceDate(p.updatedAt.slice(0, 10)))}${p.updatedBy ? " by " + esc(p.updatedBy) : ""}.</p>` : `<p class="mut" style="margin-top:10px;">As written in the company Time Off policy. Nobody has changed it here.</p>`}`;
     }
     // The editing form, for executives. Nothing is saved until Save policy.
-    const tierRow = (t) => `<div class="tier"><label>From years of service<input type="number" min="0" max="60" step="1" data-tier="fromYears" value="${esc(t.fromYears)}" /></label><label>Full time, hours a year<input type="number" min="0" max="2000" step="1" data-tier="fullTime" value="${esc(t.fullTime)}" /></label><label>Part time, hours a year<input type="number" min="0" max="2000" step="1" data-tier="partTime" value="${esc(t.partTime)}" /></label><button type="button" class="link" data-tier-remove style="color:#b91c1c; padding-bottom: 10px;">remove</button></div>`;
+    const tierRow = (t) => `<div class="tier"><label>From years of service<input type="number" min="0" max="60" step="1" data-tier="fromYears" value="${esc(t.fromYears)}" /></label><label>Full time, hours a year<input type="number" min="0" max="2000" step="1" data-tier="fullTime" value="${esc(t.fullTime)}" /></label><label>Part time, hours a year<input type="number" min="0" max="2000" step="1" data-tier="partTime" value="${esc(t.partTime)}" /></label><button type="button" class="link" data-tier-remove style="color:var(--bad-ink, #b91c1c); padding-bottom: 10px;">remove</button></div>`;
     function openPolicyForm() {
       const p = me.policy, n = (id, label, value, step, hint) => `<label>${label}<input type="number" id="${id}" value="${esc(value)}" min="0" step="${step}" />${hint ? `<span class="mut" style="font-weight:400;">${hint}</span>` : ""}</label>`;
       $("policyForm").innerHTML = `

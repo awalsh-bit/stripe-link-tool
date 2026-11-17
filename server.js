@@ -6402,6 +6402,7 @@ app.get("/p/:model", async (req, res) => {
       live.unit = u
         ? { price: u.price, noPrice: !!u.noPrice, mapPublic: !!u.mapPublic, mapFloor: u.mapFloor ?? null, source: u.source || "clearance", stockLevel: u.stockLevel || "", condition: u.condition || "", serialType: u.serialType || "", hideStockBadge: !!u.hideStockBadge }
         : null;
+      live.onDisplay = catalog.items.some((i) => i.onDisplay && normalizeModelKey(i.model) === key);
       live.sheets = (await loadShopData()).specSheets?.byModel?.[key] || [];
     } catch (err) {
       // The catalog can't be read: the page still opens, with no price and the phone number.
@@ -7379,6 +7380,14 @@ async function loadShopDataFromDisk() {
   try {
     images = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-images.json"), "utf8")).byModel || {};
   } catch {}
+  // "On display" flag (Andrew 11/17) — optional. Which ePASS location (and
+  // bin) codes are the Dripping Springs showroom floor, and the flag's wording.
+  let onDisplay = { label: "", locations: [], bins: [] };
+  try {
+    const raw = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-on-display.json"), "utf8"));
+    const codes = (v) => (Array.isArray(v) ? v : []).map((c) => String(c || "").trim().toUpperCase()).filter(Boolean);
+    onDisplay = { label: String(raw.label || "").trim().slice(0, 60), locations: codes(raw.locations), bins: codes(raw.bins) };
+  } catch {}
   // Public-pricing whitelist (brand + category rules) — optional.
   let mapPolicy = { rules: [] };
   try {
@@ -7413,7 +7422,7 @@ async function loadShopDataFromDisk() {
       }
     }
   } catch {}
-  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails, specSheets };
+  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails, specSheets, onDisplay };
 }
 // PUBLIC: one listed sell sheet / spec sheet, opened from a shop tile. Only an
 // id from data/shop-spec-sheets.json answers; the file name never comes from
@@ -7486,20 +7495,40 @@ const SHOP_CATEGORY_ORDER = [
 // (washers vs dryers); the others match the shop category.
 // Keyed by NetSuite subclass (11/10); the ePASS product codes stay only for
 // a unit NetSuite hasn't classified.
+// Since 11/17 (Andrew and Cayden) a tile picks the category only and a
+// slider under the tiles sets the ceiling, in $500 steps. `max` is where the
+// slider starts for that category (refrigerators at $2,999 "for increased
+// options"); once the shopper moves it, it stays where they put it.
 const SHOP_DEAL_GROUPS = [
   { key: "washers", label: "Washers", max: 999, subclasses: ["2110", "2112", "2114", "2116"], products: ["WASHF", "WASHT"] },
   { key: "dryers", label: "Dryers", max: 999, subclasses: ["2040", "2042", "2044"], products: ["DRELE", "DRGAS"] },
   { key: "dishwashers", label: "Dishwashers", max: 999, categories: ["DW"] },
-  { key: "refrigerators", label: "Refrigerators", max: 1999, categories: ["Ref"] }
+  { key: "refrigerators", label: "Refrigerators", max: 2999, categories: ["Ref"] }
 ];
-function shopDealGroupFor({ product, subclass, category, price }) {
-  const p = Number(price);
-  if (!Number.isFinite(p) || p <= 0) return "";
+const SHOP_DEAL_STOPS = [999, 1499, 1999, 2499, 2999, 3499, 3999];
+function shopDealCategoryOf({ product, subclass, category }) {
   const prod = String(product || "").toUpperCase();
   const sub = String(subclass || "");
   const cat = String(category || "");
-  const g = SHOP_DEAL_GROUPS.find((d) => (d.subclasses ? (sub ? d.subclasses.includes(sub) : d.products.includes(prod)) : d.categories.includes(cat)) && p <= d.max);
-  return g ? g.key : "";
+  return SHOP_DEAL_GROUPS.find((d) => (d.subclasses ? (sub ? d.subclasses.includes(sub) : d.products.includes(prod)) : d.categories.includes(cat))) || null;
+}
+// The unit's deal tile at that tile's starting ceiling. Kept for a shop page
+// still open in someone's browser from before the slider.
+function shopDealGroupFor({ product, subclass, category, price }) {
+  const p = Number(price);
+  if (!Number.isFinite(p) || p <= 0) return "";
+  const g = shopDealCategoryOf({ product, subclass, category });
+  return g && p <= g.max ? g.key : "";
+}
+// For the slider: the unit's deal category at any price the slider reaches,
+// and the lowest stop that includes it. The page is sent the stop, never the
+// price, so a unit whose price isn't advertised is placed to the nearest
+// $500 and no closer.
+function shopDealSlot({ product, subclass, category, price }) {
+  const p = Number(price);
+  const g = Number.isFinite(p) && p > 0 ? shopDealCategoryOf({ product, subclass, category }) : null;
+  const stop = g ? SHOP_DEAL_STOPS.find((s) => p <= s) : null;
+  return g && stop ? { dealCat: g.key, dealStop: stop } : { dealCat: "", dealStop: null };
 }
 
 // Best sellers (Andrew 9/28: "our best sellers in ePASS, using Brand Sales
@@ -7661,7 +7690,7 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
         serial: x.serial, serialType: "ALL", condition: "new", source: "stock",
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
-        deal: shopDealGroupFor({ product: g.prod, subclass: g.subclass, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
+        deal: shopDealGroupFor({ product: g.prod, subclass: g.subclass, category: g.category, price }), ...shopDealSlot({ product: g.prod, subclass: g.subclass, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
         badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge,
         ...(accessorySell ? { gridHidden: true } : {})
       });
@@ -7740,8 +7769,36 @@ if (process.env.DATABASE_URL && String(process.env.SHOP_CATALOG_WARM || "").toLo
     if (active ? age >= 55 * 1000 : age >= SHOP_WARM_IDLE_MS) refreshShopCatalogInBackground();
   }, 60 * 1000).unref?.();
 }
+// "On display" (Andrew 11/17): the models with a display unit on the Dripping
+// Springs showroom floor, so their shop tiles can say a shopper may come and
+// see one. From the feed's on-hand serials: serial type DISPLAY, not written
+// to an order (a sold display is on its way out), at a location and bin named
+// in data/shop-on-display.json. The feed keeps 20 characters of a location
+// code and 30 of a bin, so the lists are cut the same way. With nothing
+// listed no model is flagged: the shop never claims a display it can't place.
+// The showroom floor is ePASS location 04 (Andrew 11/17). A code that is all
+// digits matches with or without its leading zeros, so "04" in the file finds
+// the floor whether the feed carries it as "04" or as 4.
+const SHOP_ON_DISPLAY_LABEL = "On display in Dripping Springs";
+function shopOnDisplayModelKeys(snapshot, cfg) {
+  const code = (c, max) => { const s = String(c ?? "").trim().toUpperCase().slice(0, max); return /^\d+$/.test(s) ? String(Number(s)) : s; };
+  const locations = new Set((cfg?.locations || []).map((c) => code(c, 20)).filter(Boolean));
+  const bins = new Set((cfg?.bins || []).map((c) => code(c, 30)).filter(Boolean));
+  const keys = new Set();
+  if (!locations.size && !bins.size) return keys;
+  for (const u of snapshot?.serialUnits || []) {
+    if (String(u?.serialType || "").trim().toUpperCase() !== "DISPLAY") continue;
+    if (String(u?.writtenTo || "").trim()) continue;
+    if (locations.size && !locations.has(code(u?.location, 20))) continue;
+    if (bins.size && !bins.has(code(u?.bin, 30))) continue;
+    const k = normalizeModelKey(u.model || u.sku || "");
+    if (k) keys.add(k);
+  }
+  return keys;
+}
+
 async function computeShopCatalogFresh() {
-  const { clearance: clearanceFile, addons: addonsFile, images, mapPolicy } = await loadShopData();
+  const { clearance: clearanceFile, addons: addonsFile, images, mapPolicy, onDisplay: onDisplayCfg } = await loadShopData();
   // Install/connector map keyed by NetSuite subclass (11/10) with the
   // panel / pro / DishDrawer variants; byProduct stays for a unit NetSuite
   // hasn't classified. Each item below gets the servicesKey that picks its row.
@@ -7877,6 +7934,7 @@ async function computeShopCatalogFresh() {
       photoActual: false,
       price: Math.round(price * 100) / 100,
       deal: shopDealGroupFor({ product: item.product, subclass: itemSubclass, category: item.category, price }),
+      ...shopDealSlot({ product: item.product, subclass: itemSubclass, category: item.category, price }),
       mapPublic,
       mapExempt,
       mapFloor: itemMapFloor,
@@ -7893,6 +7951,9 @@ async function computeShopCatalogFresh() {
     ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor, accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
     : { items: [], models: [] };
   items.push(...stock.items);
+  // Flag every unit of a model that has a display on the showroom floor.
+  const onDisplayKeys = shopOnDisplayModelKeys(snapshot, onDisplayCfg);
+  if (onDisplayKeys.size) for (const i of items) { if (onDisplayKeys.has(normalizeModelKey(i.model))) i.onDisplay = true; }
   // Pictures: the nightly RetailDeck thumbnails table first (every model in
   // the feed), the static data/shop-images.json as the fallback.
   // The catalog page's model rows show a picture too (11/11) — also for the
@@ -9169,6 +9230,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         servicesKey: i.servicesKey || i.subclass || "",
         brandServicesKey: i.brandServicesKey || "",
         ...(i.gridHidden ? { gridHidden: true } : {}),
+        ...(i.onDisplay ? { onDisplay: true } : {}), // a display unit of this model is on the Dripping Springs showroom floor (11/17)
         panelReady: i.panelReady ?? null,
         category: i.category,
         description: i.description,
@@ -9178,6 +9240,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         photoActual: !!i.photoActual,
         ...(i.images && i.images.length > 1 ? { images: i.images } : {}), // more than one picture: the card flips through them
         deal: i.deal || "",
+        dealCat: i.dealCat || "", dealStop: i.dealStop || null, // the slider's category and lowest stop (11/17) — a stop, never the price
         badge: i.badge || "", badgeStyle: i.badgeStyle || "red", hideStockBadge: !!i.hideStockBadge,
         sold: rank.byModel[normalizeModelKey(i.model)] || 0,
         brandSold: rank.byBrand[shopBrandKey(i.brandCode)] || rank.byBrand[shopBrandKey(i.brand)] || 0,
@@ -9263,7 +9326,9 @@ app.get("/api/shop/catalog", async (req, res) => {
         pickupLaterNote: SHOP_PICKUP_LATER_NOTE
       } : null,
       taxRate: canBuild ? SHOP_TAX_RATE : null,
-      dealGroups: SHOP_DEAL_GROUPS.map((d) => ({ key: d.key, label: d.label, max: d.max }))
+      dealGroups: SHOP_DEAL_GROUPS.map((d) => ({ key: d.key, label: d.label, max: d.max })), // max: where the slider starts
+      dealStops: SHOP_DEAL_STOPS,
+      onDisplayLabel: (await loadShopData()).onDisplay?.label || SHOP_ON_DISPLAY_LABEL
     });
   } catch (err) {
     console.error("Shop catalog failed:", err.message);

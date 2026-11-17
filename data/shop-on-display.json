@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "note": "The Express shop's \"On display\" flag. A model gets the flag when the ePASS feed has a unit of it with serial type DISPLAY, not written to an order, whose location code is in `locations` (and, when `bins` lists any, whose bin is in `bins`). Codes are matched without regard to capitals. A code that is all digits matches with or without leading zeros. With no location and no bin listed, no model is flagged. Location 04 is the Dripping Springs showroom floor (Andrew 11/17).",
+    "added": "2026-11-17"
+  },
+  "label": "On display in Dripping Springs",
+  "locations": ["04"],
+  "bins": []
+}

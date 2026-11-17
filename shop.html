@@ -511,7 +511,7 @@
     .dept-link:hover, .dept-link.open { border-bottom-color: var(--accent); color: var(--accent); }
     .dept-link.outlet { color: var(--copper); }
     .dept-link.outlet:hover { border-bottom-color: var(--copper); color: var(--copper); }
-    #crumbBar, #filterBar, #heroStrip { scroll-margin-top: calc(66px + var(--ribbon-h) + 14px); }
+    #crumbBar, #filterBar, #heroStrip, #dealSlide { scroll-margin-top: calc(66px + var(--ribbon-h) + 14px); }
     @media (max-width: 640px) { .dept-link { font-size: 12px; letter-spacing: .08em; } .dept-nav { gap: 18px; } .dept-nav .ribbon-lead { display: none; } }
 
     .mega-panel { background: var(--surface); box-shadow: 0 24px 50px rgba(36,33,30,.16); color: var(--ink); }
@@ -589,12 +589,45 @@
       .deal-tile { min-height: 150px; padding: 16px 16px 14px; }
       .deal-tile .dt-title { font-size: 24px; }
     }
+    /* Price slider under the Top deal tiles (Andrew and Cayden 11/17): a tile
+       picks the category, the slider sets the ceiling in $500 steps. Shown
+       once a tile is picked. The side padding leaves room for the end labels,
+       which are centred on the first and last stops. */
+    .deal-slide { margin: -4px 0 18px; padding: 14px 30px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+    .deal-slide[hidden] { display: none; }
+    .ds-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px 8px; }
+    .ds-label { font-family: var(--f-display); font-weight: 600; font-size: 17px; line-height: 1.25; }
+    .ds-label b { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .ds-count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    input.ds-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 30px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; cursor: pointer; }
+    input.ds-range:focus { outline: none; border: 0; box-shadow: none; }
+    input.ds-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--copper) calc(12px + (100% - 24px) * var(--frac, 0)), var(--sunk) 0); }
+    input.ds-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--sunk); }
+    input.ds-range::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--copper); }
+    input.ds-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin-top: -9px; border-radius: 50%; background: #fff; border: 2px solid var(--copper); box-shadow: 0 1px 4px rgba(36,33,30,.25); }
+    input.ds-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid var(--copper); box-shadow: 0 1px 4px rgba(36,33,30,.25); }
+    input.ds-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(190,125,60,.3); }
+    input.ds-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px rgba(190,125,60,.3); }
+    .ds-ticks { display: flex; justify-content: space-between; padding: 0 12px; }
+    .ds-tick { width: 0; display: flex; justify-content: center; align-items: flex-start; }
+    .ds-tick button { appearance: none; border: 0; background: none; margin: 0; padding: 0 4px 4px; font: inherit; font-size: 12px; line-height: 1.3; color: var(--muted); cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .ds-tick button::before { content: ""; display: block; width: 1px; height: 6px; margin: 0 auto 4px; background: #B9B2A8; }
+    .ds-tick button.on { color: var(--ink); font-weight: 700; }
+    @media (max-width: 560px) {
+      .deal-slide { padding: 12px 26px 8px; }
+      .ds-label { font-size: 15.5px; }
+      .ds-tick.half button { font-size: 0; } /* the $500 steps keep their mark and lose their label */
+    }
     .deal-chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--r); font-weight: 500; font-size: 14px; padding: 8px 14px; }
     .deal-chip .dc-n { color: var(--muted); opacity: 1; font-weight: 500; }
     .deal-chip:hover { border-color: var(--ink); }
     .deal-chip.active { background: var(--ink); border-color: var(--ink); color: #fff; }
     .deal-chip.active .dc-n { color: rgba(255,255,255,.75); }
     .best-tag { background: var(--copper-soft); color: var(--copper); border-radius: 3px; }
+    /* "On display" (11/17): a display unit of this model is on the Dripping
+       Springs showroom floor. */
+    .item-display { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--accent, #67533E); }
+    .item-display svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--copper, #BE7D3C); }
 
     /* Product cards — the site's card */
     .item-card, .skel-card { border-radius: var(--r); border-color: var(--line); background: var(--surface); transition: box-shadow .2s ease; }
@@ -854,6 +887,11 @@
     <div id="heroStrip"></div>
 
     <section class="deal-grid" id="dealRow" aria-label="Top deals"></section>
+    <div class="deal-slide" id="dealSlide" hidden>
+      <div class="ds-head"><span class="ds-label" id="dsLabel"></span><span class="ds-count" id="dsCount"></span></div>
+      <input type="range" class="ds-range" id="dsRange" min="0" max="6" step="1" value="0" aria-label="Highest price">
+      <div class="ds-ticks" id="dsTicks" aria-hidden="true"></div>
+    </div>
     <div class="filters" id="filterBar" style="display:none;">
       <input type="search" id="searchInput" placeholder="Search model, brand, description...">
       <select id="brandSelect"><option value="">All brands</option></select>
@@ -1103,7 +1141,7 @@
     // or a department = the model's own `sold` first, then its brand's units
     // in that category (`brandCatSold`). Ties in merchandised order. deal =
     // one of the category deal chips or "".
-    filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", sort: "best" },
+    filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", dealMax: null, sort: "best" }, // dealMax: the ceiling the shopper slid to (null until they move the slider)
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null,
@@ -1260,10 +1298,13 @@
   }
 
   function buildFilters() {
-    // One deal chip per category with its own ceiling (washers / dryers /
-    // dishwashers under $999, refrigerators under $1,999); empty ones hide.
+    // One deal tile per category (washers, dryers, dishwashers,
+    // refrigerators). Since 11/17 the tile picks the category only and the
+    // slider under the tiles sets the ceiling, so the count on a tile is what
+    // that category holds at the slider's setting. A category with nothing
+    // at any stop hides.
     const items = gridItems();
-    const dealGroups = (state.catalog.dealGroups || []).map((g) => ({ ...g, count: items.filter((i) => i.deal === g.key).length })).filter((g) => g.count);
+    const dealGroups = (state.catalog.dealGroups || []).map((g) => ({ ...g, count: items.filter((i) => inDeal(i, g.key)).length })).filter((g) => g.count || (dealStops() && items.some((i) => i.dealCat === g.key)));
     if (state.filter.deal && !dealGroups.some((g) => g.key === state.filter.deal)) state.filter.deal = "";
     const row = $("dealRow");
     // Showroom photo + crop for each deal banner (served from /showroom).
@@ -1283,11 +1324,12 @@
         <span class="dt-count">${g.count} in stock</span>
         <span class="dt-kicker">Top deal</span>
         <span class="dt-title">${esc(g.label)}</span>
-        <span class="dt-price">under <b>$${Number(g.max).toLocaleString()}</b></span>
+        ${dealStops() ? "" : `<span class="dt-price">under <b>$${Number(g.max).toLocaleString()}</b></span>`}
       </button>`;
     }).join("") : "";
     row.classList.toggle("show", dealGroups.length > 0);
     row.classList.toggle("has-active", Boolean(state.filter.deal));
+    syncDealSlide();
     row.querySelectorAll("[data-deal]").forEach((btn) => btn.addEventListener("click", () => {
       const key = btn.getAttribute("data-deal");
       const turningOn = state.filter.deal !== key;
@@ -1302,8 +1344,8 @@
       }
       buildFilters();
       renderGrid();
-      // On a phone the banners fill the screen — bring the results up.
-      if (turningOn && window.innerWidth < 1024) $("filterBar").scrollIntoView({ behavior: "smooth", block: "start" });
+      // On a phone the banners fill the screen — bring the slider and the results up.
+      if (turningOn && window.innerWidth < 1024) (dealStops() ? $("dealSlide") : $("filterBar")).scrollIntoView({ behavior: "smooth", block: "start" });
     }));
     // Best-seller tags: the top models by units sold (at least 2 sold) so the
     // default sort is visibly "what people buy", not an arbitrary order.
@@ -1372,6 +1414,60 @@
     return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   }
 
+  // ---------- Top deals: category tiles + price slider (11/17) ----------
+  // The catalog sends the slider's stops (dealStops), each tile's starting
+  // stop (dealGroups[].max) and, per unit, its deal category (dealCat) and
+  // the lowest stop that includes it (dealStop). No price travels for this.
+  function dealStops() { const s = state.catalog?.dealStops; return Array.isArray(s) && s.length ? s : null; }
+  function dealCeiling(key) {
+    if (state.filter.dealMax != null) return state.filter.dealMax;
+    const g = (state.catalog?.dealGroups || []).find((d) => d.key === key);
+    return g ? Number(g.max) : 0;
+  }
+  function inDeal(i, key) {
+    if (!dealStops()) return i.deal === key; // a catalog from before the slider: the tile's own ceiling
+    return i.dealCat === key && Number(i.dealStop) > 0 && Number(i.dealStop) <= dealCeiling(key);
+  }
+  const dealMoney = (n) => "$" + Number(n).toLocaleString("en-US");
+  // Draw the slider for the picked tile (or hide it), without rebuilding the
+  // range itself, so a drag is never interrupted.
+  function syncDealSlide() {
+    const box = $("dealSlide"), stops = dealStops(), key = state.filter.deal;
+    const group = key ? (state.catalog?.dealGroups || []).find((d) => d.key === key) : null;
+    if (!stops || !group) { box.hidden = true; return; }
+    const range = $("dsRange"), ticks = $("dsTicks");
+    if (ticks.dataset.for !== stops.join(",")) {
+      ticks.dataset.for = stops.join(",");
+      range.max = String(stops.length - 1);
+      ticks.innerHTML = stops.map((s, k) => `<span class="ds-tick${k % 2 ? " half" : ""}"><button type="button" tabindex="-1" data-stop="${k}">${dealMoney(s)}</button></span>`).join("");
+    }
+    const ceiling = dealCeiling(key);
+    let at = stops.findIndex((s) => s >= ceiling); if (at < 0) at = stops.length - 1;
+    range.value = String(at);
+    range.style.setProperty("--frac", String(stops.length > 1 ? at / (stops.length - 1) : 0));
+    range.setAttribute("aria-valuetext", `${group.label} up to ${dealMoney(stops[at])}`);
+    ticks.querySelectorAll("button").forEach((b, k) => b.classList.toggle("on", k === at));
+    const n = gridItems().filter((i) => inDeal(i, key)).length;
+    $("dsLabel").innerHTML = `${esc(group.label)} up to <b>${dealMoney(stops[at])}</b>`;
+    $("dsCount").textContent = `${n} in stock`;
+    box.hidden = false;
+  }
+  function setDealStop(k) {
+    const stops = dealStops(); if (!stops) return;
+    k = Math.max(0, Math.min(stops.length - 1, Number(k) || 0));
+    if (state.filter.dealMax === stops[k]) { syncDealSlide(); return; }
+    state.filter.dealMax = stops[k]; // from here on every tile uses the shopper's ceiling
+    const items = gridItems();
+    document.querySelectorAll("#dealRow [data-deal]").forEach((btn) => {
+      const c = btn.querySelector(".dt-count");
+      if (c) c.textContent = `${items.filter((i) => inDeal(i, btn.getAttribute("data-deal"))).length} in stock`;
+    });
+    syncDealSlide();
+    renderGrid();
+  }
+  $("dsRange").addEventListener("input", (e) => setDealStop(e.target.value));
+  $("dsTicks").addEventListener("click", (e) => { const b = e.target.closest("[data-stop]"); if (b) setDealStop(b.getAttribute("data-stop")); });
+
   // Everything the storefront grid, menus and filters work from. Accessory
   // products a brand adds to the setup prompt are in the catalog (so a cart
   // can hold and price them) but never on the grid.
@@ -1380,7 +1476,7 @@
   function visibleItems() {
     const q = state.filter.search.trim().toUpperCase();
     return gridItems().filter((i) => {
-      if (state.filter.deal && i.deal !== state.filter.deal) return false;
+      if (state.filter.deal && !inDeal(i, state.filter.deal)) return false;
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
       const sel = state.filter.selection;
       if (sel && !selectionMatches(sel, i)) return false;
@@ -1624,6 +1720,7 @@
         ${canOpen ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
         <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
+        ${group.onDisplay && !(group.condition === "open" && group.serialType === "DISPLAY") ? `<div class="item-display"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(state.catalog.onDisplayLabel || "On display in Dripping Springs")}</div>` : ""}
         <div class="item-foot">
           ${state.paused
             ? `<span></span>`

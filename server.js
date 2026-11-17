@@ -209,7 +209,7 @@ import {
 } from "./lib/shop-postgres.js";
 import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE, loadNetsuiteBrandSuppliers, canonBrandKey } from "./lib/brand-names.js";
 import { buildLiveClearanceList } from "./lib/clearance-live.js";
-import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, reorderPromoCards, reactivatePromoCard, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
+import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, reorderPromoCards, reactivatePromoCard, listSecretMenuItemDates, secretMenuItemExpiration, reactivateSecretMenuItem, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
 import {
   PROMO_KIND_LABELS,
   normalizePromoCode,
@@ -6406,6 +6406,11 @@ app.get("/secret-menu", (req, res) => {
 // get them too, marked `expired`, so they can bring one back from the page
 // (Andrew 11/16) - see the reactivate route below. Unit cost never goes out on
 // this route: the Secret Menu is a sales-floor screen.
+async function readSecretMenuFile() {
+  const fs = await import("fs/promises");
+  return JSON.parse(await fs.readFile(path.join(__dirname, "data", "secret-menu.json"), "utf8"));
+}
+
 app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (req, res) => {
   try {
     const cards = await listPromoCards({ channel: "secret" }).catch(() => []);
@@ -6419,11 +6424,18 @@ app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (r
       res.setHeader("Cache-Control", "no-store");
       return res.json({ _meta: { source: "builder", generatedAt: new Date().toISOString(), taxRate: SHOP_TAX_RATE, today, canReactivate }, cards: [...current, ...expired].map(forFloor), items: [] });
     }
-    const fs = await import("fs/promises");
-    const raw = await fs.readFile(path.join(__dirname, "data", "secret-menu.json"), "utf8");
-    const data = JSON.parse(raw);
+    // The old hand-kept list. An item an executive has reactivated (11/17)
+    // carries its new expiration from the database; the rest go by the file.
+    const data = await readSecretMenuFile();
+    const dates = await listSecretMenuItemDates().catch(() => ({}));
+    const items = (Array.isArray(data.items) ? data.items : []).map((item) => ({ ...item, expiration: secretMenuItemExpiration(item, dates) }));
     res.setHeader("Cache-Control", "no-store");
-    return res.json({ ...data, cards: [] });
+    return res.json({
+      ...data,
+      _meta: { ...(data._meta || {}), source: "file", today: promoToday(), canReactivate: isExecutiveUser(req.authUser) },
+      items,
+      cards: []
+    });
   } catch (err) {
     if (err?.code === "ENOENT") return res.status(500).json({ error: "Secret Menu data file is missing." });
     return res.status(500).json({ error: err.message || "Unable to load secret menu." });
@@ -6479,6 +6491,33 @@ async function resolvePromoCardsLive(cards) {
   const ctx = await promoContext();
   return resolvePromoCards(cards, { ...ctx, categoryByProduct: SHOP_STOCK_CATEGORY_BY_PRODUCT, taxRate: SHOP_TAX_RATE, today: promoToday() });
 }
+
+// The old hand-kept list has no cards, so an executive brings one of its
+// expired items back by model (Andrew 11/17). The file can't be changed on the
+// server: the new expiration is kept in the database and laid over the file's
+// value until the file's own expiration is edited. A rolling item ("always two
+// days out, until a date") stays rolling; only the date it stops at changes.
+app.post("/api/secret-menu/items/reactivate", requireExecutiveApi, async (req, res) => {
+  try {
+    const cards = await listPromoCards({ channel: "secret" }).catch(() => []);
+    if (cards.length) return res.status(409).json({ error: "The Secret Menu now shows Promo Item Builder cards. Reload the page." });
+    const wanted = promoModelKey(req.body?.model);
+    const data = await readSecretMenuFile();
+    const item = wanted ? (Array.isArray(data.items) ? data.items : []).find((i) => promoModelKey(i.model) === wanted) : null;
+    if (!item) return res.status(404).json({ error: "That Secret Menu item no longer exists." });
+    const was = secretMenuItemExpiration(item, await listSecretMenuItemDates());
+    const saved = await reactivateSecretMenuItem(item.model, {
+      fileExpiration: String(item.expiration == null ? "" : item.expiration), currentExpiration: was,
+      endsOn: String(req.body?.endsOn || ""), today: promoToday(), byEmail: req.authUser?.email || ""
+    });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "secret_menu_item_reactivated", targetUserId: null,
+      detail: { model: item.model, brand: item.brand || "", was, now: saved.expiration, endsOn: saved.endsOn || "no end date" } }).catch(() => {});
+    return res.json({ item: { ...item, expiration: saved.expiration }, endsOn: saved.endsOn });
+  } catch (err) {
+    if (err?.code === "ENOENT") return res.status(500).json({ error: "Secret Menu data file is missing." });
+    return res.status(400).json({ error: err.message || "Unable to reactivate that item." });
+  }
+});
 
 // Inventory for the builder's drag source: EVERY on-hand unit (any serial
 // type), grouped by model, with the facts that stay read-only on a card.

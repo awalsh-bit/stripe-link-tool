@@ -465,6 +465,13 @@
             <div class="result-label">Customer Agreement</div>
             <div id="resultAgreement" class="result-value"></div>
           </div>
+          <div id="secondLinkRow" class="result-row" style="display:none;">
+            <div class="result-label">Same amount again?</div>
+            <div class="result-value">
+              <button id="secondLinkBtn" class="secondary" type="button">Create a second link</button>
+              <div class="hint" style="margin-top:8px;">For another payment of this same amount on this order: two equal payments, or one order split over two cards. It makes a new, separate link. The link above stays as it is.</div>
+            </div>
+          </div>
         </div>
       </form>
 
@@ -508,17 +515,23 @@
     const customerEmailInput = document.getElementById('customerEmail');
     const resultAgreementRow = document.getElementById('resultAgreementRow');
     const resultAgreement = document.getElementById('resultAgreement');
+    const secondLinkRow = document.getElementById('secondLinkRow');
+    const secondLinkBtn = document.getElementById('secondLinkBtn');
 
     let latestLink = '';
     let latestLinkId = '';
+    let latestLinkType = '';
     let latestClientPhone = '';
     let latestClientEmail = '';
     // Double-create guard (Andrew 10/23: the same order showed up twice on
     // the dashboard). One request in flight at a time, and once a link has
     // been created for exactly these form values the Create button stays
-    // off until something on the form changes.
+    // off until something on the form changes. Whether an identical request
+    // gets the same link back or a new one is the server's call (11/16): it
+    // knows if the first link is still open or has since been paid. A second
+    // link for the same amount on purpose goes through "Create a second link".
     let createInFlight = false;
-    let createdPayloadKey = '';
+    let separateRequested = false;
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     function showStatus(type, message) {
@@ -539,6 +552,8 @@
 
     function setSubmitState(state) {
       submitBtn.classList.remove('working');
+      // Offered only while the form still matches the link just created.
+      secondLinkRow.style.display = state === 'created' && latestLink && latestLinkType !== 'card_capture' ? 'block' : 'none';
       if (state === 'working') {
         submitBtn.disabled = true;
         submitBtn.classList.add('working');
@@ -823,6 +838,8 @@
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (createInFlight) return; // a second Enter/click while Stripe is still working
+      const wantSeparate = separateRequested;
+      separateRequested = false;
       clearStatus();
 
       const creatorLookupValid = applyCreatorLookup();
@@ -885,14 +902,6 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
   return;
 }
 
-      const payloadKey = JSON.stringify(payload);
-      if (latestLink && payloadKey === createdPayloadKey) {
-        // Nothing changed since the last create — the link below IS this link.
-        setSubmitState('created');
-        showStatus('success', 'This link is already created — it is the one shown below. Text, email, or copy it. To make a different link, change the amount, order, or description first.');
-        return;
-      }
-
       resultEl.classList.remove('show');
       resultAgreementRow.style.display = 'none';
       resultAgreement.textContent = '';
@@ -912,7 +921,7 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(wantSeparate ? { ...payload, allowDuplicate: true } : payload),
         });
 
         const data = await response.json();
@@ -922,7 +931,7 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
         }
 
         latestLink = data.url;
-        createdPayloadKey = payloadKey;
+        latestLinkType = linkType;
         copyBtn.disabled = false;
         latestLinkId = data.id || '';
         latestClientPhone = payload.customerPhone || '';
@@ -961,6 +970,14 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
         createInFlight = false;
         setSubmitState(latestLink ? 'created' : 'ready');
       }
+    });
+
+    // A second, separate link for the same amount on the same order.
+    secondLinkBtn.addEventListener('click', () => {
+      if (createInFlight) return;
+      separateRequested = true;
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     });
 
     copyBtn.addEventListener('click', async () => {

@@ -209,7 +209,7 @@ import {
 } from "./lib/shop-postgres.js";
 import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE, loadNetsuiteBrandSuppliers, canonBrandKey } from "./lib/brand-names.js";
 import { buildLiveClearanceList } from "./lib/clearance-live.js";
-import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, reorderPromoCards, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
+import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, reorderPromoCards, reactivatePromoCard, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
 import {
   PROMO_KIND_LABELS,
   normalizePromoCode,
@@ -6401,13 +6401,23 @@ app.get("/secret-menu", (req, res) => {
 // Secret Menu (Andrew 10/14): cards from the Promo Item Builder, resolved
 // against live ePASS data. The old data/secret-menu.json is the fallback only
 // while no builder card has ever been published.
+//
+// Expired cards (end date passed) are left off for the sales team. Executives
+// get them too, marked `expired`, so they can bring one back from the page
+// (Andrew 11/16) - see the reactivate route below. Unit cost never goes out on
+// this route: the Secret Menu is a sales-floor screen.
 app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (req, res) => {
   try {
     const cards = await listPromoCards({ channel: "secret" }).catch(() => []);
     if (cards.length) {
+      const today = promoToday();
+      const canReactivate = isExecutiveUser(req.authUser);
       const resolved = await resolvePromoCardsLive(cards.filter((c) => c.status === "published"));
+      const current = resolved.filter((c) => c.live || c.inWindow);
+      const expired = canReactivate ? resolved.filter((c) => c.endsOn && c.endsOn < today).map((c) => ({ ...c, expired: true })) : [];
+      const forFloor = (c) => ({ ...c, items: c.items.map(({ cost, ...item }) => item) });
       res.setHeader("Cache-Control", "no-store");
-      return res.json({ _meta: { source: "builder", generatedAt: new Date().toISOString(), taxRate: SHOP_TAX_RATE }, cards: resolved.filter((c) => c.live || c.inWindow), items: [] });
+      return res.json({ _meta: { source: "builder", generatedAt: new Date().toISOString(), taxRate: SHOP_TAX_RATE, today, canReactivate }, cards: [...current, ...expired].map(forFloor), items: [] });
     }
     const fs = await import("fs/promises");
     const raw = await fs.readFile(path.join(__dirname, "data", "secret-menu.json"), "utf8");
@@ -6418,6 +6428,22 @@ app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (r
     if (err?.code === "ENOENT") return res.status(500).json({ error: "Secret Menu data file is missing." });
     return res.status(500).json({ error: err.message || "Unable to load secret menu." });
   }
+});
+
+// Executives bring an expired Secret Menu card back (Andrew 11/16). Only the
+// card's end date changes: to the date sent (today or later), or to no end
+// date when it is blank. Anyone else is refused, whatever pages they hold.
+app.post("/api/secret-menu/cards/:id/reactivate", requireExecutiveApi, async (req, res) => {
+  try {
+    const before = await getPromoCard(req.params.id);
+    if (!before || !before.channels.secret || before.status === "archived") return res.status(404).json({ error: "That Secret Menu item no longer exists." });
+    const card = await reactivatePromoCard(before.id, { endsOn: String(req.body?.endsOn || ""), today: promoToday(), byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "secret_menu_card_reactivated", targetUserId: null,
+      detail: { id: card.id, title: card.title, expiredOn: before.endsOn, endsOn: card.endsOn || "no end date" } }).catch(() => {});
+    const { items, ...rest } = (await resolvePromoCardsLive([card]))[0];
+    return res.json({ card: { ...rest, items: items.map(({ cost, ...item }) => item) } });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to reactivate that item." }); }
 });
 
 // ===========================================================================
@@ -6444,9 +6470,14 @@ async function promoContext() {
   try { const file = (await loadShopData()).images || {}; for (const [k, v] of Object.entries(file)) if (!images[k]) images[k] = v; } catch {}
   return { snapshot, units, brandMap, brandNames, miscCharges, photoModels, images, statusById: new Map(statuses.map((s) => [s.itemId, s])) };
 }
+// A card's sale window runs on the store's calendar, not UTC: a card that
+// ends today is good until midnight here (it used to drop off at 6 or 7 PM,
+// when the date turns over in UTC), and "expired" means the same thing to the
+// Secret Menu, the builder and the reactivate route.
+const promoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
 async function resolvePromoCardsLive(cards) {
   const ctx = await promoContext();
-  return resolvePromoCards(cards, { ...ctx, categoryByProduct: SHOP_STOCK_CATEGORY_BY_PRODUCT, taxRate: SHOP_TAX_RATE });
+  return resolvePromoCards(cards, { ...ctx, categoryByProduct: SHOP_STOCK_CATEGORY_BY_PRODUCT, taxRate: SHOP_TAX_RATE, today: promoToday() });
 }
 
 // Inventory for the builder's drag source: EVERY on-hand unit (any serial
@@ -15752,7 +15783,22 @@ app.post("/api/card-confirm/other", rateLimit("card-confirm", 60, 15 * 60 * 1000
   }
 });
 
+// One create at a time per identical request (same link type + order + phone
+// + amount + pay method). A second identical request waits for the first to
+// finish and is then answered by the double-create guard with the link the
+// first one made, so a double press can never produce two links. Agility runs
+// as one process, so a queue in memory is enough.
+const paymentLinkCreateQueue = new Map();
+const describeLinkAge = (createdAt) => {
+  const minutes = Math.max(1, Math.round((Date.now() - Date.parse(createdAt || 0)) / 60000));
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `about ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  return `${Math.round(hours / 24)} days ago`;
+};
+
 app.post("/api/create-payment-link", requirePagePermission("/index.html"), async (req, res) => {
+  let releaseLinkCreate = null;
   try {
     const {
       linkType,
@@ -15772,7 +15818,8 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
       description,
       notes,
       agreementText,
-      paymentMethods
+      paymentMethods,
+      allowDuplicate
     } = req.body;
 
     const normalizedLinkType =
@@ -15816,27 +15863,66 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
 
     // Double-create guard (Andrew 10/23: the same order appeared twice on the
     // dashboard — once as two records sharing one Stripe link, once as two
-    // separate links). If this same order + phone + amount + link type was
-    // created in the last 10 minutes and that link is still live, hand the
-    // existing link back instead of making another. Nothing is charged or
-    // sent by a create, so answering with the same link is always safe.
+    // separate links). If this same order + phone + amount + link type already
+    // has a link that is still open, hand that link back instead of making
+    // another. Nothing is charged or sent by a create, so answering with the
+    // same link is always safe.
+    //
+    // 11/16 (Andrew: "an issue creating a second payment link for the same
+    // customer and sales order number"). The guard only looked back 10
+    // minutes; past that, Stripe did the de-duplicating, because the
+    // idempotency keys below were a hash of the request and Stripe answers a
+    // repeated key with the saved result of the first call for at least 24
+    // hours. So an identical second link came back as the FIRST link — even
+    // after that one had been paid or deactivated, when it no longer works —
+    // and Agility filed a second record pointing at the same dead link. Now:
+    //  - the guard itself covers the 24 hours, and only ever hands back a link
+    //    that is still open (sent or viewed, not paid, not deactivated);
+    //  - every create that gets past it is a fresh Stripe link (the keys carry
+    //    a per-request id, see linkAttemptId);
+    //  - a second link while the first is still open is possible on purpose:
+    //    the page sends allowDuplicate for "Create a second link" (two equal
+    //    payments on one order, or one order split over two cards).
+    const wantsSeparateLink = allowDuplicate === true && normalizedLinkType !== "card_capture";
+    let earlierOpenTwin = null;
     {
-      const DUP_WINDOW_MS = 10 * 60 * 1000;
+      const DUP_WINDOW_MS = 24 * 60 * 60 * 1000;
       const soKey = String(salesOrder || "").trim().toUpperCase();
       const phoneKey = String(customerPhoneDigits || customerPhone || "").replace(/\D/g, "");
       const amountKey = Math.round((Number(amount) || 0) * 100);
-      const recent = (await readLinks()).find((l) =>
+      const methodsKey = normalizedLinkType === "appliance" && String(paymentMethods || "").toLowerCase() === "ach" ? "ach" : "any";
+
+      // Take a place in the queue for this exact request and wait our turn.
+      const queueKey = [normalizedLinkType, soKey, phoneKey, amountKey, methodsKey].join("|");
+      const ahead = paymentLinkCreateQueue.get(queueKey) || Promise.resolve();
+      let openGate;
+      const gate = new Promise((resolve) => { openGate = resolve; });
+      const tail = ahead.then(() => gate);
+      paymentLinkCreateQueue.set(queueKey, tail);
+      releaseLinkCreate = () => {
+        openGate();
+        if (paymentLinkCreateQueue.get(queueKey) === tail) paymentLinkCreateQueue.delete(queueKey);
+      };
+      await ahead;
+
+      // The newest link for this exact request that is still open, of any age.
+      const openTwin = (await readLinks()).find((l) =>
         l && l.active !== false &&
         ["sent", "viewed"].includes(String(l.status || "")) &&
         String(l.workflowType || "appliance") === normalizedLinkType &&
         String(l.salesOrder || "").trim().toUpperCase() === soKey &&
         String(l.customerPhone || "").replace(/\D/g, "") === phoneKey &&
         Math.round((Number(l.requestedAmount) || 0) * 100) === amountKey &&
-        String(l.paymentMethods || "any") === (normalizedLinkType === "appliance" && String(paymentMethods || "").toLowerCase() === "ach" ? "ach" : "any") &&
-        l.paymentLinkUrl &&
-        Date.now() - Date.parse(l.createdAt || 0) < DUP_WINDOW_MS
-      );
-      if (recent) {
+        String(l.paymentMethods || "any") === methodsKey &&
+        l.paymentLinkUrl
+      ) || null;
+      const recent = openTwin && Date.now() - Date.parse(openTwin.createdAt || 0) < DUP_WINDOW_MS ? openTwin : null;
+      if (recent && !wantsSeparateLink) {
+        const canCreateSeparate = normalizedLinkType !== "card_capture";
+        // Name the earlier link when it was described differently, so it's
+        // clear which one this is.
+        const earlierLabel = recent.description && String(recent.description).trim().toLowerCase() !== String(description || "").trim().toLowerCase()
+          ? ` ("${String(recent.description).trim()}")` : "";
         return res.json({
           url: recent.paymentLinkUrl,
           id: recent.id,
@@ -15844,9 +15930,14 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
           workflowType: normalizedLinkType,
           depositAgreementId: recent.depositAgreementId || "",
           duplicate: true,
-          message: `A link for ${recent.salesOrder || "this order"} at this amount was already created ${Math.max(1, Math.round((Date.now() - Date.parse(recent.createdAt)) / 60000))} minute(s) ago — this is that same link, not a new one. Text, email, or copy it below.`
+          canCreateSeparate,
+          message: `A link for ${recent.salesOrder || "this order"} at this amount${earlierLabel} was already created ${describeLinkAge(recent.createdAt)} and hasn't been paid — this is that same link, not a new one. Text, email, or copy it below.` +
+            (canCreateSeparate ? ` If the client needs a second, separate link for the same amount, use "Create a second link" below.` : "")
         });
       }
+      // Past the guard with an open twin still out there (asked for on
+      // purpose, or older than a day): the answer below says so.
+      earlierOpenTwin = openTwin;
     }
 
 // ---- SetupIntent capture: save a card, charge NOTHING ----
@@ -15966,8 +16057,13 @@ const productConfig = {
       : salesOrder || "Customer payment"
 };
 
+// One id per create. It goes into the three idempotency keys below, so a
+// network retry inside this request still can't make two of anything, but
+// Stripe can never again answer this create with an EARLIER create's link.
+const linkAttemptId = crypto.randomUUID();
+
 const product = await stripe.products.create(productConfig, {
-  idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-product", productConfig)
+  idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-product", { attempt: linkAttemptId, config: productConfig })
 });
 
     const priceConfig = {
@@ -15976,7 +16072,7 @@ const product = await stripe.products.create(productConfig, {
       currency: normalizedCurrency
     };
     const price = await stripe.prices.create(priceConfig, {
-      idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-price", priceConfig)
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-price", { attempt: linkAttemptId, config: priceConfig })
     });
 
 // ACH-only (Andrew 10/28): the salesperson can take the card option off a
@@ -16042,7 +16138,7 @@ if (normalizedLinkType === "hvac_deposit") {
 if (achOnly) paymentLinkConfig.payment_method_types = ["us_bank_account"];
 
 const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
-  idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-link", paymentLinkConfig)
+  idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-link", { attempt: linkAttemptId, config: paymentLinkConfig })
 });
 
     const links = await readLinks();
@@ -16105,12 +16201,19 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
       id: linkRecord.id,
       paymentLinkId: paymentLink.id,
       workflowType: normalizedLinkType,
-      depositAgreementId: linkRecord.depositAgreementId || ""
+      depositAgreementId: linkRecord.depositAgreementId || "",
+      // An earlier identical link is still open, so both can now be paid: say so.
+      ...(earlierOpenTwin ? {
+        separate: true,
+        message: `${wantsSeparateLink ? "Second link" : "Link"} created for ${linkRecord.salesOrder || "this order"}. It is separate from the one made ${describeLinkAge(earlierOpenTwin.createdAt)}, which is still open — if the client pays both, they pay twice. Deactivate the earlier one on the dashboard if it isn't needed.`
+      } : {})
     });
   } catch (err) {
     res.status(400).json({
       error: err.message
     });
+  } finally {
+    if (releaseLinkCreate) releaseLinkCreate();
   }
 });
 

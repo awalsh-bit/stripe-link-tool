@@ -215,7 +215,7 @@
           (!state.cat || m.category === state.cat) &&
           (!type || m.units.some((u) => type === "other" ? !["ALL", "OPEN"].includes(u.serialType) : u.serialType === type)) &&
           (!flag || (flag === "free" ? m.free > 0 : flag === "unique" ? m.units.some((u) => u.uniquePrice > 0) : m.discontinued)) &&
-          (!q || `${m.model} ${m.brand} ${m.description} ${m.units.map((u) => u.serial).join(" ")}`.toUpperCase().includes(q)));
+          (!q || `${m.model} ${m.brand} ${m.brandCode || ""} ${m.description} ${m.units.map((u) => u.serial).join(" ")}`.toUpperCase().includes(q))); // brandCode: the old ePASS code (WP, MTAG) still finds the brand
       }
       const expanded = new Set();
       function renderInv() {

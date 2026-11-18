@@ -6,7 +6,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys } from "./lib/shop-product-page.js";
+import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, regularPriceToShow } from "./lib/shop-product-page.js";
+import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
   readLinks,
   writeLinks,
@@ -6409,7 +6410,7 @@ app.get("/p/:model", async (req, res) => {
         .sort((a, b) => (a.condition === "open") - (b.condition === "open"))[0];
       live.paused = !!catalog.paused;
       live.unit = u
-        ? { price: u.price, noPrice: !!u.noPrice, mapPublic: !!u.mapPublic, mapFloor: u.mapFloor ?? null, source: u.source || "clearance", stockLevel: u.stockLevel || "", condition: u.condition || "", serialType: u.serialType || "", hideStockBadge: !!u.hideStockBadge }
+        ? { price: u.price, noPrice: !!u.noPrice, mapPublic: !!u.mapPublic, mapFloor: u.mapFloor ?? null, mapRegular: u.mapRegular ?? null, source: u.source || "clearance", stockLevel: u.stockLevel || "", condition: u.condition || "", serialType: u.serialType || "", hideStockBadge: !!u.hideStockBadge }
         : null;
       live.onDisplay = catalog.items.some((i) => i.onDisplay && normalizeModelKey(i.model) === key);
       live.sheets = (await loadShopData()).specSheets?.byModel?.[key] || [];
@@ -6579,7 +6580,8 @@ async function promoContext() {
   let images = {};
   try { images = await getShopModelImages(keys); } catch {}
   try { const file = (await loadShopData()).images || {}; for (const [k, v] of Object.entries(file)) if (!images[k]) images[k] = v; } catch {}
-  return { snapshot, units, brandMap, brandNames, miscCharges, photoModels, images, statusById: new Map(statuses.map((s) => [s.itemId, s])) };
+  const nameBrand = createShopBrandNamer(loadBrandTable(), brandMap); // one name per brand (11/18): NetSuite's, not the ePASS code
+  return { snapshot, units, brandMap, brandNames, nameBrand, miscCharges, photoModels, images, statusById: new Map(statuses.map((s) => [s.itemId, s])) };
 }
 // A card's sale window runs on the store's calendar, not UTC: a card that
 // ends today is good until midnight here (it used to drop off at 6 or 7 PM,
@@ -6631,7 +6633,8 @@ app.get("/api/promo/inventory", requirePromoBuilder, async (req, res) => {
       const brandCode = String(u.brand || "").trim().toUpperCase();
       let g = byModel.get(key);
       if (!g) {
-        const brand = ns.brand || ctx.brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
+        const brandWas = ns.brand || ctx.brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
+        const brand = ctx.nameBrand({ model, brandCode, brand: brandWas }) || brandWas;
         const prod = String(u.prod || ns.prod || "").toUpperCase();
         g = { key, model, brand, brandCode, description: String(u.description || ns.description || "").trim(), product: prod, category: shopBucketFor(ns, prod), merchClass: ns.merchClass || "",
           list: Number(u.list) || null, listCode: u.listCode || "", map: Number(u.map) || null, mapCode: u.mapCode || "", l1: Number(u.l1) || null,
@@ -7397,6 +7400,9 @@ async function loadShopDataFromDisk() {
     const codes = (v) => (Array.isArray(v) ? v : []).map((c) => String(c || "").trim().toUpperCase()).filter(Boolean);
     onDisplay = { label: String(raw.label || "").trim().slice(0, 60), locations: codes(raw.locations), bins: codes(raw.bins) };
   } catch {}
+  // Brand names (Andrew 11/18) — optional. NetSuite's brand list and the
+  // ePASS brand code each brand goes by; see lib/shop-brand-names.js.
+  const brandTable = loadBrandTable(); // data/shop-brand-names.json, read once per process
   // Public-pricing whitelist (brand + category rules) — optional.
   let mapPolicy = { rules: [] };
   try {
@@ -7434,7 +7440,7 @@ async function loadShopDataFromDisk() {
       }
     }
   } catch {}
-  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails, specSheets, onDisplay };
+  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails, specSheets, onDisplay, brandTable };
 }
 // PUBLIC: one listed sell sheet / spec sheet, opened from a shop tile. Only an
 // id from data/shop-spec-sheets.json answers; the file name never comes from
@@ -7451,6 +7457,25 @@ app.get("/api/shop/spec-sheet/:id", async (req, res) => {
     return res.sendFile(sheet.file, { root: SHOP_SPEC_SHEET_DIR, headers: { "Content-Type": "application/pdf" } }, (err) => { if (err && !res.headersSent) res.status(404).json({ error: "Not found." }); });
   } catch (err) { console.error("Shop spec sheet failed:", err.message); return res.status(404).json({ error: "Not found." }); }
 });
+
+// What a catalog entry may carry about price. The three cases were inline in
+// the catalog route until 11/18; they are one function now so the regular
+// price struck through on a tile always belongs to the number beside it:
+//   - the real price, when the shopper may see it (a profile, or advertisable)
+//   - else the MAP floor, when our price is below it (always compliant; the
+//     real price only shows behind a profile)
+//   - else nothing: the tile reads "Price in cart"
+// `was` is the model's regular advertised price, sent only when it is above
+// the number shown (regularPriceToShow has the rules).
+function shopWirePrice(i, { withPrices = false, paused = false } = {}) {
+  const was = (shown) => { const w = regularPriceToShow(i, shown); return w ? { was: w } : {}; };
+  if (withPrices || (i.mapPublic && !paused)) return { price: i.price, mapPublic: i.mapPublic, ...was(i.price) };
+  if (!paused && Number.isFinite(i.mapFloor) && i.price < i.mapFloor) {
+    const floor = Math.round(i.mapFloor * 100) / 100;
+    return { mapDisplayPrice: floor, ...was(floor) };
+  }
+  return {};
+}
 
 // Does this brand+category match a public-pricing rule? Brand matching is
 // case-insensitive; categories are the clearance list's category keys.
@@ -7636,7 +7661,7 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandMap              — model → { brand } (NetSuite catalog / snapshot)
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
-function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor = () => "", accessoryKeys = new Set() }) {
+function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = ({ brand }) => brand, images, mapPolicy, mapFloor, mapRegular = {}, statusById, clearanceUnitKeys, mapExemptFor = () => "", accessoryKeys = new Set() }) {
   const brandBlocked = shopBrandBlocker();
   const byModel = new Map();
   const heldByModel = new Map(); // ALL units spoken for / reserved, per model (for the stock table)
@@ -7678,9 +7703,12 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const available = g.units.filter((x) => !statusById.has(x.id)); // sold / held / web-locked
     const price = cfg.price != null && cfg.price > 0 ? cfg.price : (g.list > 0 ? g.list : 0);
     const ns = brandMap[g.model.toUpperCase()] || {};
-    const brand = ns.brand || brandNames[g.brandCode.toUpperCase()]
+    const brandWas = ns.brand || brandNames[g.brandCode.toUpperCase()]
       || (g.brandCode.length > 3 ? g.brandCode.charAt(0) + g.brandCode.slice(1).toLowerCase() : g.brandCode); // SAMSUNG → Samsung; FP stays FP
-    const blocked = brandBlocked(brand, g.brandCode);
+    // One name per brand (11/18): NetSuite's spelling, by the model's own
+    // record or its ePASS brand code; the name above when the table knows neither.
+    const brand = nameBrand({ model: g.model, brandCode: g.brandCode, brand: brandWas }) || brandWas;
+    const blocked = brandBlocked(brand, brandWas, g.brandCode); // by the new name, the old one and the code: renaming never unblocks a brand
     const listed = !g.accessoryOnly && !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
     // A product the brand layer names is sellable from the setup prompt whenever
     // a sealed unit is free and priced, even when the grid wouldn't list it
@@ -7703,6 +7731,7 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
         deal: shopDealGroupFor({ product: g.prod, subclass: g.subclass, category: g.category, price }), ...shopDealSlot({ product: g.prod, subclass: g.subclass, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
+        mapRegular: Number(mapRegular[g.key]) > 0 ? Number(mapRegular[g.key]) : null, // the price without promotions (11/18) — see regularPriceToShow
         badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge,
         ...(accessorySell ? { gridHidden: true } : {})
       });
@@ -7810,7 +7839,7 @@ function shopOnDisplayModelKeys(snapshot, cfg) {
 }
 
 async function computeShopCatalogFresh() {
-  const { clearance: clearanceFile, addons: addonsFile, images, mapPolicy, onDisplay: onDisplayCfg } = await loadShopData();
+  const { clearance: clearanceFile, addons: addonsFile, images, mapPolicy, onDisplay: onDisplayCfg, brandTable } = await loadShopData();
   // Install/connector map keyed by NetSuite subclass (11/10) with the
   // panel / pro / DishDrawer variants; byProduct stays for a unit NetSuite
   // hasn't classified. Each item below gets the servicesKey that picks its row.
@@ -7857,6 +7886,8 @@ async function computeShopCatalogFresh() {
     snapshot && Number.isFinite(snapshotAgeHours) && snapshotAgeHours > SHOP_SNAPSHOT_MAX_AGE_HOURS
   );
   const mapFloor = mapPrices?.prices || {};
+  const mapRegular = mapPrices?.regular || {}; // the price without promotions, where it is above the floor (11/18)
+  const nameBrand = createShopBrandNamer(brandTable, brandMap); // one name per brand (11/18) — see lib/shop-brand-names.js
 
   const statusById = new Map(statuses.map((s) => [s.itemId, s]));
   // Live clearance (ePASS Unique Sell Price is the price): workbook-era price
@@ -7903,7 +7934,8 @@ async function computeShopCatalogFresh() {
   const items = [];
   for (const item of clearance.items || []) {
     if (statusById.has(item.id)) continue; // sold, held, or web-locked
-    if (brandBlocked(item.brand, item.brandCode)) continue; // brand doesn't allow online sale
+    const itemBrand = nameBrand({ model: item.model, brandCode: item.brandCode, brand: item.brand }) || item.brand; // one name per brand (11/18)
+    if (brandBlocked(itemBrand, item.brand, item.brandCode)) continue; // brand doesn't allow online sale
     const serial = String(item.serial || "").trim().toUpperCase();
     const composite = normalizeModelKey(item.model) + "|" + serial;
     if (snapshotKeys && !snapshotKeys.has(composite) && !snapshotKeys.has(serial)) continue; // no longer in ePASS
@@ -7932,7 +7964,7 @@ async function computeShopCatalogFresh() {
     items.push({
       id: item.id,
       model: item.model,
-      brand: item.brand,
+      brand: itemBrand,
       brandCode: item.brandCode || "",
       product: item.product,
       subclass: itemSubclass,
@@ -7950,6 +7982,7 @@ async function computeShopCatalogFresh() {
       mapPublic,
       mapExempt,
       mapFloor: itemMapFloor,
+      mapRegular: Number(mapRegular[normalizeModelKey(item.model)]) > 0 ? Number(mapRegular[normalizeModelKey(item.model)]) : null,
       source: "clearance"
     });
   }
@@ -7960,9 +7993,10 @@ async function computeShopCatalogFresh() {
   const brandNames = {};
   for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
   const stock = snapshot
-    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor, accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
+    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, nameBrand, images, mapPolicy, mapFloor, mapRegular, statusById, clearanceUnitKeys, mapExemptFor, accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
     : { items: [], models: [] };
   items.push(...stock.items);
+  unifyBrandSpellings(items, stock.models); // two spellings of one name become one
   // Flag every unit of a model that has a display on the showroom floor.
   const onDisplayKeys = shopOnDisplayModelKeys(snapshot, onDisplayCfg);
   if (onDisplayKeys.size) for (const i of items) { if (onDisplayKeys.has(normalizeModelKey(i.model))) i.onDisplay = true; }
@@ -9263,15 +9297,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         noPrice: !!i.noPrice,
         expressEligible: shopItemExpressEligible(i, catalog.express)
       };
-      if (withPrices || (i.mapPublic && !catalog.paused)) {
-        return { ...base, price: i.price, mapPublic: i.mapPublic };
-      }
-      // Below-floor units advertise AT the floor (always compliant) with an
-      // explainer icon -- the real price only shows behind a profile.
-      if (!catalog.paused && Number.isFinite(i.mapFloor) && i.price < i.mapFloor) {
-        return { ...base, mapDisplayPrice: Math.round(i.mapFloor * 100) / 100 };
-      }
-      return base;
+      return { ...base, ...shopWirePrice(i, { withPrices, paused: catalog.paused }) };
     });
 
     // Add-on parts/install/delivery pricing is Wilson's own service pricing
@@ -14375,6 +14401,7 @@ async function inventoryFeedRows({ all = false } = {}) {
   for (const [code, name] of Object.entries(EPASS_BRAND_NAMES_TABLE)) if (!brandNames[code]) brandNames[code] = name;
   const statusById = new Map(statuses.map((s) => [s.itemId, s]));
   const brandBlocked = shopBrandBlocker();
+  const nameBrand = createShopBrandNamer(loadBrandTable(), brandMap);
   const rows = [];
   for (const u of snapshot?.serialUnits || []) {
     const model = String(u.model || u.sku || "").trim();
@@ -14382,11 +14409,12 @@ async function inventoryFeedRows({ all = false } = {}) {
     if (!model || !serial) continue;
     const ns = brandMap[model] || brandMap[model.toUpperCase()] || {};
     const brandCode = String(u.brand || "").trim().toUpperCase();
-    const brand = ns.brand || brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
+    const brandWas = ns.brand || brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
+    const brand = nameBrand({ model, brandCode, brand: brandWas }) || brandWas; // one name per brand (11/18)
     const taken = statusById.get(`${model}|${serial}#1`) || statusById.get(`${model}|${serial}#S`) || null;
     const reservedRaw = String(u.reserved || "").trim();
     let status = "";
-    if (brandBlocked(brand, brandCode)) status = "not sold online";
+    if (brandBlocked(brand, brandWas, brandCode)) status = "not sold online"; // new name, old name and code
     else if (String(u.writtenTo || "").trim()) status = "written to " + String(u.writtenTo).trim();
     else if (reservedRaw && reservedRaw !== "exclusive") status = "reserved";
     else if (taken) status = "online " + String(taken.status || "held");
@@ -14534,7 +14562,7 @@ async function refreshShopMapPricesNow() {
     if (!response.ok) throw new Error(`Price feed returned ${response.status}.`);
     const buffer = Buffer.from(await response.arrayBuffer());
     const parsed = await parseMapPriceWorkbook(buffer);
-    await saveShopMapPrices({ prices: parsed.prices, sourceUrl: SHOP_MAP_PRICE_URL, sourceNote: parsed.note });
+    await saveShopMapPrices({ prices: parsed.prices, regular: parsed.regular || {}, sourceUrl: SHOP_MAP_PRICE_URL, sourceNote: parsed.note });
     // Thumbnails ride along with the same parse (9/28) — the storefront's
     // pictures for every model in the feed, not just the ones a hand-built
     // data/shop-images.json happened to cover.
@@ -14543,8 +14571,8 @@ async function refreshShopMapPricesNow() {
       try { images = await saveShopModelImages(parsed.images); }
       catch (err) { console.error("Shop thumbnails save failed:", err.message); images = { count: 0, error: err.message }; }
     }
-    console.log(`MAP price feed refreshed: ${parsed.count} models, ${images.count} thumbnails (${parsed.note}).`);
-    return { count: parsed.count, images: images.count, note: parsed.note };
+    console.log(`MAP price feed refreshed: ${parsed.count} models, ${parsed.regularCount || 0} with a regular price above the floor, ${images.count} thumbnails (${parsed.note}).`);
+    return { count: parsed.count, regular: parsed.regularCount || 0, images: images.count, note: parsed.note };
   })().then(
     (result) => { shopMapLastAttempt = { at: new Date().toISOString(), ok: true, error: "" }; return result; },
     (err) => {

@@ -1,6 +1,6 @@
 # Express shop: product pages
 
-*Added 11/17 as one test item, the Bosch SHP78CM5N dishwasher. On 11/18 the four Miele dishwashers on the list got pages, shop tiles began linking to them, and five Bosch refrigerators followed.*
+*Added 11/17 as one test item, the Bosch SHP78CM5N dishwasher. On 11/18 the four Miele dishwashers on the list got pages, shop tiles began linking to them, five Bosch refrigerators followed, and then the Bosch SHP65DP5N dishwasher.*
 
 A product page sells one model: its photos, a short lead, five features with a line each, specifications, the spec sheet, and the price with an Add to cart button.
 
@@ -11,6 +11,7 @@ A product page sells one model: its photos, a short lead, five features with a l
 | Address | Model |
 | --- | --- |
 | `/p/SHP78CM5N` | Bosch 800 Series dishwasher |
+| `/p/SHP65DP5N` | Bosch 500 Series dishwasher |
 | `/p/11966820` | Miele G 5058 SCVi SFP Active, stainless front |
 | `/p/12496900` | Miele G 7766 SCVi AutoDos, panel ready |
 | `/p/12496980` | Miele G 7986 SCVi AutoDos K2O, panel ready, handleless |
@@ -59,6 +60,7 @@ The page's heading is the name. The line under it reads "Miele no. 12496900". Th
 The page follows the same rules as a shop tile, for the unit Add to cart would pick (new before open box).
 
 - Price may be advertised: the price shows.
+- The model's regular price is higher than the price shown: the regular price sits struck through ahead of it. See [The regular price, struck through](shop-regular-price.md).
 - Price is below the advertised-price floor: the floor shows, with the note that the price is too low to advertise. The real price never reaches the page.
 - Otherwise: "Price in cart".
 - The unit has no price: "Call for price" and a call button.
@@ -87,6 +89,14 @@ The product page itself opens without the ZIP. It only shows prices the shop is 
 - **Miele's "99.9% of viruses" and "35% less electricity" claims** each depend on a footnote. They are left out.
 - **Warranty** is not stated on Miele's pages or sheets for these models.
 - **Wi-Fi** is the last line of "Also on this model", as on the Bosch page. Miele's page for the G 5058 lists none, so that page has no such line.
+
+## SHP65DP5N: whose pictures these are
+
+The BSH portal lists no pictures for the SHP65DP5N. Its page uses Bosch's pictures for the SHP65DC5N, from `supplier-digital-assets/bsh-portfolio/SHP65DC5N`, because the two are the same unit to look at.
+
+By Bosch's own pages the two differ in the light on the floor (InfoLight on the DP, TimeLight on the DC) and in one cycle on the panel. So the two pictures that show the DC5N's control panel are left out. The picture with the door ajar is the SHP65DP5N's own.
+
+Bosch's page gives the weight as 95 lb and the spec sheet as 85 lb. The page says 95. "The quietest dishwasher brand in the U.S." and Zone Wash's "3x more water power" are left out: no footnote was shown for either.
 
 ## The Bosch refrigerator pages: sources, and where they disagree
 

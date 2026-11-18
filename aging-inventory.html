@@ -147,7 +147,7 @@
           if (state.view === "reserved" && !u.writtenTo) return false;
           if (state.view === "stock" && u.writtenTo) return false;
           if (state.bucket !== "all" && bucketOf(u.ageDays) !== Number(state.bucket)) return false;
-          if (q && ![u.model, u.serial, u.brand, u.description, u.writtenTo, u.salesperson, u.orderCustomer].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+          if (q && ![u.model, u.serial, u.brand, u.brandCode, u.description, u.writtenTo, u.salesperson, u.orderCustomer].some((v) => String(v || "").toLowerCase().includes(q))) return false;
           return true;
         });
       }

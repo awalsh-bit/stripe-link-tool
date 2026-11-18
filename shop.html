@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
+       phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
   <title>Wilson Express Assortment</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -271,6 +274,7 @@
     .item-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
     .item-model { font-weight: 600; font-size: 15.5px; }
     .item-model a { color: inherit; text-decoration: none; }
+    a.tel { color: inherit; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; } /* a phone number inside a message: the text's own color, never blue */
     .item-model a:hover { color: var(--primary-dark); text-decoration: underline; }
     .item-desc { font-size: 13.5px; color: #374151; line-height: 1.45; flex: 1; }
     .item-cat { font-size: 11.5px; color: var(--muted); }
@@ -603,9 +607,18 @@
     .ds-count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     input.ds-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 30px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; cursor: pointer; }
     input.ds-range:focus { outline: none; border: 0; box-shadow: none; }
-    input.ds-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--copper) calc(12px + (100% - 24px) * var(--frac, 0)), var(--sunk) 0); }
-    input.ds-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--sunk); }
-    input.ds-range::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--copper); }
+    /* The filled part runs from the lower dot (--lop, 0px when there is none) to the upper one (--frac). */
+    input.ds-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--sunk) var(--lop, 0px), var(--copper) 0, var(--copper) calc(12px + (100% - 24px) * var(--frac, 0)), var(--sunk) 0); }
+    input.ds-range::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--sunk) var(--lop, 0px), var(--copper) 0, var(--copper) calc(12px + (100% - 24px) * var(--frac, 0)), var(--sunk) 0); }
+    /* The lower dot (Andrew 11/19, "so a user could do 'between'"): a second range laid over the first. Only its
+       dot takes a touch, so the track and the upper dot underneath work as they always did. */
+    .ds-track { position: relative; }
+    input.ds-low { position: absolute; left: 0; top: 0; pointer-events: none; }
+    input.ds-low[hidden] { display: none; }
+    input.ds-low::-webkit-slider-runnable-track { background: transparent; }
+    input.ds-low::-moz-range-track { background: transparent; }
+    input.ds-low::-webkit-slider-thumb { pointer-events: auto; cursor: pointer; }
+    input.ds-low::-moz-range-thumb { pointer-events: auto; cursor: pointer; }
     input.ds-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin-top: -9px; border-radius: 50%; background: #fff; border: 2px solid var(--copper); box-shadow: 0 1px 4px rgba(36,33,30,.25); }
     input.ds-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid var(--copper); box-shadow: 0 1px 4px rgba(36,33,30,.25); }
     input.ds-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(190,125,60,.3); }
@@ -774,7 +787,8 @@
     /* Footer */
     footer { background: var(--ink); border-top: 0; }
     .foot-inner { color: rgba(255,255,255,.72); max-width: 1180px; padding: 20px; }
-    .foot-inner a { color: #fff; }
+    .foot-inner a { color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,.4); text-underline-offset: 2px; }
+    .foot-inner a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; } /* a number or address a phone links by itself: never the browser's blue (11/18) */
 
   </style>
 </head>
@@ -881,7 +895,7 @@
 
   <main id="mainArea">
     <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
-      Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> for availability, or check back shortly.
+      Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> or <a href="sms:+15128940907" style="color:inherit; font-weight:700;">text us</a> for availability, or check back shortly.
     </div>
     <!-- The headline that sat here ("Better choices, already made…") came off
          11/11 (Andrew): shoppers arriving from an ad go straight to the Top
@@ -891,7 +905,10 @@
     <section class="deal-grid" id="dealRow" aria-label="Top deals"></section>
     <div class="deal-slide" id="dealSlide" hidden>
       <div class="ds-head"><span class="ds-label" id="dsLabel"></span><span class="ds-count" id="dsCount"></span></div>
-      <input type="range" class="ds-range" id="dsRange" min="0" max="6" step="1" value="0" aria-label="Highest price">
+      <div class="ds-track">
+        <input type="range" class="ds-range" id="dsRange" min="0" max="6" step="1" value="0" aria-label="Highest price">
+        <input type="range" class="ds-range ds-low" id="dsLow" min="0" max="6" step="1" value="0" aria-label="Lowest price" hidden>
+      </div>
       <div class="ds-ticks" id="dsTicks" aria-hidden="true"></div>
     </div>
     <div class="filters" id="filterBar" style="display:none;">
@@ -922,9 +939,9 @@
     <h2>Order received!</h2>
     <p>Your order number is <span class="order-no" id="doneOrderNo"></span></p>
     <p id="doneFulfill" style="display:none; font-weight:600;"></p>
-    <p id="doneDetail">Your card is securely on file but has <strong>not been charged</strong>.
+    <p id="doneDetail">Your order is in, and your card is securely on file.
     A Wilson team member will reach out using your preferred contact method to confirm
-    availability, delivery scheduling, and your final total before anything is charged.</p>
+    availability, delivery scheduling, and your final total.</p>
     <p id="doneCode" style="display:none;">Your client code is <span class="order-no" id="doneCodeVal"></span> —
     next visit, your phone number brings your details right back.</p>
   </div>
@@ -1102,9 +1119,8 @@
 
   <footer>
     <div class="foot-inner">
-      Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · 512-894-0907 · wilsonappliance.com<br>
+      Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · <a href="tel:512-894-0907">512-894-0907</a> · wilsonappliance.com<br>
       Express Assortment — in-stock models for quick delivery. Open Box and Display units are sold as-is where noted, one of each — first come, first served.
-      Nothing is charged online; a Wilson team member confirms every order before payment.
     </div>
   </footer>
 
@@ -1145,7 +1161,7 @@
     // or a department = the model's own `sold` first, then its brand's units
     // in that category (`brandCatSold`). Ties in merchandised order. deal =
     // one of the category deal chips or "".
-    filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", dealMax: null, sort: "best" }, // dealMax: the ceiling the shopper slid to (null until they move the slider)
+    filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", dealMax: null, dealMin: null, sort: "best" }, // dealMax: the ceiling the shopper slid to (null until they move the slider); dealMin: the floor from the lower dot (null: none)
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null,
@@ -1196,7 +1212,8 @@
       const allowed = await checkZip(zip);
       if (!allowed) {
         err.innerHTML = "We're sorry — online ordering isn't available for delivery to " + zip +
-          " yet. Come see the deals in person at our Dripping Springs showroom, or call 512-894-0907.";
+          " yet. Come see the deals in person at our Dripping Springs showroom, or call 512-894-0907 or text us.";
+        linkPhone(err);
         err.classList.add("show");
         return;
       }
@@ -1425,53 +1442,107 @@
   // stop (dealGroups[].max) and, per unit, its deal category (dealCat) and
   // the lowest stop that includes it (dealStop). No price travels for this.
   function dealStops() { const s = state.catalog?.dealStops; return Array.isArray(s) && s.length ? s : null; }
+  // Since 11/19 the catalog places EVERY priced unit on the slider (priceStop;
+  // priceStopOver above the last stop), so the slider stays on the page under
+  // any filter, gains a last notch for "any price", and can take a floor from
+  // a second, lower dot. A catalog without priceStopOver (the server not yet
+  // updated) keeps the 11/17 behaviour: one dot, shown once a tile is picked.
+  const DEAL_ANY = 1e9; // the last notch: no ceiling
+  function priceSlider() { return Boolean(dealStops()) && Number(state.catalog?.priceStopOver) > 0; }
+  function sliderStops() { const s = dealStops(); return s && priceSlider() ? [...s, DEAL_ANY] : s; }
   function dealCeiling(key) {
     if (state.filter.dealMax != null) return state.filter.dealMax;
     const g = (state.catalog?.dealGroups || []).find((d) => d.key === key);
-    return g ? Number(g.max) : 0;
+    return g ? Number(g.max) : priceSlider() ? DEAL_ANY : 0;
+  }
+  // The floor in force: only while the upper dot is on the third notch or higher, and only below it.
+  function dealFloor(key) {
+    const lo = state.filter.dealMin; if (lo == null || !priceSlider()) return null;
+    const stops = sliderStops(), at = dealAt(stops, key), li = stops.indexOf(lo);
+    return at >= 2 && li > 0 && li < at ? lo : null;
+  }
+  // Inside the slider's range? A unit is placed by its stop (the nearest $500), never by its price: over the
+  // floor's stop, up to the ceiling's. With no floor and no ceiling everything is in, priced or not.
+  function priceInRange(i, key) {
+    const hi = dealCeiling(key), lo = dealFloor(key);
+    if (hi >= DEAL_ANY && lo == null) return true;
+    const s = Number(i.priceStop);
+    return s > 0 && s <= hi && (lo == null || s > lo);
   }
   function inDeal(i, key) {
     if (!dealStops()) return i.deal === key; // a catalog from before the slider: the tile's own ceiling
+    if (priceSlider()) return i.dealGroup === key && priceInRange(i, key);
     return i.dealCat === key && Number(i.dealStop) > 0 && Number(i.dealStop) <= dealCeiling(key);
   }
   const dealMoney = (n) => "$" + Number(n).toLocaleString("en-US");
   // Draw the slider for the picked tile (or hide it), without rebuilding the
   // range itself, so a drag is never interrupted.
+  // Where the upper dot sits (a stop's index) for the picked tile, or for no tile.
+  function dealAt(stops, key) { const c = dealCeiling(key); const at = stops.findIndex((s) => s >= c); return at < 0 ? stops.length - 1 : at; }
   function syncDealSlide() {
-    const box = $("dealSlide"), stops = dealStops(), key = state.filter.deal;
+    const box = $("dealSlide"), stops = sliderStops(), key = state.filter.deal, every = priceSlider();
     const group = key ? (state.catalog?.dealGroups || []).find((d) => d.key === key) : null;
-    if (!stops || !group) { box.hidden = true; return; }
-    const range = $("dsRange"), ticks = $("dsTicks");
+    if (!stops || (!group && !every)) { box.hidden = true; return; }
+    const range = $("dsRange"), low = $("dsLow"), ticks = $("dsTicks");
     if (ticks.dataset.for !== stops.join(",")) {
       ticks.dataset.for = stops.join(",");
-      range.max = String(stops.length - 1);
-      ticks.innerHTML = stops.map((s, k) => `<span class="ds-tick${k % 2 ? " half" : ""}"><button type="button" tabindex="-1" data-stop="${k}">${dealMoney(s)}</button></span>`).join("");
+      range.max = low.max = String(stops.length - 1);
+      // "half": a notch that keeps its mark and loses its label on a phone - the $500 steps, and the stop beside Any, which would run into it
+      ticks.innerHTML = stops.map((s, k) => `<span class="ds-tick${(k % 2 && s !== DEAL_ANY) || (every && k === stops.length - 2) ? " half" : ""}"><button type="button" tabindex="-1" data-stop="${k}">${s === DEAL_ANY ? "Any" : dealMoney(s)}</button></span>`).join("");
     }
-    const ceiling = dealCeiling(key);
-    let at = stops.findIndex((s) => s >= ceiling); if (at < 0) at = stops.length - 1;
+    const at = dealAt(stops, key), last = stops.length - 1, pos = (k) => `calc(12px + (100% - 24px) * ${last ? k / last : 0})`;
+    // The lower dot: there once the upper one is on the third notch or higher. Resting on the first notch it sets
+    // no floor; moved up, the floor is that notch's price and the range starts a dollar above it.
+    const two = every && at >= 2, floor = two ? dealFloor(key) : null;
+    let lo = floor != null ? stops.indexOf(floor) : 0; if (lo < 0 || lo >= at) lo = 0;
     range.value = String(at);
-    range.style.setProperty("--frac", String(stops.length > 1 ? at / (stops.length - 1) : 0));
-    range.setAttribute("aria-valuetext", `${group.label} up to ${dealMoney(stops[at])}`);
-    ticks.querySelectorAll("button").forEach((b, k) => b.classList.toggle("on", k === at));
-    const n = gridItems().filter((i) => inDeal(i, key)).length;
-    $("dsLabel").innerHTML = `${esc(group.label)} up to <b>${dealMoney(stops[at])}</b>`;
+    low.hidden = !two; low.value = String(lo);
+    range.style.setProperty("--frac", String(last ? at / last : 0));
+    range.style.setProperty("--lop", lo > 0 ? pos(lo) : "0px");
+    const hi = stops[at], from = lo > 0 ? dealMoney(stops[lo] + 1) : "";
+    const words = lo > 0 ? (hi >= DEAL_ANY ? `${from} and up` : `${from} to ${dealMoney(hi)}`) : hi >= DEAL_ANY ? "any price" : `up to ${dealMoney(hi)}`;
+    const plain = group ? `${group.label} ${lo > 0 || hi >= DEAL_ANY ? (hi >= DEAL_ANY && !lo ? "at " : "") + words : words}` : words.charAt(0).toUpperCase() + words.slice(1);
+    range.setAttribute("aria-valuetext", plain); low.setAttribute("aria-valuetext", lo > 0 ? `From ${from}` : "No lowest price");
+    ticks.querySelectorAll("button").forEach((b, k) => b.classList.toggle("on", k === at || (lo > 0 && k === lo)));
+    const lead = group ? esc(group.label) + (hi >= DEAL_ANY && !lo ? " at " : " ") : "";
+    $("dsLabel").innerHTML = lo > 0 || hi >= DEAL_ANY ? `${lead}<b>${lead ? words : words.charAt(0).toUpperCase() + words.slice(1)}</b>` : `${lead}${lead ? "up to" : "Up to"} <b>${dealMoney(hi)}</b>`;
+    const n = group ? gridItems().filter((i) => inDeal(i, key)).length : visibleItems().length;
     $("dsCount").textContent = `${n} in stock`;
     box.hidden = false;
   }
-  function setDealStop(k) {
-    const stops = dealStops(); if (!stops) return;
-    k = Math.max(0, Math.min(stops.length - 1, Number(k) || 0));
-    if (state.filter.dealMax === stops[k]) { syncDealSlide(); return; }
-    state.filter.dealMax = stops[k]; // from here on every tile uses the shopper's ceiling
+  function refreshDealCounts() {
     const items = gridItems();
     document.querySelectorAll("#dealRow [data-deal]").forEach((btn) => {
       const c = btn.querySelector(".dt-count");
       if (c) c.textContent = `${items.filter((i) => inDeal(i, btn.getAttribute("data-deal"))).length} in stock`;
     });
+  }
+  function setDealStop(k) {
+    const stops = sliderStops(); if (!stops) return;
+    k = Math.max(0, Math.min(stops.length - 1, Number(k) || 0));
+    // the floor follows: gone below the third notch, and always at least one notch under the ceiling
+    const fl = state.filter.dealMin, fi = fl != null ? stops.indexOf(fl) : -1;
+    const nextMin = k < 2 || fi < 0 ? null : fi >= k ? (k - 1 > 0 ? stops[k - 1] : null) : fl;
+    if (state.filter.dealMax === stops[k] && state.filter.dealMin === nextMin) { syncDealSlide(); return; }
+    state.filter.dealMax = stops[k]; // from here on every tile uses the shopper's ceiling
+    state.filter.dealMin = nextMin;
+    refreshDealCounts();
+    syncDealSlide();
+    renderGrid();
+  }
+  function setDealFloor(k) {
+    const stops = sliderStops(); if (!stops || !priceSlider()) return;
+    const at = dealAt(stops, state.filter.deal);
+    k = Math.max(0, Math.min(at - 1, Number(k) || 0));
+    const next = at >= 2 && k > 0 ? stops[k] : null;
+    if (state.filter.dealMin === next) { syncDealSlide(); return; }
+    state.filter.dealMin = next;
+    refreshDealCounts();
     syncDealSlide();
     renderGrid();
   }
   $("dsRange").addEventListener("input", (e) => setDealStop(e.target.value));
+  $("dsLow").addEventListener("input", (e) => setDealFloor(e.target.value));
   $("dsTicks").addEventListener("click", (e) => { const b = e.target.closest("[data-stop]"); if (b) setDealStop(b.getAttribute("data-stop")); });
 
   // Everything the storefront grid, menus and filters work from. Accessory
@@ -1483,6 +1554,7 @@
     const q = state.filter.search.trim().toUpperCase();
     return gridItems().filter((i) => {
       if (state.filter.deal && !inDeal(i, state.filter.deal)) return false;
+      if (!state.filter.deal && priceSlider() && !priceInRange(i, "")) return false; // the slider with no tile picked (11/19)
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
       const sel = state.filter.selection;
       if (sel && !selectionMatches(sel, i)) return false;
@@ -1640,8 +1712,10 @@
 
   // Product pages (Andrew 11/18): a model with a page of its own
   // (state.catalog.pages) links to it, in this tab — the cart rides along,
-  // see saveCart. A model without one still opens its wilsonappliance.com
-  // search in a new tab.
+  // see saveCart. A model without one is plain text: the link out to its
+  // wilsonappliance.com search is gone (Andrew 11/18, "removing the link to
+  // wilsonappliance.com is important for the model numbers"), so a shopper
+  // looking at a model stays in the shop.
   const pageKey = (model) => String(model || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
   // The model's regular advertised price, struck through above a lower current
   // one (Andrew 11/18). The server sends `was` only beside a price it also
@@ -1649,10 +1723,11 @@
   const wasTag = (g) => (Number(g.was) > 0 ? `<span class="was"><span class="sr-only">Regular price </span><s>${money(g.was)}</s></span><span class="sr-only">Current price </span>` : "");
   function hasProductPage(model) { const k = pageKey(model); return Boolean(k) && (state.catalog?.pages || []).includes(k); }
   function productPageUrl(model) {
-    return hasProductPage(model) ? "/p/" + pageKey(model) : "https://www.wilsonappliance.com/search?search=" + encodeURIComponent(String(model || "").trim());
+    return hasProductPage(model) ? "/p/" + pageKey(model) : "";
   }
 
   function renderGrid() {
+    if (priceSlider()) syncDealSlide(); // the slider is always on the page: its count follows whatever is filtered
     const grid = $("itemGrid");
     grid.innerHTML = "";
     const groups = groupedItems();
@@ -1736,7 +1811,7 @@
         ${canOpen ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
         <div class="item-model">${hasProductPage(group.model)
           ? `<a href="${esc(productPageUrl(group.model))}" title="Photos, features and specs for ${esc(group.model)}">${esc(group.model)}</a>`
-          : `<a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a>`}</div>
+          : esc(group.model)}</div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         ${group.onDisplay && !(group.condition === "open" && group.serialType === "DISPLAY") ? `<div class="item-display"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(state.catalog.onDisplayLabel || "On display in Dripping Springs")}</div>` : ""}
         <div class="item-foot">
@@ -1769,7 +1844,7 @@
           ${specs.length ? `<div class="idt-pane" data-pane="specs"${tab === "specs" ? "" : " hidden"}>
             ${both ? "" : `<p class="idt-sub">Specs</p>`}
             <dl class="idt-specs">${specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
-            ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide or call <a href="tel:512-894-0907">512-894-0907</a>.</p>` : ""}
+            ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide, or call <a href="tel:512-894-0907">512-894-0907</a> or <a href="sms:+15128940907">text us</a>.</p>` : ""}
           </div>` : ""}
           ${docs.length ? `<div class="idt-docs">${docs.map((d) => `<a class="idt-doc" href="${esc(d.url)}" target="_blank" rel="noopener"><span class="idt-doc-ic" aria-hidden="true">PDF</span><span class="idt-doc-tx">${esc(d.label)}<small>${esc(d.note || "Exact dimensions, features and warranty by model")}</small></span></a>`).join("")}</div>` : ""}
         </div>` : ""}`;
@@ -2130,7 +2205,7 @@
     if (!sel && !brand && !q) return;
     if (sel) applySelection(sel); else { buildFilters(); renderGrid(); }
     if (brandMiss) {
-      pageNotice(`No ${brandMiss} models are in the Express assortment today. Everything below is in stock now — or call 512-894-0907 and we'll help you with ${brandMiss}.`);
+      pageNotice(`No ${brandMiss} models are in the Express assortment today. Everything below is in stock now — or call 512-894-0907 or text us, and we'll help you with ${brandMiss}.`);
       if (!sel && !q) return; // stay at the notice; there is no brand slice to land on
     }
     // Land the shopper on the results, not the hero strip.
@@ -2147,7 +2222,7 @@
       if (!r.ok) { pageNotice(d.error || "That cart link has expired — pick the items again on the website."); return; }
       state.handoffToken = token;
       addFromLink((d.items || []).map((it) => `${it.model}${Number(it.qty) > 1 ? "*" + Number(it.qty) : ""}`).join(","), d.items || []);
-    } catch { pageNotice("We couldn't read that cart link. Pick the items again on the website or call 512-894-0907."); }
+    } catch { pageNotice("We couldn't read that cart link. Pick the items again on the website, or call 512-894-0907 or text us."); }
   }
   // A notice above the storefront (the cart's own notice line only exists
   // while the cart has something in it).
@@ -2155,7 +2230,28 @@
     let el = $("linkNotice");
     if (!el) { el = document.createElement("div"); el.id = "linkNotice"; el.className = "map-note"; el.style.cssText = "background:#fffbeb; border-color:#fde68a; color:#92400e;"; $("heroStrip").before(el); }
     el.textContent = message;
+    linkPhone(el);
     el.scrollIntoView({ block: "start" });
+  }
+  // The shop's number, wherever it appears as plain text inside `el`, becomes
+  // a tap-to-call link in the text's own color. iPhone no longer links
+  // numbers by itself on this page - it did it in its own blue (Andrew
+  // 11/18) - so a number in a message is linked here. Built with DOM nodes,
+  // never innerHTML, so a message's other text stays text.
+  // "text us", right after the number, becomes the link that opens a text to
+  // the shop (Andrew 11/19: where the number is offered, so is texting).
+  function linkPhone(el) {
+    for (const [words, href] of [["512-894-0907", "tel:512-894-0907"], ["text us", "sms:+15128940907"]]) {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const texts = []; while (walker.nextNode()) texts.push(walker.currentNode);
+      for (let node of texts) {
+        if (node.parentElement && node.parentElement.closest("a")) continue;
+        for (let at = node.nodeValue.indexOf(words); at >= 0; at = node.nodeValue.indexOf(words)) {
+          const hit = node.splitText(at); node = hit.splitText(words.length);
+          const a = document.createElement("a"); a.href = href; a.className = "tel"; a.textContent = words; hit.replaceWith(a);
+        }
+      }
+    }
   }
   // The website's "In stock, buy online" button lands here with model numbers.
   // `known`: per-model details from the handoff token (brand, description,
@@ -2204,7 +2300,7 @@
     }
     if (state.cart.itemIds.length || state.cart.special.length) {
       openCart();
-      if (special.length) alertLine(`${special.length === 1 ? "One item isn't" : `${special.length} items aren't`} on the floor today — ${special.map((sp) => sp.model).join(", ")} — so ${special.length === 1 ? "it's" : "they're"} in your cart as a special order. We'll price ${special.length === 1 ? "it" : "them"} and confirm with you; nothing is charged.`, { sticky: true });
+      if (special.length) alertLine(`${special.length === 1 ? "One item isn't" : `${special.length} items aren't`} on the floor today — ${special.map((sp) => sp.model).join(", ")} — so ${special.length === 1 ? "it's" : "they're"} in your cart as a special order. We'll price ${special.length === 1 ? "it" : "them"} and confirm with you.`, { sticky: true });
     }
   }
 
@@ -3048,7 +3144,7 @@
     try {
       const f = state.filter;
       const all = JSON.parse(sessionStorage.getItem(VIEW_KEY) || "{}") || {};
-      all[viewKey] = { at: Date.now(), search: f.search, brand: f.brand, selection: f.selection, types: [...f.types], deal: f.deal, dealMax: f.dealMax, sort: f.sort, shown: state.shown, y: Math.round(window.scrollY) };
+      all[viewKey] = { at: Date.now(), search: f.search, brand: f.brand, selection: f.selection, types: [...f.types], deal: f.deal, dealMax: f.dealMax, dealMin: f.dealMin, sort: f.sort, shown: state.shown, y: Math.round(window.scrollY) };
       for (const k of Object.keys(all).sort((a, b) => (all[b].at || 0) - (all[a].at || 0)).slice(8)) delete all[k];
       sessionStorage.setItem(VIEW_KEY, JSON.stringify(all));
     } catch {}
@@ -3069,6 +3165,7 @@
     f.types = new Set((Array.isArray(v.types) ? v.types : []).map(String));
     f.deal = f.selection ? "" : String(v.deal || "");
     f.dealMax = Number(v.dealMax) > 0 ? Number(v.dealMax) : null;
+    f.dealMin = Number(v.dealMin) > 0 ? Number(v.dealMin) : null;
     f.sort = [...$("sortSelect").options].some((o) => o.value === v.sort) ? v.sort : "best";
     f.brand = [...new Set(gridItems().map((i) => i.brand).filter(Boolean))].includes(v.brand) ? v.brand : "";
     $("searchInput").value = f.search;
@@ -3295,7 +3392,7 @@
           <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? (item.serialType === "DISPLAY" ? "Floor Model · " : "Open Box · ") : ""}${esc(item.description)}</div>
           <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
         </div>
-        <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
+        <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call</a> or <a href="sms:+15128940907">text us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
       body.appendChild(line);
       state.cart.addonLines.forEach((l, idx) => { if (l.itemId === item.id) { const el = addonLineEl(l, idx); if (el) body.appendChild(el); } });
       // No installation on this appliance -> the delivery team uncrates and
@@ -3317,7 +3414,7 @@
       const note = document.createElement("div");
       note.className = "ds";
       note.style.cssText = "font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; line-height: 1.45;";
-      note.textContent = "These aren't on the floor today. Nothing below is charged — a Wilson consultant will price them (with any installation you pick) and confirm with you.";
+      note.textContent = "These aren't on the floor today. A Wilson consultant will price them (with any installation you pick) and confirm with you.";
       body.appendChild(note);
       for (const sp of t.special) {
         const line = document.createElement("div");
@@ -3436,7 +3533,7 @@
       $("drawerTotals").innerHTML = `
         <div class="tot-row"><span>Special-order items</span><span class="muted">quoted</span></div>
         <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span class="muted">quoted</span></div>
-        <div class="tax-note">A Wilson consultant will price everything above and confirm with you before anything is ordered. Nothing is charged.</div>
+        <div class="tax-note">A Wilson consultant will price everything above and confirm with you before anything is ordered.</div>
         <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
         <button class="btn primary" id="checkoutBtn" style="width:100%;">Request pricing</button>`;
       document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
@@ -3451,7 +3548,7 @@
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       ${t.special.length ? `<div class="tot-row"><span>Special-order items (${t.special.length})</span><span class="muted">quoted separately</span></div>` : ""}
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
-      <div class="tax-note">Nothing is charged until a Wilson team member confirms your order with you.${t.special.length ? " Special-order items are priced by a consultant and never charged without your approval." : ""}</div>
+      ${t.special.length ? `<div class="tax-note">Special-order items are priced by a consultant, who confirms with you first.</div>` : ""}
       <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
       <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
     document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
@@ -3527,7 +3624,7 @@
           ${t.discount ? `<br><span id="sumPromo">Promo ${esc(state.promo.code)} (${esc(promoLabel(state.promo))}) — −${money(t.discount)}</span>` : ""}
           <br>Sales tax — <span id="sumTax">${money(t.tax)}</span>
           <br><strong>Estimated total — <span id="sumTotal">${money(t.total)}</span></strong>
-          ${t.special.length ? `<br><br><strong>Special order — priced by a consultant, not charged today:</strong><br>${t.special.map((sp) => `${esc(sp.brand)} ${esc(sp.model)}${sp.qty > 1 ? ` × ${sp.qty}` : ""}${state.cart.addonLines.filter((l) => l.itemId === sp.key).map((l) => { const a = addonInfo(l.id); return a ? ` + ${esc(a.name)}${l.qty > 1 ? ` × ${l.qty}` : ""}` : ""; }).join("")}`).join("<br>")}` : ""}
+          ${t.special.length ? `<br><br><strong>Special order — priced by a consultant:</strong><br>${t.special.map((sp) => `${esc(sp.brand)} ${esc(sp.model)}${sp.qty > 1 ? ` × ${sp.qty}` : ""}${state.cart.addonLines.filter((l) => l.itemId === sp.key).map((l) => { const a = addonInfo(l.id); return a ? ` + ${esc(a.name)}${l.qty > 1 ? ` × ${l.qty}` : ""}` : ""; }).join("")}`).join("<br>")}` : ""}
         </div>
       </div>
       <div class="checkout-section">
@@ -3536,7 +3633,7 @@
         <label class="consent">
           <input type="checkbox" id="consentBox">
           <span>I authorize Wilson AC &amp; Appliance to keep this card securely on file for this order and to
-          charge it only after confirming my order and final total with me. Nothing is charged today.</span>
+          charge it only after confirming my order and final total with me.</span>
         </label>
         <div class="form-error" id="checkoutError"></div>
         <button class="btn primary" id="placeOrderBtn" style="width:100%;" disabled>Place order</button>
@@ -3645,7 +3742,7 @@
       $("doneOrderNo").textContent = data.reference || "";
       $("doneOrderNo").previousSibling.textContent = "Your reference is ";
       $("doneFulfill").style.display = "none";
-      $("doneDetail").innerHTML = "Nothing is charged. A Wilson consultant will price the items (and any installation you chose) and reach out using your preferred contact method — usually within one business day.";
+      $("doneDetail").innerHTML = "A Wilson consultant will price the items (and any installation you chose) and reach out using your preferred contact method — usually within one business day.";
       if (state.clientCode) { $("doneCodeVal").textContent = state.clientCode; $("doneCode").style.display = "block"; }
       $("doneCard").style.display = "block";
       window.scrollTo({ top: 0 });
@@ -3742,7 +3839,7 @@
       closeCart();
       $("mainArea").style.display = "none";
       $("doneOrderNo").textContent = data.orderNumber;
-      if (hadSpecial) $("doneDetail").innerHTML = `Your card is securely on file but has <strong>not been charged</strong>. The special-order items in your cart were sent to our sales team as a quote request${data.quoteReference ? ` (reference ${esc(data.quoteReference)})` : ""} — nothing for those is charged until you approve the pricing. A Wilson team member will reach out using your preferred contact method to confirm availability, delivery scheduling, and your final total.`;
+      if (hadSpecial) $("doneDetail").innerHTML = `Your order is in, and your card is securely on file. The special-order items in your cart were sent to our sales team as a quote request${data.quoteReference ? ` (reference ${esc(data.quoteReference)})` : ""}; a consultant will price them and confirm with you. A Wilson team member will reach out using your preferred contact method to confirm availability, delivery scheduling, and your final total.`;
       $("doneFulfill").textContent = fulfillLine;
       $("doneFulfill").style.display = "block";
       if (state.clientCode) {

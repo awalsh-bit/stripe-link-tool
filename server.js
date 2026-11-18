@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, regularPriceToShow } from "./lib/shop-product-page.js";
+import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow } from "./lib/shop-product-page.js";
 import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
   readLinks,
@@ -7561,11 +7561,20 @@ function shopDealGroupFor({ product, subclass, category, price }) {
 // and the lowest stop that includes it. The page is sent the stop, never the
 // price, so a unit whose price isn't advertised is placed to the nearest
 // $500 and no closer.
+// Since 11/19 the slider stays on the page under any filter and can take a
+// floor as well as a ceiling (Andrew: "a bottom dot... so a user could do
+// 'between'", "present always regardless of filter"). So EVERY priced unit is
+// placed, whatever its category: `priceStop` is the lowest stop that covers
+// its price, or SHOP_PRICE_STOP_OVER above the last stop; `dealGroup` is its
+// tile's category at any price. dealCat / dealStop are unchanged, for a shop
+// page still open from before.
+const SHOP_PRICE_STOP_OVER = SHOP_DEAL_STOPS[SHOP_DEAL_STOPS.length - 1] + 1;
 function shopDealSlot({ product, subclass, category, price }) {
   const p = Number(price);
-  const g = Number.isFinite(p) && p > 0 ? shopDealCategoryOf({ product, subclass, category }) : null;
-  const stop = g ? SHOP_DEAL_STOPS.find((s) => p <= s) : null;
-  return g && stop ? { dealCat: g.key, dealStop: stop } : { dealCat: "", dealStop: null };
+  const priced = Number.isFinite(p) && p > 0;
+  const g = priced ? shopDealCategoryOf({ product, subclass, category }) : null;
+  const stop = priced ? SHOP_DEAL_STOPS.find((s) => p <= s) || null : null;
+  return { ...(g && stop ? { dealCat: g.key, dealStop: stop } : { dealCat: "", dealStop: null }), dealGroup: g ? g.key : "", priceStop: priced ? stop || SHOP_PRICE_STOP_OVER : null };
 }
 
 // Best sellers (Andrew 9/28: "our best sellers in ePASS, using Brand Sales
@@ -8014,6 +8023,16 @@ async function computeShopCatalogFresh() {
     for (const i of items) { const u = dbImages[normalizeModelKey(i.model)]; if (u) i.image = u; }
     for (const m of stock.models) { const u = dbImages[m.key]; if (u) m.image = u; }
   } catch (err) { console.warn("Shop thumbnails lookup failed:", err.message); }
+  // A model with a product page shows that page's gallery on its card (Andrew
+  // 11/18): the page's pictures take the thumbnail's place, and the card
+  // flips through them. The steps below are unchanged: pictures chosen by
+  // hand for the model replace these, and a phone photo of the unit leads.
+  try {
+    const galleries = await loadProductPageGalleries(SHOP_PRODUCT_PAGE_DIR);
+    const use = (x, key) => { const g = galleries[key]; if (g && g.length) { x.image = g[0]; return g; } return null; };
+    for (const i of items) { const g = use(i, normalizeModelKey(i.model)); if (g && g.length > 1) i.images = g.map((url) => ({ url, actual: false })); }
+    for (const m of stock.models) use(m, m.key);
+  } catch (err) { console.warn("Product page galleries unreadable - cards keep their thumbnails:", err.message); }
   // Pictures chosen by hand for the MODEL (Andrew 11/11) beat the thumbnail
   // on every card of that model: "actual" is our own photo (chip + fills the
   // frame), "supplier" a manufacturer asset shown like any catalog picture.
@@ -8206,7 +8225,7 @@ function priceShopCart(catalog, cart, fulfillment, promo = null) {
       taxRate: SHOP_TAX_RATE,
       tax,
       total,
-      note: "Total includes sales tax (built-in installation labor is tax-exempt). Nothing is charged until a Wilson team member confirms your order."
+      note: "Total includes sales tax (built-in installation labor is tax-exempt)."
     }
   };
 }
@@ -9291,6 +9310,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         ...(i.images && i.images.length > 1 ? { images: i.images } : {}), // more than one picture: the card flips through them
         deal: i.deal || "",
         dealCat: i.dealCat || "", dealStop: i.dealStop || null, // the slider's category and lowest stop (11/17) — a stop, never the price
+        dealGroup: i.dealGroup || "", priceStop: i.priceStop || null, // every priced unit's place on the slider (11/19) — still a stop, never the price
         badge: i.badge || "", badgeStyle: i.badgeStyle || "red", hideStockBadge: !!i.hideStockBadge,
         sold: rank.byModel[normalizeModelKey(i.model)] || 0,
         brandSold: rank.byBrand[shopBrandKey(i.brandCode)] || rank.byBrand[shopBrandKey(i.brand)] || 0,
@@ -9370,6 +9390,7 @@ app.get("/api/shop/catalog", async (req, res) => {
       taxRate: canBuild ? SHOP_TAX_RATE : null,
       dealGroups: SHOP_DEAL_GROUPS.map((d) => ({ key: d.key, label: d.label, max: d.max })), // max: where the slider starts
       dealStops: SHOP_DEAL_STOPS,
+      priceStopOver: SHOP_PRICE_STOP_OVER, // units above the last stop carry this; its presence tells the page every unit is placed (11/19)
       // Models with a product page (11/18): a tile's model number links to /p/<key> for these.
       pages: await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => []),
       onDisplayLabel: (await loadShopData()).onDisplay?.label || SHOP_ON_DISPLAY_LABEL

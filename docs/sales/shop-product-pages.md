@@ -26,9 +26,41 @@ Search engines are told not to list these pages yet.
 
 ## The link on a shop tile
 
-The model number on a tile is a link. For a model with a product page it opens that page, in the same tab. For every other model it still opens the model's search on wilsonappliance.com in a new tab.
+A model that has a page links to it from its tile's model number, in the same tab (`shop.wilsonappliance.com/p/MODEL`).
 
-Nothing has to be switched on per model. A model gets the link as soon as its page exists and has been pushed.
+A model without a page shows its number as plain text. It used to open that model's search on wilsonappliance.com in a new tab; that link is gone (*Andrew 11/18: "removing the link to wilsonappliance.com is important for the model numbers"*), so a shopper looking at a model stays in the shop. Nothing in the grid links to wilsonappliance.com now. The site header's own links are unchanged.
+
+## The footer
+
+*Andrew 11/18: "All of this footer text is redundant as it is the same messaging very close on the screen. Also can you change the link color from blue?"*
+
+The product page's footer is now one line: the name, the address, the phone number and wilsonappliance.com. The paragraph that sat under it ("Express Assortment: in-stock models for quick delivery... Nothing is charged online...") is gone from product pages, because the same promises are beside the Add to cart button and in the Express Assortment panel just above the footer.
+
+The phone number is a real link in the footer's white, underlined. Before, it was plain text that a phone turned into a link by itself, in the browser's blue. The shop page's footer got the same link treatment; its paragraph was left in place, because on that page nothing nearby repeats it.
+
+## What the shop says about payment, delivery and getting in touch
+
+*Andrew 11/19.*
+
+- **"Nothing is charged online" is gone** from the shop page, the cart, the checkout consent, the special-order messages and the product pages. *"If we say 'nothing is charged online' and then they are taken to a credit card capture, they'll be confused, and my goal is to have sales confirm and charge the saved card... within a business hour, so it seems a bit misleading."* The consent line beside the card form still says the card is kept on file and charged only after the order and final total are confirmed with the customer; only "Nothing is charged today" came off it. The screen after an order now reads "Your order is in, and your card is securely on file."
+- **Delivery line under Add to cart** on a product page: "Express Delivery via online order is only available locally. Please call or text us to schedule in the greater Austin and San Antonio area."
+- **Call or text.** Wherever the shop gives the phone number for questions, it now also offers a text: "Call 512-894-0907 or text us", where "text us" opens a text to the same number. That covers the product page (questions line, the installation note, the out-of-stock line), and on the shop page the paused notice, the ZIP message, the sizing note, the brand and cart-link notices, and the cart's "price unavailable" line. The landing page's "call or text" line links both.
+- **The cart in the header** stays there on a phone once the page scrolls (it used to fold away with the top bar), and **no link is browser blue**: iPhone no longer links numbers and addresses by itself on the shop pages, and phone numbers are written as real links in the text's own color.
+
+## The page's pictures on the shop tile
+
+*Added 11/18. Andrew: "For the products that have these pages, can you use the image galleries in the shop page?"*
+
+A model with a page shows the page's gallery on its tile: the first picture is the card picture, and the ‹ › arrows flip through the rest, in the page's order, with the "1 / 4" count. A page with one picture shows that picture and no arrows. The tile uses the small (400-pixel) copies, so the grid stays quick.
+
+What decides a tile's picture, first match wins:
+
+1. **A phone photo of that one unit** (Shop Catalog, by serial). It leads, flagged "Actual product photo", and the pictures below follow it.
+2. **Pictures chosen by hand for the model** (Shop Catalog). They replace the page's pictures on the tile, exactly as they replaced the thumbnail before.
+3. **The page's gallery.** New.
+4. **The RetailDeck thumbnail**, for a model with no page.
+
+So a model with a page no longer depends on RetailDeck having a thumbnail for it: several Speed Queen models and the pedestal had none. The Shop Catalog's model rows show the same card picture.
 
 ## The cart rides along
 
@@ -184,6 +216,8 @@ The cart prompt ("Installs & accessories by brand" in Online Shop Orders) still 
 - **Search engines.** The pages are marked not to be listed. That is one line to change when they are ready to be found.
 
 ## For developers
+
+- Tile galleries: `loadProductPageGalleries(dir)` in `lib/shop-product-page.js` returns every page's pictures at the 400 size (read at most once a minute). `computeShopCatalogFresh` in `server.js` puts them on `image` / `images` before the hand-picked and unit-photo steps. If the records cannot be read, cards keep their thumbnails.
 
 - Accessory listing: `shopAccessoryBucketFor(ns)` in `lib/catalog-resolver.js` maps an accessory merch class to its section. `shopStockItems` takes `pageKeys` (from `listProductPageKeys`) and gives a model with no ordinary bucket, a page and an accessory class that section instead of leaving it out.
 

@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
+       phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
   <base href="/">
   <title>{{PAGE_TITLE}} | Wilson AC &amp; Appliance</title>
@@ -168,6 +171,10 @@
 
     footer { background: var(--ink); }
     .foot-inner { max-width: 1180px; margin: 0 auto; padding: 20px; font-size: 12.5px; color: rgba(255,255,255,.72); line-height: 1.6; text-align: center; }
+    /* The phone number is a link, in the footer's own white - not the browser's blue (Andrew 11/18). The second
+       rule covers a number or address that a phone turns into a link by itself. */
+    .foot-inner a { color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,.4); text-underline-offset: 2px; }
+    .foot-inner a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
 
     /* phone: the price and button follow you down the page */
     .buy-bar { display: none; }
@@ -279,7 +286,7 @@
 {{SPECS}}
         </dl>
 {{DOCS}}
-        <p class="spec-note">Figures are {{BRAND}}'s published specifications. For installation, {{BRAND}}'s installation instructions give the final dimensions and cutout. Or call <a href="tel:512-894-0907">512-894-0907</a>.</p>
+        <p class="spec-note">Figures are {{BRAND}}'s published specifications. For installation, {{BRAND}}'s installation instructions give the final dimensions and cutout. Or call <a href="tel:512-894-0907">512-894-0907</a> or <a href="sms:+15128940907">text us</a>.</p>
       </section>
     </div>
 
@@ -296,9 +303,7 @@
 
   <footer>
     <div class="foot-inner">
-      Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · 512-894-0907 · wilsonappliance.com<br>
-      Express Assortment — in-stock models for quick delivery. Open Box and Display units are sold as-is where noted, one of each — first come, first served.
-      Nothing is charged online; a Wilson team member confirms every order before payment.
+      Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · <a href="tel:512-894-0907">512-894-0907</a> · wilsonappliance.com
     </div>
   </footer>
 

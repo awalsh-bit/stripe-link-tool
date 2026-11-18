@@ -10,6 +10,14 @@
      .photo    the band carries its own photo (shop.html)
      .overlay  the band is transparent over the page's hero (shop-home.html)
    ------------------------------------------------------------------------ */
+
+/* No browser-blue links in this design (Andrew 11/18). A link with no color
+   of its own takes the color of the text around it, and anything an iPhone
+   still links by itself (a number, an address, a date) keeps the look of
+   that text. Each shop page also turns that auto-linking off with a
+   format-detection meta tag, and writes its phone numbers as real links. */
+a { color: inherit; }
+a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-weight: inherit !important; }
 :root {
   --util-h: 46px;
   --band-h: 118px;
@@ -129,6 +137,9 @@
   .site-head.has-tag .band-logo { margin-right: 0; }
   .site-head .band-tag { margin-right: auto; margin-left: 0; }
   .site-head .band-tag, .site-head.scrolled .band-tag { font-size: 10px; letter-spacing: .14em; line-height: 1.4; } /* as before 11/18 */
+  /* the account / cart cluster in the band on a tablet or phone (11/18): just the buttons, close together */
+  .site-head .band-inner > .acct-cluster { margin-left: 0; gap: 4px; flex: 0 0 auto; }
+  .site-head .band-inner > .acct-cluster .util-sep, .site-head .band-inner > .acct-cluster .util-chip { display: none !important; }
   .site-head .band-logo img, .site-head.scrolled .band-logo img { height: 46px; }
   .site-head .util-inner { gap: 16px; }
   .site-head .util-links > a:not(.strong):not(.current) { display: none; }
@@ -155,4 +166,17 @@
   .site-head .menu-btn-label { display: none; }
   .site-head .util-chip { max-width: 110px; padding: 4px 8px; font-size: 12px; }
   .site-head .ribbon-inner { padding: 0 12px; gap: 18px; }
+  /* scrolled on a phone (11/18): the cart has come into the band, so the logo gives a little and the gaps close up */
+  .site-head.scrolled .band-inner { gap: 8px; }
+  .site-head.scrolled .band-logo img { height: 38px; }
+  .site-head.scrolled .band-logo { margin-left: 2px; }
+}
+/* the narrowest phones: while scrolled, the mark beside the logo makes room for search and the cart */
+@media (max-width: 380px) {
+  .site-head.scrolled .band-tag { display: none; }
+  /* and at the top of the page the bar closes up, so the cart is not pushed off the right edge */
+  .site-head .util-inner { gap: 8px; padding: 0 10px; }
+  .site-head .util-links { gap: 10px; }
+  .site-head .util-right, .site-head .acct-cluster { gap: 8px; }
+  .site-head .acct-cluster .util-sep { display: none; }
 }

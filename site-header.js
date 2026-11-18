@@ -115,11 +115,14 @@
     }
 
     // shrink on scroll (hysteresis so it never flickers); the account/cart
-    // cluster rides into the band when the utility bar folds away
+    // cluster rides into the band when the utility bar folds away - on every
+    // screen. Until 11/18 it only did so above 1024px, so on a phone the cart
+    // went away with the utility bar as soon as the page scrolled (Andrew:
+    // "the cart in the upper right went away").
     const cluster = el.querySelector("#acctCluster");
     function placeCluster() {
       if (!cluster) return;
-      const shrunk = el.classList.contains("scrolled") && window.innerWidth > 1024;
+      const shrunk = el.classList.contains("scrolled");
       const home = shrunk ? el.querySelector(".band-inner") : el.querySelector(".util-right");
       if (cluster.parentElement !== home) home.appendChild(cluster);
     }

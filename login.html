@@ -266,6 +266,14 @@
       }
     });
 
+    // Back where a signed-out page sent you (11/18: the site walk's "sign in again" link carries ?next=, so a
+    // phone mid-walk returns to the walk). A path on this site only - never another site, never the API.
+    function nextPage() {
+      const n = new URLSearchParams(window.location.search).get("next") || "";
+      if (!/^\/(?![\/\\])/.test(n) || /^\/(api\/|login(\.html)?(?:[?#]|$))/.test(n)) return "";
+      return n;
+    }
+
     function pickLandingPage(user) {
       if (user && user.isExecutive) return "/dashboard.html";
       if (user && Array.isArray(user.grantedPages)) {
@@ -303,7 +311,7 @@
           return;
         }
 
-        window.location.href = landing;
+        window.location.href = nextPage() || landing;
       } catch (err) {
         showStatus(err.message || "Unable to sign in.", "error");
       } finally {

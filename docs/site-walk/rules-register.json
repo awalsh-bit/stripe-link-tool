@@ -1,0 +1,1381 @@
+{
+ "about": "One row per rule that must survive the move into Agility. `where` names the function that holds the rule; `proof` names a check that fails if the rule is lost. tools/check-register.mjs verifies every pointer below resolves — run it after any edit. The ePASS ticket comparison (step two) is not in this register: its rules are proven by the 18 fixture tests delivered with Phase A (ticket-diff.test.js).",
+ "files": {
+  "core": "site-walk-assets/site-walk-core.js",
+  "field": "site-walk-assets/site-walk-field.js",
+  "office": "site-walk-assets/site-walk-office.js",
+  "specpkg": "site-walk-assets/site-walk-specpkg.js",
+  "report": "site-walk-assets/site-walk-report.js",
+  "rules": "lib/site-walk-rules.js",
+  "pg": "lib/site-walk-postgres.js",
+  "worker": "site-walk-sw.js",
+  "library": "site-walk-assets/site-walk-library.js",
+  "routes": "lib/site-walk-routes.js"
+ },
+ "rules": [
+  {
+   "id": "CLEAT-1",
+   "area": "Cleats and flush inset",
+   "rule": "Picking the flush-inset install seeds the finished returns and the cleats, both sides, with the design guide's own numbers. Nobody types them.",
+   "why": "The cabinet shop builds to these; a retyped number is how a cleat ends up 1/4\" off. Built from the Sub-Zero Design Guide, 26 Oct 2026 (v0.9.71).",
+   "where": [
+    [
+     "specpkg",
+     "seedPrep"
+    ],
+    [
+     "specpkg",
+     "composePrep"
+    ],
+    [
+     "core",
+     "stripGeoms"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-showroom",
+     "picking the flush inset detail seeds its finished return and cleats as strips"
+    ],
+    [
+     "verify-forms",
+     "the flush inset detail's return and cleats say what the design guide draws"
+    ]
+   ]
+  },
+  {
+   "id": "CLEAT-2",
+   "area": "Cleats and flush inset",
+   "rule": "A cleat is a solid piece of wood inside the opening with a width, a setback from the face and a height. It is drawn as a solid, and the clear opening between cleats is computed from it.",
+   "why": "A mark painted on a wall cannot show that a cleat stands 1 1/4\" into the opening. Cayden asked for cleats, returns and blocking as strips (v0.9.71).",
+   "where": [
+    [
+     "core",
+     "stripGeoms"
+    ],
+    [
+     "core",
+     "stripInterior"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "a cleat on both sides is two solids"
+    ],
+    [
+     "verify-forms",
+     "between the cleats: 50"
+    ]
+   ]
+  },
+  {
+   "id": "CLEAT-3",
+   "area": "Cleats and flush inset",
+   "rule": "The cleat's setback moves with the thickness of the job's panel. A 1\" panel on a sheet that assumes 3/4\" moves the cleat and its return 1/4\" back, and the words say why.",
+   "why": "The sheet's cleat position assumes a 3/4\" panel; a thicker panel built to the sheet's number sits proud. Panel basis, 26 Oct 2026 (v0.9.73).",
+   "where": [
+    [
+     "core",
+     "panelBasis"
+    ],
+    [
+     "core",
+     "panelShift"
+    ],
+    [
+     "core",
+     "stripTarget"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "panel moves the cleat and its return 1/4"
+    ],
+    [
+     "verify-forms",
+     "a cleat built at the sheet's 2 3/16"
+    ]
+   ]
+  },
+  {
+   "id": "CLEAT-4",
+   "area": "Cleats and flush inset",
+   "rule": "With no panel thickness recorded, cleats are checked against the 3/4\" panel the sheet assumes, and the packet says that is what was assumed.",
+   "why": "A silent assumption reads as a measurement. The packet states the basis so the cabinet shop can object.",
+   "where": [
+    [
+     "core",
+     "panelBasisText"
+    ],
+    [
+     "core",
+     "panelBasisFindings"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "with no panel recorded, the cleats are checked for the 3/4"
+    ]
+   ]
+  },
+  {
+   "id": "CLEAT-5",
+   "area": "Cleats and flush inset",
+   "rule": "A cleat in the wrong place or left unfinished is the cabinet shop's item, with the numbers. Finished wood is the cabinet shop's; blocking is the builder's.",
+   "why": "Each correction goes to the trade that can fix it; a builder cannot act on \"cleat wrong\".",
+   "where": [
+    [
+     "core",
+     "stripFindings"
+    ],
+    [
+     "core",
+     "prepOwner"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "too far back and left unfinished is two cabinet-shop lines"
+    ],
+    [
+     "verify-forms",
+     "finished wood is the cabinet shop's, blocking the builder's"
+    ]
+   ]
+  },
+  {
+   "id": "CLEAT-6",
+   "area": "Cleats and flush inset",
+   "rule": "Flush inset is offered only for overlay (/O) models. On a stainless (/S, /P) model it is shown barred, with the guide's reason, and picking it anyway raises a red warning.",
+   "why": "The Sub-Zero guide says flush inset is for overlay models only. Found 27 Oct 2026 when a CL4250UFD/S was set up as flush inset (v0.9.79).",
+   "where": [
+    [
+     "core",
+     "modelSuffix"
+    ],
+    [
+     "core",
+     "variationBar"
+    ],
+    [
+     "core",
+     "entryPanelReady"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-basis-auto",
+     "Flush inset is marked not for a /S model"
+    ],
+    [
+     "verify-basis-auto",
+     "picking it anyway raises the red warning"
+    ],
+    [
+     "verify-basis-auto",
+     "/S and /P are not panel-ready; /O is"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-1",
+   "area": "Spec library",
+   "rule": "Every library entry cites the page its numbers came from and carries a full opening. No dimension exists without a page.",
+   "why": "Standing rule: never invent a spec dimension. A number with no page cannot be checked by the builder or by Wilson.",
+   "where": [
+    [
+     "core",
+     "findModel"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "every guide entry cites a page, has a full opening"
+    ],
+    [
+     "verify-forms",
+     "every Wolf guide entry cites its pages and an opening"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-2",
+   "area": "Spec library",
+   "rule": "The install type is picked from the spec package only when its pages name exactly one install the library knows. Two installs, none, or a heading the library cannot place stays a person's pick.",
+   "why": "A wrong automatic pick is worse than a question. 27 Oct 2026 (v0.9.77).",
+   "where": [
+    [
+     "specpkg",
+     "basisFromHeadings"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-basis-auto",
+     "and says it was read off the sheet's heading"
+    ],
+    [
+     "verify-basis-auto",
+     "and says which heading it read"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-3",
+   "area": "Spec library",
+   "rule": "When the spec page attached to an opening draws a different install from the one being walked, the phone says so on the sheet itself, with the numbers in use and where they come from.",
+   "why": "A tech opened \"Spec sheet\" and saw STANDARD while walking flush inset, with no word that the two disagreed (27 Oct 2026, v0.9.79).",
+   "where": [
+    [
+     "core",
+     "sheetBasisMismatch"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-sheet-mismatch",
+     "and warns that the page is the standard installation"
+    ],
+    [
+     "verify-sheet-mismatch",
+     "gives the numbers the walk is using and where they come from"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-4",
+   "area": "Spec library",
+   "rule": "A dimension can carry a minimum and a maximum together, and a maximum below the minimum is challenged at the desk.",
+   "why": "Sheets print windows (33 7/8\"–34 7/8\"); storing only the minimum passes an opening that is too tall.",
+   "where": [
+    [
+     "specpkg",
+     "ruleFor"
+    ],
+    [
+     "specpkg",
+     "verifyScreen"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-showroom",
+     "min and max are both held"
+    ],
+    [
+     "verify-showroom",
+     "a maximum below the minimum is challenged"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-5",
+   "area": "Spec library",
+   "rule": "Importing a package for a job that already has a walk, on this computer or on the server, says so, links to the walk that exists, and makes building a second one a deliberate choice.",
+   "why": "Nine copies of one test job came from re-importing its package. On a shared server everyone would see them.",
+   "where": [
+    [
+     "specpkg",
+     "existingWalksFor"
+    ],
+    [
+     "core",
+     "setServerRows"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-prelive",
+     "importing the job's package again says the job already has a walk"
+    ],
+    [
+     "verify-prelive",
+     "building a second one is still possible, and is named for what it is"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-6",
+   "area": "Library",
+   "rule": "The spec library is shared. A library entry somebody corrects or adds, and the opening numbers somebody confirms against a sheet, are each one row on the server and are the library at every desk. The newest write wins, a removal is kept as a marker so it is removed everywhere, and a change made while the server cannot be reached is kept and sent.",
+   "why": "Cayden, 17 Nov 2026: \"We need a place we can access all of our spec libraries and make edits to anything we may run into that imported wrong.\" Until v0.9.85 a correction lived in the one browser that made it.",
+   "where": [
+    [
+     "core",
+     "syncLibrary"
+    ],
+    [
+     "core",
+     "libApply"
+    ],
+    [
+     "core",
+     "libPush"
+    ],
+    [
+     "rules",
+     "readLibraryRow"
+    ],
+    [
+     "pg",
+     "saveLibraryRow"
+    ],
+    [
+     "routes",
+     "saveLibraryRow"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-library-shared",
+     "the other desk reads the corrected number, stamped with when it was shared"
+    ],
+    [
+     "verify-library-shared",
+     "reverting it at one desk restores the built-in entry at both, and the server keeps a marker"
+    ],
+    [
+     "verify-library-shared",
+     "a change made while the server cannot be reached is kept, and sent when it can be"
+    ],
+    [
+     "site-walk-rules",
+     "a spec library row: a model or confirmed dimensions, keyed the way the pages key them"
+    ],
+    [
+     "site-walk-postgres",
+     "the spec library: a row is saved once for everybody, the newest write wins, a removal is kept as a marker"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-7",
+   "area": "Library",
+   "rule": "A spec book can be added to the library with no walk: it is read, each model is checked against its own sheet by a person, and only the checked models are saved, each with the book, the page, the sheet's date and who checked. No walk is created.",
+   "why": "Cayden, 17 Nov 2026: \"I should also be able to drop new spec books into the library, dimension verify and save them, even if no walk is occurring. I want to be able to improve the library outside of walks.\"",
+   "where": [
+    [
+     "specpkg",
+     "saveToLibrary"
+    ],
+    [
+     "specpkg",
+     "isLibrary"
+    ],
+    [
+     "specpkg",
+     "recordVerification"
+    ],
+    [
+     "library",
+     "bookCard"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-library-shared",
+     "with no button that builds a walk"
+    ],
+    [
+     "verify-library-shared",
+     "saving it adds the checked models to the library and creates no walk"
+    ],
+    [
+     "verify-library-shared",
+     "each saved entry carries the book it was read from, the page, and its numbers"
+    ]
+   ]
+  },
+  {
+   "id": "LIB-8",
+   "area": "Library",
+   "rule": "A confirmed number can be corrected on the library screen. The correction is recorded under whoever made it, is marked as corrected there, and something that is not a measurement is refused.",
+   "why": "A number typed wrong at one walk's setup would otherwise arrive wrong on every later job with that model.",
+   "where": [
+    [
+     "library",
+     "confirmedPanel"
+    ],
+    [
+     "core",
+     "rememberDims"
+    ],
+    [
+     "core",
+     "forgetDims"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-library-shared",
+     "a number corrected on the library screen is the number at every desk, marked as corrected"
+    ],
+    [
+     "verify-library-shared",
+     "something that is not a measurement is refused, and the number stays"
+    ]
+   ]
+  },
+  {
+   "id": "KIND-1",
+   "area": "What kind of opening",
+   "rule": "Refrigeration is walked as a built-in, a column or an undercounter. With no keyword it goes by height: an opening or unit of 40\" or less, or the word ADA, is an undercounter.",
+   "why": "A Perlick \"G5 Shallow ADA\" undercounter was walked with the tall built-in form — soffit, anti-tip at 84\" (27 Oct 2026, v0.9.79).",
+   "where": [
+    [
+     "core",
+     "refrigKind"
+    ],
+    [
+     "core",
+     "refrigHeight"
+    ],
+    [
+     "core",
+     "formKeyFor"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-merges",
+     "built-in, column and undercounter are told apart"
+    ],
+    [
+     "verify-sheet-mismatch",
+     "the Perlick is measured as an undercounter"
+    ]
+   ]
+  },
+  {
+   "id": "KIND-2",
+   "area": "What kind of opening",
+   "rule": "Units that stand on the floor have their height judged to the finished floor: flooring still to go in is deducted from the reading, and the packet prints the thickness and what it does.",
+   "why": "An opening that measures right over subfloor is 3/4\" short once the floor is down.",
+   "where": [
+    [
+     "core",
+     "floorStanding"
+    ],
+    [
+     "core",
+     "flooringDeduction"
+    ],
+    [
+     "core",
+     "finishedHeight"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "stand on the floor; a cooktop and a hood do not"
+    ],
+    [
+     "verify-jobsite",
+     "flooring not down prints with the thickness and what it does to the heights"
+    ]
+   ]
+  },
+  {
+   "id": "PANEL-1",
+   "area": "Panels",
+   "rule": "A panel outside the sheet's thickness range is a correction for whoever supplies it: Wilson's order when Wilson supplies, the cabinet shop's to remake when custom. An unknown custom thickness is one question for the cabinet shop.",
+   "why": "The same miss has two different owners; sending Wilson's to the builder is the mistake the packet exists to avoid.",
+   "where": [
+    [
+     "core",
+     "panelFindings"
+    ],
+    [
+     "core",
+     "panelRuleOf"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "is the cabinet shop's to remake"
+    ],
+    [
+     "verify-forms",
+     "a custom panel of unknown thickness is one question for the cabinet shop"
+    ]
+   ]
+  },
+  {
+   "id": "MERGE-1",
+   "area": "Merged openings",
+   "rule": "Only refrigeration merges. Two to four units that share one cavity are one opening.",
+   "why": "Standing rule from the install lead's notes. A dishwasher beside a column is two openings.",
+   "where": [
+    [
+     "core",
+     "canMerge"
+    ],
+    [
+     "core",
+     "isRefrigeration"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-merges",
+     "a dishwasher does not merge"
+    ]
+   ]
+  },
+  {
+   "id": "MERGE-2",
+   "area": "Merged openings",
+   "rule": "A merged opening's required width comes from the brand's own dual-install table where the brand publishes one; otherwise it is the sum of the units. Either way the packet prints which basis was used, and a summed width says to confirm it against the merge kit.",
+   "why": "A Sub-Zero Classic 30+30 is 59 3/4\" by the guide, not 60\". A silent sum reads as a manufacturer's number.",
+   "where": [
+    [
+     "core",
+     "mergeTableFor"
+    ],
+    [
+     "core",
+     "mergeRequired"
+    ],
+    [
+     "core",
+     "mergeWidthText"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-merges",
+     "takes the design guide's 59 3/4"
+    ],
+    [
+     "verify-merges",
+     "the width basis is printed, not silent"
+    ],
+    [
+     "verify-merges",
+     "required width is the sum of the unit widths"
+    ]
+   ]
+  },
+  {
+   "id": "MERGE-3",
+   "area": "Merged openings",
+   "rule": "Every merge needs the brand's join kit. A kit not ordered is Wilson's item and never appears on the builder's list.",
+   "why": "The kit is an ordered part. The builder cannot do anything about it.",
+   "where": [
+    [
+     "core",
+     "kitState"
+    ],
+    [
+     "core",
+     "mergeFindings"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-merges",
+     "a kit not ordered is a Wilson item, not the builder's"
+    ]
+   ]
+  },
+  {
+   "id": "MERGE-4",
+   "area": "Merged openings",
+   "rule": "Two columns in the same room are offered as one merge at the desk; a side-by-side, drawers and a lone column are not.",
+   "why": "The spec package lists units one by one; columns in one room almost always share a cavity (v0.9.70).",
+   "where": [
+    [
+     "core",
+     "suggestMerges"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-merges",
+     "two columns in the kitchen are offered as one merge"
+    ]
+   ]
+  },
+  {
+   "id": "VENT-1",
+   "area": "Ventilation",
+   "rule": "An insert or liner is walked as a custom shroud plus insert. The drawing places the shroud from the typed readings (height above the cooking surface, centre offset); nothing is dragged. Until the height is typed it is a ghost.",
+   "why": "54% of ventilation Wilson sells is an insert in a custom hood. Cayden, 6 Nov 2026: place it from the measurement, do not slide a box around (v0.9.81).",
+   "where": [
+    [
+     "core",
+     "hoodModel"
+    ],
+    [
+     "core",
+     "hoodSvg"
+    ],
+    [
+     "core",
+     "shroudPlanSvg"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "a liner walks as a custom shroud + insert"
+    ],
+    [
+     "verify-field-pass",
+     "until the height is typed the shroud is a ghost"
+    ]
+   ]
+  },
+  {
+   "id": "VENT-2",
+   "area": "Ventilation",
+   "rule": "A shroud fails when its cutout is smaller than the insert's, when it is not tall enough inside for the insert, or when it is narrower than the cooking surface on the same walk.",
+   "why": "The insert sheets ask for exactly these; the cooking surface width is read off the range or cooktop on the walk.",
+   "where": [
+    [
+     "core",
+     "formFieldMin"
+    ],
+    [
+     "core",
+     "hoodSpec"
+    ],
+    [
+     "core",
+     "cookingUnder"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "all fail, and the inside height and width"
+    ]
+   ]
+  },
+  {
+   "id": "VENT-3",
+   "area": "Ventilation",
+   "rule": "Make-up air answered \"no\" is a question for HVAC, not a correction for the builder.",
+   "why": "Whether make-up air is required is a code question the HVAC trade answers.",
+   "where": [
+    [
+     "core",
+     "formFindings"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "is a question for HVAC"
+    ]
+   ]
+  },
+  {
+   "id": "CONN-1",
+   "area": "Connections",
+   "rule": "A connection is placed on the to-scale drawing of the opening, in inches. The verdict is in words (where the sheet draws it, or outside the area the sheet draws); the tool does not compute how far to move it and does not raise an item on its own.",
+   "why": "Cayden, 20 Oct 2026: corner taps on a photo are never square, so the photo is a reference and the drawing is the placement surface; drop the computed offsets (v0.9.51).",
+   "where": [
+    [
+     "core",
+     "setPin"
+    ],
+    [
+     "core",
+     "markVerdict"
+    ],
+    [
+     "core",
+     "deriveUtility"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "typing over the inches moves the pin into the sheet's box"
+    ],
+    [
+     "verify-field-pass",
+     "says outside the sheet's area, and raises no item"
+    ]
+   ]
+  },
+  {
+   "id": "CONN-2",
+   "area": "Connections",
+   "rule": "The measurements are labels laid on the drawing, on the elevation and on the box alike: the reading, and when it misses the sheet, the figure to build to. A miss is red; a good reading, an accepted miss and an unmeasured dimension are not. No line of the opening itself is ever coloured by a measurement.",
+   "why": "Cayden, 17 Nov 2026: \"Eliminate colored sides if a measurement is wrong. Wrong measurements should turn red in the overlaid measurement on the rendering, not the lines of the box themselves.\" (Until v0.9.85 the walls turned red and green.)",
+   "where": [
+    [
+     "core",
+     "dimNotes"
+    ],
+    [
+     "core",
+     "dimPill"
+    ],
+    [
+     "core",
+     "roughInSvg"
+    ],
+    [
+     "core",
+     "boxSvg"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "an out-of-spec width is a red label with the figure to build to"
+    ],
+    [
+     "verify-field-pass",
+     "the box drawing carries the same labels, red for the same miss"
+    ],
+    [
+     "verify-field-pass",
+     "no line of the opening itself is coloured by a measurement"
+    ],
+    [
+     "verify-field-pass",
+     "an accepted miss is not red, and an unmeasured dimension shows the sheet's figure in grey"
+    ]
+   ]
+  },
+  {
+   "id": "CONN-3",
+   "area": "Connections",
+   "rule": "A dishwasher with a cabinet between it and the sink raises a Wilson extension-kit item. It is not the builder's.",
+   "why": "The drain and supply reach is Wilson's to solve with a kit.",
+   "where": [
+    [
+     "core",
+     "runFindings"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "raises a Wilson extension-kit item"
+    ]
+   ]
+  },
+  {
+   "id": "CONN-4",
+   "area": "Connections",
+   "rule": "A shutoff behind the unit is a Wilson note about depth, never a builder item.",
+   "why": "It changes how the crew sets the unit; nothing for the builder to change (v0.9.70).",
+   "where": [
+    [
+     "core",
+     "formFindings"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-forms",
+     "a shutoff behind the unit is a Wilson note about depth, never a builder item"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-1",
+   "area": "The packet",
+   "rule": "The builder's list holds only items a builder's trades can act on. Wilson's own items (kits to order, notes to the crew) are on a Wilson sheet that shows on screen only: it does not print and is not in the downloaded packet.",
+   "why": "Project rule: the builder sees only builder items.",
+   "where": [
+    [
+     "core",
+     "ownerOf"
+    ],
+    [
+     "core",
+     "punchItems"
+    ],
+    [
+     "report",
+     "coverPage"
+    ],
+    [
+     "report",
+     "builderHtml"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-corrections",
+     "a Wilson purchasing item never reaches the punch list"
+    ],
+    [
+     "verify-corrections",
+     "Wilson's own items print on a Wilson page, not the cover"
+    ],
+    [
+     "verify-corrections",
+     "Wilson's sheet is on screen only: it does not print and is not in the downloaded packet"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-2",
+   "area": "The packet",
+   "rule": "Page one of the packet is the punch list: one numbered row per change, grouped by trade, blockers before cosmetics, questions and spec decisions marked, each row naming the page its opening's detail is on. Page two is the index of every opening. The openings that need work come before the ones that need nothing.",
+   "why": "Cayden, 17 Nov 2026: \"They won't look at much beyond a page unless they need the details to get the mod right ... Concise punch list front page. Details behind it if they need.\"",
+   "where": [
+    [
+     "report",
+     "coverPage"
+    ],
+    [
+     "report",
+     "punchRowsFor"
+    ],
+    [
+     "report",
+     "numberPages"
+    ],
+    [
+     "report",
+     "pages"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-corrections",
+     "the cover punch list has trade headings"
+    ],
+    [
+     "verify-corrections",
+     "cosmetic and question lines are marked on the cover"
+    ],
+    [
+     "verify-corrections",
+     "the spec decision is flagged on the cover"
+    ],
+    [
+     "verify-corrections",
+     "page one is the punch list and page two the index of every opening"
+    ],
+    [
+     "verify-corrections",
+     "each row names the page its opening's detail really is on"
+    ],
+    [
+     "verify-corrections",
+     "the openings that need work come before the ones that need nothing"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-3",
+   "area": "The packet",
+   "rule": "Every correction carries the number to build to, the reading, the difference and the reason.",
+   "why": "\"Opening too wide\" starts a phone call. \"Reduce the width to 50\" throughout — it measures 50 3/8\", 3/8\" over\" does not.",
+   "where": [
+    [
+     "core",
+     "verdict"
+    ],
+    [
+     "core",
+     "punchLine"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-corrections",
+     "oversize wording carries target, reading, delta and reason"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-4",
+   "area": "The packet",
+   "rule": "An installer can accept a miss in their own name. The packet prints the accepted miss and no builder item for it.",
+   "why": "Some misses are fine in practice; the record has to show who decided.",
+   "where": [
+    [
+     "core",
+     "setStatus"
+    ],
+    [
+     "core",
+     "isAccepted"
+    ],
+    [
+     "core",
+     "acceptedReason"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "Ready over the miss accepts it in the installer's name"
+    ],
+    [
+     "verify-field-pass",
+     "the packet prints the accepted miss and no builder item for it"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-5",
+   "area": "The packet",
+   "rule": "An opening whose spec is in doubt is held for Wilson's review: nothing about it reaches the builder until it is cleared.",
+   "why": "A correction built from a wrong spec is worse than a late one.",
+   "where": [
+    [
+     "core",
+     "specDoubtOf"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-field-pass",
+     "the opening is under review: Verify, flagged, nothing for the builder"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-6",
+   "area": "The packet",
+   "rule": "Every builder item is on the list: none is dropped to make the cover fit. A list too long for one Letter page first shortens each row to one line of detail, then continues on a \"Punch list (continued)\" sheet. Sheets are split by measuring them, every printed sheet is numbered, and nothing is clipped.",
+   "why": "A PDF built for another assistant on 5 Nov 2026 showed content cut off under the page edge (v0.9.80).",
+   "where": [
+    [
+     "report",
+     "fitCover"
+    ],
+    [
+     "report",
+     "spillPages"
+    ],
+    [
+     "report",
+     "numberPages"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-handoff",
+     "no sheet spills past one page"
+    ],
+    [
+     "verify-corrections",
+     "every builder item is on the list, numbered 1 to N, none dropped"
+    ],
+    [
+     "verify-corrections",
+     "every printed sheet is numbered, and the count leaves Wilson's sheet out"
+    ],
+    [
+     "verify-jobsite",
+     "no row is dropped from the cover with a 'plus N more'"
+    ]
+   ]
+  },
+  {
+   "id": "PACKET-7",
+   "area": "The packet",
+   "rule": "The person named as having verified the dimensions is whoever was at the desk: the signed-in user where there is a login, otherwise no name. It is never the salesperson taken from the spec book.",
+   "why": "Until 17 Nov 2026 every packet built from a spec package named the salesperson as the verifier, because nobody was ever asked for a name and the code fell back to the book's salesperson. Found while preparing three real walks for a field test.",
+   "where": [
+    [
+     "specpkg",
+     "recordVerification"
+    ],
+    [
+     "report",
+     "verifiedLine"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-prelive",
+     "the verifier is never the salesperson off the spec book"
+    ],
+    [
+     "verify-prelive",
+     "with a login, the verifier is the signed-in person"
+    ],
+    [
+     "verify-prelive",
+     "the packet's verified line does not name the salesperson"
+    ]
+   ]
+  },
+  {
+   "id": "JOB-1",
+   "area": "The jobsite",
+   "rule": "How the appliances get into the building is asked on every walk, before the openings, and the walk cannot be finished without it. Each before-delivery answer that is a thing to do is a numbered row on the packet's punch list; the whole strip of answers prints on page two.",
+   "why": "A route nobody checked is a delivery nobody can make.",
+   "where": [
+    [
+     "core",
+     "accessAnswered"
+    ],
+    [
+     "core",
+     "accessMissing"
+    ],
+    [
+     "core",
+     "prereqsOf"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-jobsite",
+     "the access screen asks the eight questions and shows the two fixes"
+    ],
+    [
+     "verify-jobsite",
+     "page two carries the jobsite strip with the bad bits marked, and the cover does not"
+    ]
+   ]
+  },
+  {
+   "id": "PHONE-1",
+   "area": "On the phone",
+   "rule": "An opening is Not started until somebody records something at the house. The install type and who supplies the panel are set at the desk and do not count.",
+   "why": "On 9 Nov 2026 every opening the office had built read \"In progress\" before anyone walked it (v0.9.82).",
+   "where": [
+    [
+     "core",
+     "isStarted"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-cleanup",
+     "an opening with only the office's basis and panel is not started"
+    ],
+    [
+     "verify-cleanup",
+     "nothing unwalked reaches the punch list"
+    ]
+   ]
+  },
+  {
+   "id": "PHONE-2",
+   "area": "On the phone",
+   "rule": "The room is set on the phone, by the person standing in it.",
+   "why": "The spec package does not say which room an appliance is in (v0.9.82).",
+   "where": [
+    [
+     "field",
+     "roomset"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-cleanup",
+     "tapping Kitchen sets the room and the header says so"
+    ]
+   ]
+  },
+  {
+   "id": "SERVER-1",
+   "area": "Agility server",
+   "rule": "The server never computes a verdict, a status or a count. The phone computes them and the server stores and repeats them.",
+   "why": "The packet the builder received is the contract. A second implementation of the arithmetic will eventually disagree with it.",
+   "where": [
+    [
+     "rules",
+     "readSyncPayload"
+    ]
+   ],
+   "proof": [
+    [
+     "site-walk-rules.test",
+     "the counts are the phone's, never recomputed here"
+    ]
+   ]
+  },
+  {
+   "id": "SERVER-2",
+   "area": "Agility server",
+   "rule": "Newest wins, by the walk's own revision stamp. An older copy arriving late is ignored and changes nothing.",
+   "why": "A phone that was offline can post an old snapshot after a newer one landed; storing it would undo work.",
+   "where": [
+    [
+     "rules",
+     "decideWrite"
+    ],
+    [
+     "pg",
+     "receiveWalk"
+    ]
+   ],
+   "proof": [
+    [
+     "site-walk-rules.test",
+     "newest wins by the walk's own revision"
+    ],
+    [
+     "site-walk-postgres.test",
+     "a newer sync UPDATES; an older one is IGNORED and changes nothing"
+    ]
+   ]
+  },
+  {
+   "id": "SERVER-3",
+   "area": "Agility server",
+   "rule": "A walk is archived, never deleted. Archiving takes it out of the queue and off the phones' list for everyone; the row, its history and its photographs stay, and it can be restored.",
+   "why": "\"Delete walk\" on one computer left the walk in everyone else's list. A record a builder may have been sent must not disappear.",
+   "where": [
+    [
+     "pg",
+     "archiveWalk"
+    ],
+    [
+     "pg",
+     "restoreWalk"
+    ],
+    [
+     "core",
+     "archiveWalk"
+    ]
+   ],
+   "proof": [
+    [
+     "site-walk-postgres.test",
+     "an archived walk leaves the queue and the devices' list, is kept, and can be restored"
+    ],
+    [
+     "verify-prelive",
+     "it is kept as archived, and can be restored to the queue"
+    ]
+   ]
+  },
+  {
+   "id": "SERVER-4",
+   "area": "Agility server",
+   "rule": "The list of walks a device may open is summaries only. A walk's whole document comes down when that walk is opened.",
+   "why": "The phone's pick-up list was downloading every unsent walk whole on each refresh: up to 40 walks of 0.3–1.2 MB.",
+   "where": [
+    [
+     "pg",
+     "pullWalks"
+    ],
+    [
+     "rules",
+     "offerRow"
+    ],
+    [
+     "core",
+     "takeOffer"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-agility-journey",
+     "the list of walks to do is summaries: no walk comes down whole until it is opened"
+    ],
+    [
+     "verify-prelive",
+     "opening it fetches that one walk and keeps it on the phone"
+    ],
+    [
+     "site-walk-postgres.test",
+     "a new walk is CREATED and shows in the queue and the pull"
+    ]
+   ]
+  },
+  {
+   "id": "JOURNEY-1",
+   "area": "The journey",
+   "rule": "Launching a walk is opening its link on a phone. The phone fetches the walk and keeps its own copy without a Load step.",
+   "why": "Cayden, 16 Nov 2026: the walk is launched on a phone by clicking a button.",
+   "where": [
+    [
+     "core",
+     "ensureWalk"
+    ],
+    [
+     "office",
+     "launchPanel"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-agility-journey",
+     "the phone fetched the walk and kept its own copy, with no Load step"
+    ],
+    [
+     "verify-agility-journey",
+     "the office shows how to launch the walk on a phone"
+    ]
+   ]
+  },
+  {
+   "id": "JOURNEY-2",
+   "area": "The journey",
+   "rule": "The phone keeps working with no signal: the page reopens, the walk is there, and work is held until the server can be reached. The walk screen says whether the phone is ready for that before anyone leaves.",
+   "why": "The 9 Nov 2026 field test failed because the page had no offline copy and none of the walks would open on site.",
+   "where": [
+    [
+     "core",
+     "ensureWalk"
+    ],
+    [
+     "field",
+     "offlineCheck"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-agility-journey",
+     "with the server unreachable the phone page reopens and still has the walk"
+    ],
+    [
+     "verify-agility-journey",
+     "back in signal, the phone catches the server up"
+    ],
+    [
+     "verify-agility-journey",
+     "the walk screen says the phone is ready for the field"
+    ]
+   ]
+  },
+  {
+   "id": "JOURNEY-3",
+   "area": "The journey",
+   "rule": "What the phone records shows on every screen that has the walk open, without a reload.",
+   "why": "Cayden, 16 Nov 2026: results update live in Agility for all to see, as close to real time as possible.",
+   "where": [
+    [
+     "core",
+     "adoptNewer"
+    ],
+    [
+     "office",
+     "fetchServerWalks"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-agility-journey",
+     "the open packet on another computer picks it up without a reload"
+    ],
+    [
+     "verify-agility-journey",
+     "the office queue shows it in the field"
+    ]
+   ]
+  },
+  {
+   "id": "JOURNEY-4",
+   "area": "The journey",
+   "rule": "The person who walked the job signs off under their own login, and only then can the packet go to the builder. The server records who and when and refuses a send before it.",
+   "why": "Cayden, 16 Nov 2026: a note-cleaning step for the project manager who walked it; once they sign off it becomes available to send. It used to be the salesperson's stamp, set by the page.",
+   "where": [
+    [
+     "rules",
+     "canSend"
+    ],
+    [
+     "rules",
+     "canSignOff"
+    ],
+    [
+     "pg",
+     "signOffWalk"
+    ],
+    [
+     "core",
+     "signOff"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-agility-journey",
+     "nothing can be marked sent before the sign-off"
+    ],
+    [
+     "verify-agility-journey",
+     "the sign-off is in the walker's name, from the login"
+    ],
+    [
+     "site-walk-postgres.test",
+     "a later sync from a device cannot erase the sign-off"
+    ]
+   ]
+  },
+  {
+   "id": "HOST-1",
+   "area": "Inside Agility",
+   "rule": "The offline worker answers only for the three site-walk pages and their own files, and deletes only its own caches. Every route is behind the login and every state change is audited.",
+   "why": "It shares a host with every other Agility page; platform notes §5.",
+   "where": [
+    [
+     "worker",
+     "OWNED"
+    ],
+    [
+     "worker",
+     "CACHE_PREFIX"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-agility-journey",
+     "a page that is not a site-walk page is not under the worker"
+    ],
+    [
+     "verify-agility-journey",
+     "every state change was handed to recordAudit"
+    ],
+    [
+     "verify-agility-journey",
+     "a signed-out sync is refused"
+    ]
+   ]
+  },
+  {
+   "id": "HOST-2",
+   "area": "Inside Agility",
+   "rule": "A browser lets go of its copy of a walk the server already holds: a sent walk with nothing left to send is dropped on the next page load, and when the browser's store is full, walks with nothing to send go oldest first. A walk with unsent work, or the walk the page is on, is never dropped. With no server, nothing is ever dropped.",
+   "why": "Each browser keeps the walks it opens in about 5 MB. An office computer would fill up after fifteen or twenty walks.",
+   "where": [
+    [
+     "core",
+     "tidyHeld"
+    ],
+    [
+     "core",
+     "shedSentWalks"
+    ],
+    [
+     "core",
+     "shedOneSyncedWalk"
+    ]
+   ],
+   "proof": [
+    [
+     "verify-prelive",
+     "with a server, a sent walk with nothing left to send is let go"
+    ],
+    [
+     "verify-prelive",
+     "a walk with unsent work is never dropped"
+    ],
+    [
+     "verify-agility-journey",
+     "a computer lets go of its copy of a sent walk; the server's list still has it"
+    ],
+    [
+     "verify-agility-journey",
+     "and its link opens it again from the server"
+    ]
+   ]
+  }
+ ]
+}

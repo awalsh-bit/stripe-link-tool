@@ -302,7 +302,8 @@
         title: "Project Management",
         children: [
           { href: "pm-dashboard.html", title: "Project Manager Dashboard" },
-          { href: "pm-route.html", title: "Route Planner" }
+          { href: "pm-route.html", title: "Route Planner" },
+          { href: "site-walk-office.html", title: "Site Walks" }
         ]
       },
       {

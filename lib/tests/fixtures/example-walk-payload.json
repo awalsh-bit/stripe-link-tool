@@ -1,0 +1,1777 @@
+{
+  "schema": "wilson.sitewalk/2",
+  "exportedAt": "2026-08-29T13:55:50.650Z",
+  "device": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+  "walk": {
+    "clientId": "walk_mteg14h9_d18nb",
+    "jobNo": "S00063887",
+    "project": "EXAMPLE — 1415 Palomino",
+    "address": "1415 Palomino",
+    "builder": "Palomino Custom Homes",
+    "builderContact": "Site Superintendent",
+    "builderEmail": "",
+    "walkDate": "2026-08-10",
+    "walkedBy": "Cayden Mayfield",
+    "specSource": "Steel Cod Full Spec Package S00063887 v3.3",
+    "note": "Example only. Measurements carried over from the manual August packet — this is not a jobsite record and must not be sent to a builder.",
+    "packageModels": [
+      {
+        "model": "DEU2450CI/L",
+        "pages": "pp.4-7"
+      },
+      {
+        "model": "DW2451",
+        "pages": "pp.8-17"
+      },
+      {
+        "model": "SPO3050TE/S/T",
+        "pages": "pp.18-21"
+      },
+      {
+        "model": "WM6500HWA",
+        "pages": "pp.22-25"
+      },
+      {
+        "model": "DLEX6500W",
+        "pages": "pp.26-30"
+      },
+      {
+        "model": "CL4850SID/O",
+        "pages": "pp.31-45"
+      },
+      {
+        "model": "WKEX300HBA",
+        "pages": "pp.46-52"
+      },
+      {
+        "model": "MSER0990S",
+        "pages": "pp.53-54"
+      },
+      {
+        "model": "TUR-24-L-OP-C",
+        "pages": "pp.55-56"
+      },
+      {
+        "model": "TUF-24-R-OP-C",
+        "pages": "pp.57-58"
+      }
+    ],
+    "sentAt": "",
+    "sentTo": "",
+    "createdAt": "2026-08-10T14:00:00.000Z",
+    "updatedAt": "2026-08-10T18:20:00.000Z",
+    "stageCode": "in-field",
+    "stageLabel": "In the field",
+    "access": {
+      "route": "interior-stairs",
+      "routeLabel": "Interior stairs",
+      "state": "tight",
+      "stateLabel": "Tight — measure the pinch point",
+      "tightestIn": 30.5,
+      "note": "Turn at the top of the stair is the pinch point.",
+      "answered": true,
+      "findings": [
+        "Delivery route pinches to 30 1/2\" at its tightest point. Confirm every unit clears it, crated or uncrated, before delivery is scheduled."
+      ],
+      "photos": [
+        {
+          "clientId": "acc_1",
+          "portalId": "",
+          "caption": "",
+          "sortOrder": 0
+        }
+      ]
+    }
+  },
+  "rollup": {
+    "openings": 12,
+    "walked": 8,
+    "percentWalked": 67,
+    "readyCount": 2,
+    "verifyCount": 1,
+    "modifyCount": 2,
+    "decisionCount": 3,
+    "openCount": 4,
+    "blockerCount": 1,
+    "attentionCount": 8,
+    "deliverable": false
+  },
+  "openings": [
+    {
+      "clientId": "op_wt",
+      "sortOrder": 1,
+      "area": "Main house",
+      "location": "First-floor laundry closet",
+      "brand": "LG",
+      "model": "WKEX300HBA",
+      "appliance": "WashTower",
+      "title": "WashTower",
+      "where": "Main house — First-floor laundry closet",
+      "category": "laundry_center",
+      "installBasisCode": "freestanding",
+      "installBasisLabel": "Freestanding / closet",
+      "specPageRef": "pp.46–52",
+      "basisConfirmed": "",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "decision",
+      "statusLabel": "Response required",
+      "done": false,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo.",
+      "fieldNote": "Cabinet depth to the faces is 32 1/2\". An unused gas line stub projects 3\" from the back wall and establishes the appliance setback.\nDryer exhaust is recessed; top and sides are open.",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo.",
+        "Confirm the model selection so the unit can be released for delivery."
+      ],
+      "findings": [
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Manufacturer manual — no rough opening. Verify closet ventilation, exhaust routing and how far the unit projects past the cabinet faces."
+    },
+    {
+      "clientId": "op_cl48",
+      "sortOrder": 2,
+      "area": "Main house",
+      "location": "Kitchen run",
+      "brand": "Sub-Zero",
+      "model": "CL4850SID/O",
+      "appliance": "48\" refrigerator",
+      "title": "48\" refrigerator",
+      "where": "Main house — Kitchen run",
+      "category": "refrigeration",
+      "installBasisCode": "flush-inset",
+      "installBasisLabel": "Flush inset",
+      "specPageRef": "p.33",
+      "basisConfirmed": "yes",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "verify",
+      "statusLabel": "Verify at set",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "49 5/8\" against a required 50\". Bring the width to a true 50\".",
+      "fieldNote": "Electrical box sits roughly 7\" to 11\" below the top of the opening — lower than the illustrated upper-right zone.\nThe extra opening depth may carry both connections; confirm routing at set.",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": 50,
+          "actualIn": 49.625,
+          "notMeasured": false,
+          "deltaIn": -0.375,
+          "verdict": "bad",
+          "verdictText": "−3/8\"",
+          "acceptedReason": "",
+          "rawVerdict": "bad",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 26.1875,
+          "actualIn": 26.1875,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "meets min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 84,
+          "actualIn": 84,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "meets min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 115 VAC, 15 A",
+          "belongs": "Right side of the opening, 6\" in and 75 1/2\" up from the floor",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "point",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "1/4\" OD copper, braided stainless or PEX",
+          "belongs": "Right side of the opening, 18\" in, 6\" wide, 3\" up; extends 1/2\" forward on the floor",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "rect",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": {
+        "state": "holds",
+        "kind": "Gas stub",
+        "projectsIn": 3,
+        "note": ""
+      },
+      "utilityMarkConflicts": [],
+      "panel": {
+        "suppliedBy": "custom",
+        "onSiteState": "absent",
+        "pullsInstalled": "",
+        "requiredText": "",
+        "specMissing": true,
+        "requiredWidthIn": null,
+        "requiredHeightIn": null,
+        "thickness": "",
+        "weightLimit": "",
+        "specPageRef": ""
+      },
+      "actions": [
+        "Bring the width to a true 50\".",
+        "Relocate the power: right side of the opening, 6\" in and 75 1/2\" up from the floor.",
+        "Recess or relocate the gas stub so the unit sits fully back — it projects 3\" from the back wall and will set the appliance setback.",
+        "Remove floor protection and remeasure before set.",
+        "Confirm the water supply lands in the illustrated floor zone."
+      ],
+      "findings": [
+        {
+          "label": "Width",
+          "detail": "49 5/8\" against a required 50\". Bring the width to a true 50\"."
+        },
+        {
+          "label": "Custom panel not on site",
+          "detail": "The custom panel was not on site at the walk. Confirm it is built to the panel specification with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled."
+        },
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: right side of the opening, 6\" in and 75 1/2\" up from the floor."
+        },
+        {
+          "label": "Obstruction in the opening",
+          "detail": "Recess or relocate the gas stub so the unit sits fully back — it projects 3\" from the back wall and will set the appliance setback."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Cleat setback 3 1/2\" finished return with 3/4\" typical. Reveals 1/4\" and 1 7/16\" as drawn."
+    },
+    {
+      "clientId": "op_dwl",
+      "sortOrder": 3,
+      "area": "Main house",
+      "location": "Sink cabinet — left",
+      "brand": "Cove",
+      "model": "DW2451",
+      "appliance": "Dishwasher (left)",
+      "title": "Dishwasher (left)",
+      "where": "Main house — Sink cabinet — left",
+      "category": "dishwasher",
+      "installBasisCode": "24in",
+      "installBasisLabel": "24\" install",
+      "specPageRef": "p.11",
+      "basisConfirmed": "yes",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "decision",
+      "statusLabel": "Response required",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "Cabinetry not built yet",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "This opening could not be measured during the site walk: cabinetry not built yet. Notify Wilson AC & Appliance when it is ready and we will verify it before the appliance is delivered.",
+      "fieldNote": "Panel width 23 3/4\". The 60 cm detail on p.9 wants a 23 5/8\" opening and must not be used here.",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": 24,
+          "actualIn": 24,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "on spec",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 25,
+          "notMeasured": false,
+          "deltaIn": 1,
+          "verdict": "ok",
+          "verdictText": "+1\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": 34.25,
+          "notMeasured": false,
+          "deltaIn": -0.25,
+          "verdict": "accepted",
+          "verdictText": "short 1/4\" · accepted",
+          "acceptedReason": "Measured over floor protection — remeasure before set.",
+          "rawVerdict": "bad",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 115 VAC, 15 A",
+          "belongs": "In the adjacent cabinet, either side — never directly behind the unit",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "5' braided tubing, 3/8\" female compression",
+          "belongs": "Through the adjacent cabinet",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "drain",
+          "label": "Drain",
+          "requirement": "5' corrugated tubing",
+          "belongs": "Standpipe or disposer connection 20\" to 43\" above the floor",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": {
+        "state": "clears",
+        "kind": "Drain pipe",
+        "projectsIn": 1.5,
+        "note": "Drain pipe is present in the opening, projecting 1 1/2\", and clears the unit as measured. Confirm at set before anchoring."
+      },
+      "utilityMarkConflicts": [],
+      "panel": {
+        "suppliedBy": "custom",
+        "onSiteState": "absent",
+        "pullsInstalled": "",
+        "requiredText": "23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal)",
+        "specMissing": false,
+        "requiredWidthIn": 23.75,
+        "requiredHeightIn": 30.375,
+        "thickness": "1/2\" min",
+        "weightLimit": "20 lb max (under 18 lb optimal)",
+        "specPageRef": "p.16"
+      },
+      "actions": [
+        "Relocate the power: in the adjacent cabinet, either side — never directly behind the unit.",
+        "Route plumbing and electrical through the adjacent cabinet."
+      ],
+      "findings": [
+        {
+          "label": "Not verified on this walk — Cabinetry not built yet",
+          "detail": "This opening could not be measured during the site walk: cabinetry not built yet. Notify Wilson AC & Appliance when it is ready and we will verify it before the appliance is delivered."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Reveals are larger than the 60 cm variation unless the panel width is adjusted. Unit adjusts 33 3/4\"–34 3/4\" tall; opening drawn at 34 1/2\"."
+    },
+    {
+      "clientId": "op_dwr",
+      "sortOrder": 4,
+      "area": "Main house",
+      "location": "Sink cabinet — right",
+      "brand": "Cove",
+      "model": "DW2451",
+      "appliance": "Dishwasher (right)",
+      "title": "Dishwasher (right)",
+      "where": "Main house — Sink cabinet — right",
+      "category": "dishwasher",
+      "installBasisCode": "24in",
+      "installBasisLabel": "24\" install",
+      "specPageRef": "p.11",
+      "basisConfirmed": "yes",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "ready",
+      "statusLabel": "Ready for set",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "The custom panel was not on site at the walk. Confirm it is built to 23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal) (spec package p.16) with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled.",
+      "fieldNote": "",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": 24,
+          "actualIn": 24,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "on spec",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 25,
+          "notMeasured": false,
+          "deltaIn": 1,
+          "verdict": "ok",
+          "verdictText": "+1\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": 34.75,
+          "notMeasured": false,
+          "deltaIn": 0.25,
+          "verdict": "ok",
+          "verdictText": "+1/4\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 115 VAC, 15 A",
+          "belongs": "In the adjacent cabinet, either side — never directly behind the unit",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "5' braided tubing, 3/8\" female compression",
+          "belongs": "Through the adjacent cabinet",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "drain",
+          "label": "Drain",
+          "requirement": "5' corrugated tubing",
+          "belongs": "Standpipe or disposer connection 20\" to 43\" above the floor",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": {
+        "state": "none",
+        "kind": "",
+        "projectsIn": null,
+        "note": ""
+      },
+      "utilityMarkConflicts": [],
+      "panel": {
+        "suppliedBy": "custom",
+        "onSiteState": "absent",
+        "pullsInstalled": "",
+        "requiredText": "23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal)",
+        "specMissing": false,
+        "requiredWidthIn": 23.75,
+        "requiredHeightIn": 30.375,
+        "thickness": "1/2\" min",
+        "weightLimit": "20 lb max (under 18 lb optimal)",
+        "specPageRef": "p.16"
+      },
+      "actions": [
+        "Relocate the power: in the adjacent cabinet, either side — never directly behind the unit.",
+        "Route plumbing and electrical through the adjacent cabinet."
+      ],
+      "findings": [
+        {
+          "label": "Custom panel not on site",
+          "detail": "The custom panel was not on site at the walk. Confirm it is built to 23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal) (spec package p.16) with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled."
+        },
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: in the adjacent cabinet, either side — never directly behind the unit."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Reveals are larger than the 60 cm variation unless the panel width is adjusted. Unit adjusts 33 3/4\"–34 3/4\" tall; opening drawn at 34 1/2\"."
+    },
+    {
+      "clientId": "op_mw",
+      "sortOrder": 5,
+      "area": "Main house",
+      "location": "Location not identified",
+      "brand": "LG",
+      "model": "MSER0990S",
+      "appliance": "Countertop microwave",
+      "title": "Countertop microwave",
+      "where": "Main house — Location not identified",
+      "category": "microwave",
+      "installBasisCode": "countertop",
+      "installBasisLabel": "Countertop",
+      "specPageRef": "pp.53–54",
+      "basisConfirmed": "",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "decision",
+      "statusLabel": "Response required",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo.",
+      "fieldNote": "Countertop model, no trim kit. Exterior 18\" W x 11\" H x 14 1/2\" D; keep 4\" clearance top, sides and back.",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo.",
+        "Confirm the outlet location — none found in the adjacent cabinet."
+      ],
+      "findings": [
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Countertop appliance, no trim kit. Exterior 18\" × 11\" × 14 1/2\". Keep 4\" clearance at the top, sides and back, on a dedicated 15–20 A outlet."
+    },
+    {
+      "clientId": "op_spo",
+      "sortOrder": 6,
+      "area": "Apartment",
+      "location": "Bar wall",
+      "brand": "Wolf",
+      "model": "SPO3050TE/S/T",
+      "appliance": "Speed oven",
+      "title": "Speed oven",
+      "where": "Apartment — Bar wall",
+      "category": "ovens",
+      "installBasisCode": "flush",
+      "installBasisLabel": "Flush inset",
+      "specPageRef": "p.19",
+      "basisConfirmed": "yes",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "modify",
+      "statusLabel": "Modification required",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "23 1/2\" against a required 24\". Gain 1/2\" of depth.",
+      "fieldNote": "Verified against the FLUSH detail (p.19). The standard detail on p.21 wants a 22 1/8\" x 23\" x 17 11/16\" cutout and does not apply to this opening.",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "min",
+          "specIn": 30.125,
+          "actualIn": 30.125,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "meets min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 23.5,
+          "notMeasured": false,
+          "deltaIn": -0.5,
+          "verdict": "bad",
+          "verdictText": "short 1/2\"",
+          "acceptedReason": "",
+          "rawVerdict": "bad",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 18.125,
+          "actualIn": 18.25,
+          "notMeasured": false,
+          "deltaIn": 0.125,
+          "verdict": "ok",
+          "verdictText": "+1/8\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 240/208 VAC, 15 A, NEMA 6-20R",
+          "belongs": "Anywhere within the opening",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "any",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Gain 1/2\" of depth.",
+        "Relocate the power: anywhere within the opening.",
+        "Remove or omit the cabinet back to gain depth.",
+        "Add the dedicated 240/208 VAC 15 A supply, NEMA 6-20R, inside the opening.",
+        "Add finished cleats inside the opening — they are visible and must match the cabinetry."
+      ],
+      "findings": [
+        {
+          "label": "Depth",
+          "detail": "23 1/2\" against a required 24\". Gain 1/2\" of depth."
+        },
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: anywhere within the opening."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Flush width and height are drawn as minimum-reveal dimensions."
+    },
+    {
+      "clientId": "op_deu",
+      "sortOrder": 7,
+      "area": "Apartment",
+      "location": "Bar undercounter",
+      "brand": "Sub-Zero",
+      "model": "DEU2450CI/L",
+      "appliance": "Undercounter refrigerator",
+      "title": "Undercounter refrigerator",
+      "where": "Apartment — Bar undercounter",
+      "category": "refrigeration",
+      "installBasisCode": "standard",
+      "installBasisLabel": "Standard",
+      "specPageRef": "p.5",
+      "basisConfirmed": "yes",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "decision",
+      "statusLabel": "Response required",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "The custom panel was not on site at the walk. Confirm it is built to 23 3/4\" W × 30 3/8\" H, 5/8\" min to 3/4\" max, 22 lb max (spec package p.6) with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled.",
+      "fieldNote": "",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": 24,
+          "actualIn": 24,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "on spec",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 24.25,
+          "notMeasured": false,
+          "deltaIn": 0.25,
+          "verdict": "ok",
+          "verdictText": "+1/4\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": 34.75,
+          "notMeasured": false,
+          "deltaIn": 0.25,
+          "verdict": "ok",
+          "verdictText": "+1/4\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 115 VAC, 15 A",
+          "belongs": "Inside the opening, 4\" up from the floor, 5\" in from the left side",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "point",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "1/4\" OD copper, braided stainless or PEX",
+          "belongs": "Floor zone, 2\" in from each side, 4\" up; the area extends 1/2\" forward on the floor",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "rect",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": {
+        "suppliedBy": "custom",
+        "onSiteState": "absent",
+        "pullsInstalled": "",
+        "requiredText": "23 3/4\" W × 30 3/8\" H, 5/8\" min to 3/4\" max, 22 lb max",
+        "specMissing": false,
+        "requiredWidthIn": 23.75,
+        "requiredHeightIn": 30.375,
+        "thickness": "5/8\" min to 3/4\" max",
+        "weightLimit": "22 lb max",
+        "specPageRef": "p.6"
+      },
+      "actions": [
+        "Relocate the power: inside the opening, 4\" up from the floor, 5\" in from the left side.",
+        "Confirm the hinge direction before the unit is ordered."
+      ],
+      "findings": [
+        {
+          "label": "Custom panel not on site",
+          "detail": "The custom panel was not on site at the walk. Confirm it is built to 23 3/4\" W × 30 3/8\" H, 5/8\" min to 3/4\" max, 22 lb max (spec package p.6) with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled."
+        },
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: inside the opening, 4\" up from the floor, 5\" in from the left side."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Unit is 23 1/8\" deep before the panel — allow for panel thickness in the finished opening depth. Height dimensions ±1/2\"."
+    },
+    {
+      "clientId": "op_adw",
+      "sortOrder": 8,
+      "area": "Apartment",
+      "location": "Sink cabinet",
+      "brand": "Cove",
+      "model": "DW2451",
+      "appliance": "Dishwasher",
+      "title": "Dishwasher",
+      "where": "Apartment — Sink cabinet",
+      "category": "dishwasher",
+      "installBasisCode": "24in",
+      "installBasisLabel": "24\" install",
+      "specPageRef": "p.11",
+      "basisConfirmed": "yes",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "ready",
+      "statusLabel": "Ready for set",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "The custom panel was not on site at the walk. Confirm it is built to 23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal) (spec package p.16) with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled.",
+      "fieldNote": "",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": 24,
+          "actualIn": 24,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "on spec",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 24.25,
+          "notMeasured": false,
+          "deltaIn": 0.25,
+          "verdict": "ok",
+          "verdictText": "+1/4\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": 35,
+          "notMeasured": false,
+          "deltaIn": 0.5,
+          "verdict": "ok",
+          "verdictText": "+1/2\" over min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 115 VAC, 15 A",
+          "belongs": "In the adjacent cabinet, either side — never directly behind the unit",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "5' braided tubing, 3/8\" female compression",
+          "belongs": "Through the adjacent cabinet",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "drain",
+          "label": "Drain",
+          "requirement": "5' corrugated tubing",
+          "belongs": "Standpipe or disposer connection 20\" to 43\" above the floor",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": {
+        "suppliedBy": "custom",
+        "onSiteState": "absent",
+        "pullsInstalled": "",
+        "requiredText": "23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal)",
+        "specMissing": false,
+        "requiredWidthIn": 23.75,
+        "requiredHeightIn": 30.375,
+        "thickness": "1/2\" min",
+        "weightLimit": "20 lb max (under 18 lb optimal)",
+        "specPageRef": "p.16"
+      },
+      "actions": [
+        "Relocate the power: in the adjacent cabinet, either side — never directly behind the unit.",
+        "Route plumbing and electrical through the adjacent cabinet."
+      ],
+      "findings": [
+        {
+          "label": "Custom panel not on site",
+          "detail": "The custom panel was not on site at the walk. Confirm it is built to 23 3/4\" W × 30 3/8\" H, 1/2\" min, 20 lb max (under 18 lb optimal) (spec package p.16) with the handle pulls installed, and notify Wilson AC & Appliance before the delivery is scheduled."
+        },
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: in the adjacent cabinet, either side — never directly behind the unit."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Reveals are larger than the 60 cm variation unless the panel width is adjusted. Unit adjusts 33 3/4\"–34 3/4\" tall; opening drawn at 34 1/2\"."
+    },
+    {
+      "clientId": "op_alaun",
+      "sortOrder": 9,
+      "area": "Apartment",
+      "location": "Laundry wall",
+      "brand": "LG",
+      "model": "WM6500HWA + DLEX6500W",
+      "appliance": "Side-by-side laundry",
+      "title": "Side-by-side laundry",
+      "where": "Apartment — Laundry wall",
+      "category": "washer",
+      "installBasisCode": "freestanding",
+      "installBasisLabel": "Freestanding / closet",
+      "specPageRef": "pp.22–30",
+      "basisConfirmed": "",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "verify",
+      "statusLabel": "Verify at set",
+      "done": false,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "Relocate the power: within reach of the unit position.",
+      "fieldNote": "Wall run measures 60\" wide with 33\" of depth and 40\" of height available. Units are freestanding — no rough opening applies.",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "exact",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": null,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "—",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "Dedicated 120 V outlet",
+          "belongs": "Within reach of the unit position",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Hot and cold supply",
+          "requirement": "Both valves",
+          "belongs": "Behind the unit position",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "drain",
+          "label": "Standpipe / drain",
+          "requirement": "Standpipe or floor drain",
+          "belongs": "Behind the unit position",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Relocate the power: within reach of the unit position.",
+        "Confirm the standpipe and floor drain arrangement."
+      ],
+      "findings": [
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: within reach of the unit position."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "Manufacturer manual — no rough opening. Verify the standpipe / floor drain and closet or recess clearances."
+    },
+    {
+      "clientId": "op_tur",
+      "sortOrder": 10,
+      "area": "Apartment",
+      "location": "Bar undercounter — right",
+      "brand": "True",
+      "model": "TUR-24-L-OP-C",
+      "appliance": "24\" overlay undercounter refrigerator",
+      "title": "24\" overlay undercounter refrigerator",
+      "where": "Apartment — Bar undercounter — right",
+      "category": "refrigeration",
+      "installBasisCode": "overlay",
+      "installBasisLabel": "Overlay / integrated",
+      "specPageRef": "p.56",
+      "basisConfirmed": "",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "modify",
+      "statusLabel": "Modification required",
+      "done": false,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo.",
+      "fieldNote": "",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "not measured",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "not measured",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "not measured",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo."
+      ],
+      "findings": [
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "All three rough opening dimensions are minimums. Unit is 23 7/8\" × 34 1/4\" × 23 7/8\"; drawing shown with a 3/4\" cabinetry panel."
+    },
+    {
+      "clientId": "op_tuf",
+      "sortOrder": 11,
+      "area": "Apartment",
+      "location": "Bar undercounter — far right",
+      "brand": "True",
+      "model": "TUF-24-R-OP-C",
+      "appliance": "24\" overlay undercounter freezer",
+      "title": "24\" overlay undercounter freezer",
+      "where": "Apartment — Bar undercounter — far right",
+      "category": "refrigeration",
+      "installBasisCode": "overlay",
+      "installBasisLabel": "Overlay / integrated",
+      "specPageRef": "p.58",
+      "basisConfirmed": "",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "modify",
+      "statusLabel": "Modification required",
+      "done": false,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo.",
+      "fieldNote": "",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "not measured",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "not measured",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": null,
+          "notMeasured": false,
+          "deltaIn": null,
+          "verdict": "none",
+          "verdictText": "not measured",
+          "acceptedReason": "",
+          "rawVerdict": "none",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "misplaced",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "ok",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": null,
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo."
+      ],
+      "findings": [
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power: wherever the install sheet in hand puts it — mark it on the photo."
+        }
+      ],
+      "photos": [],
+      "overlay": null,
+      "variationNotes": "All three rough opening dimensions are minimums. Unit is 23 7/8\" × 34 1/4\" × 23 7/8\"."
+    },
+    {
+      "clientId": "op_generic",
+      "sortOrder": 12,
+      "area": "Test",
+      "location": "Wall",
+      "brand": "",
+      "model": "ZZZ-1",
+      "appliance": "Unknown unit",
+      "title": "Unknown unit",
+      "where": "Test — Wall",
+      "category": "",
+      "installBasisCode": "",
+      "installBasisLabel": "",
+      "specPageRef": "",
+      "basisConfirmed": "",
+      "basisPending": false,
+      "basisConflict": null,
+      "status": "modify",
+      "statusLabel": "Modification required",
+      "done": true,
+      "started": true,
+      "notMeasuredReason": "",
+      "irregular": false,
+      "conclusion": "",
+      "punchLine": "Relocate the power to 5\" in from the left, 4\" up (location recorded at the walk) — found at 11 1/4\" in from the left, 4\" up, 6 1/4\" too far right.",
+      "fieldNote": "",
+      "dimensions": [
+        {
+          "axis": "w",
+          "label": "Width",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 24,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "meets min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "d",
+          "label": "Depth",
+          "rule": "min",
+          "specIn": 24,
+          "actualIn": 24,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "meets min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        },
+        {
+          "axis": "h",
+          "label": "Height",
+          "rule": "min",
+          "specIn": 34.5,
+          "actualIn": 34.5,
+          "notMeasured": false,
+          "deltaIn": 0,
+          "verdict": "ok",
+          "verdictText": "meets min",
+          "acceptedReason": "",
+          "rawVerdict": "ok",
+          "points": [],
+          "governingPoint": null
+        }
+      ],
+      "utilities": [
+        {
+          "code": "power",
+          "label": "Power",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "misplaced",
+          "markedXIn": 11.25,
+          "markedYIn": 4,
+          "offsetXIn": 6.250000000000001,
+          "offsetYIn": -7.105427357601002e-15,
+          "outsideZone": true,
+          "zoneKind": "field-point",
+          "targetXIn": 4.999999999999999,
+          "targetYIn": 4.000000000000007,
+          "measuredText": "Measured at 11 1/4\" in from the left, 4\" up — 6 1/4\" too far right of the location recorded at the walk."
+        },
+        {
+          "code": "water",
+          "label": "Water supply",
+          "requirement": "",
+          "belongs": "Wherever the install sheet in hand puts it — mark it on the photo",
+          "answer": "na",
+          "markedXIn": null,
+          "markedYIn": null,
+          "offsetXIn": null,
+          "offsetYIn": null,
+          "outsideZone": null,
+          "zoneKind": "",
+          "targetXIn": null,
+          "targetYIn": null,
+          "measuredText": ""
+        }
+      ],
+      "obstruction": {
+        "state": "none",
+        "kind": "",
+        "projectsIn": null,
+        "note": ""
+      },
+      "utilityMarkConflicts": [],
+      "panel": null,
+      "actions": [
+        "Relocate the power to 5\" in from the left, 4\" up (location recorded at the walk) — found at 11 1/4\" in from the left, 4\" up, 6 1/4\" too far right."
+      ],
+      "findings": [
+        {
+          "label": "Utility connection",
+          "detail": "Relocate the power to 5\" in from the left, 4\" up (location recorded at the walk) — found at 11 1/4\" in from the left, 4\" up, 6 1/4\" too far right."
+        }
+      ],
+      "photos": [],
+      "overlay": {
+        "photoClientId": "ph_g",
+        "corners": [
+          [
+            0.1,
+            0.1
+          ],
+          [
+            0.9,
+            0.1
+          ],
+          [
+            0.9,
+            0.9
+          ],
+          [
+            0.1,
+            0.9
+          ]
+        ],
+        "marks": {
+          "power": [
+            0.475,
+            0.8072463768115943
+          ]
+        },
+        "targets": {
+          "power": [
+            0.26666666666666666,
+            0.8072463768115943
+          ]
+        },
+        "planeWidthIn": 24,
+        "planeHeightIn": 34.5
+      },
+      "variationNotes": ""
+    }
+  ]
+}

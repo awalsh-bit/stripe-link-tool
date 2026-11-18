@@ -261,6 +261,9 @@ import {
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets, modelDiscountsFromFeed } from "./lib/epass-feed-finished.js";
 import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldUnitsForTicket, listSoldSerialOptions, listSoldSerialDetail } from "./lib/epass-sold-serials-postgres.js";
 import { traceCommissionTicket, baseTicketOf, isTicketNumber } from "./lib/commission-ticket-trace.js";
+// Site walks (Cayden, handoff v0.9.85): the pre-delivery site walk tool. lib/site-walk-*.js are his, as delivered.
+import { registerSiteWalkRoutes } from "./lib/site-walk-routes.js";
+import { ensureSiteWalkReportingViews } from "./lib/site-walk-reporting.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
@@ -941,6 +944,10 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/work-schedules.html",
   "/pm-dashboard.html",
   "/pm-route.html",
+  // Site walks (11/18): the office page is the grant; the phone page and the builder packet ride it (PAGE_IMPLIED_BY)
+  "/site-walk-office.html",
+  "/site-walk.html",
+  "/site-walk-report.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
   "/speedqueen-truckload.html",
@@ -1212,6 +1219,9 @@ const PAGE_LABELS = {
   "/work-schedules.html": "Work Schedules",
   "/pm-dashboard.html": "Project Manager Dashboard",
   "/pm-route.html": "Project Manager Route Planner",
+  "/site-walk-office.html": "Site Walks",
+  "/site-walk.html": "Site Walk — field",
+  "/site-walk-report.html": "Site Walk — builder packet",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
   "/service-journey.html": "Service Journey (ePASS mirror)",
   "/service-board.html": "Service Dispatch Board",
@@ -1297,7 +1307,11 @@ const PAGE_CATEGORIES = [
     pages: [
       "/service-journey.html",
       "/satisfaction-survey.html",
-      "/satisfaction-results.html"
+      "/satisfaction-results.html",
+      // Site walks: in testing until a real job has been walked (handoff, AGILITY_REGISTRATION.md)
+      "/site-walk-office.html",
+      "/site-walk.html",
+      "/site-walk-report.html"
     ]
   },
   {
@@ -1659,6 +1673,8 @@ function buildSessionUser(user) {
 const PAGE_IMPLIED_BY = {
   "/closed-estimates.html": "/service-estimates.html",
   "/shop-catalog.html": "/shop-orders.html",
+  "/site-walk.html": "/site-walk-office.html", // the phone page and the packet ride the Site Walks grant
+  "/site-walk-report.html": "/site-walk-office.html",
   "/clearance.html": "/inventory-lookup.html" // retired 11/11 — the address forwards to Inventory Lookup, so that grant is what it takes to follow it
 };
 
@@ -1963,6 +1979,13 @@ async function resolveAuthUser(req) {
   };
 }
 
+// "/login" is the sign-in page too (11/18): the site walk pages send a signed-out phone to
+// /login?next=<the walk>, as their settings file says. Ahead of the sign-in check, so the ?next= survives.
+app.get("/login", (req, res) => {
+  const q = req.originalUrl.indexOf("?");
+  return res.redirect(302, "/login.html" + (q >= 0 ? req.originalUrl.slice(q) : ""));
+});
+
 app.use(async (req, res, next) => {
   const host = getRequestHost(req);
   const isWebhookRequest = isAlwaysPublicPath(req.path);
@@ -2093,6 +2116,20 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     res.status(400).send(`Webhook error: ${err.message}`);
   }
 });
+
+// Site walks (11/18): registered before the global JSON parser below. A walk is posted whole (0.3–1.2 MB is
+// typical, up to 32 MB) and these routes carry their own parsers sized for it; the 10 MB parser would refuse a
+// big walk first, with a 413 the phone would keep retrying. Everything above this line (auth, CORS, host and
+// path checks) still applies to them. One grant: /site-walk-office.html. See docs/site-walk/.
+registerSiteWalkRoutes(app, { requirePagePermission, recordAudit });
+// The reporting views over the stored walks (Cayden's sitewalk_schema.sql as Postgres views; see
+// docs/site-walk/REPORTING.md). Put in place a few seconds after start, and replaced only when
+// lib/site-walk-reporting.sql changes. Nothing on the site reads them yet; a failure is logged, never fatal.
+setTimeout(() => {
+  ensureSiteWalkReportingViews()
+    .then((r) => { if (r?.applied) console.log(`Site walk reporting views: ${r.version}`); })
+    .catch((err) => console.error("Site walk reporting views were not put in place:", err?.message || err));
+}, 9 * 1000).unref?.();
 
 app.use(express.json({
   limit: "10mb",
@@ -6438,6 +6475,8 @@ app.get("/product-photos/:model/:file", (req, res) => {
   return res.sendFile(file, { headers: { "Content-Type": "image/webp" } }, (err) => { if (err && !res.headersSent) res.status(404).send("Not found."); });
 });
 
+// The site walk's offline worker is always re-checked, so a deploy reaches the phones (handoff §3).
+app.use((req, res, next) => { if (req.path === "/site-walk-sw.js") res.setHeader("Cache-Control", "no-cache"); next(); });
 app.use(express.static(__dirname, { index: false }));
 
 app.get("/", (req, res) => {

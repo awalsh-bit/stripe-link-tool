@@ -73,3 +73,8 @@ service_call_journey/**/reference/*.zip
 # Supplier asset-library downloads (print-size TIFs and JPGs, 11/17): originals stay on this
 # machine. Only the small web copies made from them go to the shop, and those do not live here.
 supplier-digital-assets/
+
+# Site walk handoff folder (Cayden, v0.9.85, 11/18): its drop-in/ is copied into the repo (site-walk*.html,
+# site-walk-assets/, site-walk-sw.js, lib/site-walk-*.js, lib/tests/) and its docs into docs/site-walk/.
+# The folder itself (the acceptance tests with the example job's spec book, the demo, the stand-in) stays here.
+wilson_site_walk_agility_handoff/

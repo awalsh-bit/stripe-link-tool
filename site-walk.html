@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Site Walk | Wilson</title>
+<link rel="manifest" href="site-walk.webmanifest">
+<meta name="theme-color" content="#12331f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="site-walk-assets/icon-192.png">
+<link rel="stylesheet" href="site-walk-assets/wilson.css">
+<link rel="stylesheet" href="site-walk-assets/site-walk.css">
+</head>
+<body data-mode="internal" data-page-title="Site Walk" class="tech-mode">
+<header id="site-header"></header>
+<main><div class="page-shell"><div class="tech-shell" id="sw-app"></div></div></main>
+<footer id="site-footer"></footer>
+<script>
+/* The portal serves three pages; keep every in-tool link pointing at them. */
+window.WILSON_SW_NAV = {
+  field:  function (walkId, opId) { return "site-walk.html?walk=" + encodeURIComponent(walkId) + (opId ? "&op=" + encodeURIComponent(opId) : ""); },
+  office: function (walkId) { return walkId ? "site-walk-office.html?walk=" + encodeURIComponent(walkId) : "site-walk-office.html"; },
+  packet: function (walkId) { return "site-walk-report.html?walk=" + encodeURIComponent(walkId); }
+};
+</script>
+<!-- Agility: where the routes are. Must load before every other script. -->
+<script src="site-walk-assets/site-walk-agility.js"></script>
+<script src="site-walk-assets/ui.js"></script>
+<script src="site-walk-assets/photo-store.js"></script>
+<!-- Uploads the photographs and rendered spec pages held in IndexedDB to
+     the shop server, so a device that did not capture one can still show
+     it full size. Without this every image stays on one phone. -->
+<script src="site-walk-assets/photo-sync.js"></script>
+<script src="site-walk-assets/offline.js"></script>
+<!-- This page is served by the Wilson portal, so there IS a shop server
+     behind it: the photo store can be fetched and walks can be pulled.
+     The single-file shared-link build says nothing here and therefore
+     never asks a server that is not there. -->
+
+<script src="site-walk-assets/site-walk-core.js"></script>
+<script src="site-walk-assets/site-walk-transport.js"></script>
+<script src="site-walk-assets/site-walk-seed.js"></script>
+<script src="site-walk-assets/site-walk-field.js"></script>
+<script>WILSON_SW_FIELD.mount(document.getElementById("sw-app"));</script>
+</body>
+</html>

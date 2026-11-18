@@ -1,0 +1,91 @@
+{
+  "model": "PDR108MB",
+  "brand": "Speed Queen",
+  "series": "",
+  "department": "Laundry",
+  "category": "Laundry Accessories",
+  "noun": "pedestal",
+  "photoKey": "SPEEDQUEEN",
+  "title": "8-Inch Riser Pedestal",
+  "sub": "Matte black riser for FF7 washers and DF7 dryers, no drawer",
+  "lead": "Lift a Speed Queen front load washer or dryer 8 inches off the floor, and the door comes up to meet you. This matte black riser is made for the FF7 washer and the DF7 dryer, and carries their finish down to the floor.",
+  "facts": [
+    ["8 in.", "Added height"],
+    ["26 7/8 in.", "Wide"],
+    ["48 7/16 in.", "Machine height on it"],
+    ["1", "Per machine"]
+  ],
+  "features": [
+    {
+      "name": "Eight inches higher",
+      "line": "It raises the washer or dryer 8 inches, so the door and the drum come up to meet you. Less bending to load, less reaching to unload."
+    },
+    {
+      "name": "Made for the FF7 and DF7",
+      "line": "Speed Queen makes it for its FF7 front load washer and the DF7 dryer beside it, at the same 26 7/8-inch width. One pedestal goes under each machine."
+    },
+    {
+      "name": "Finished to match",
+      "line": "Matte black, the same finish as the matte black FF7 and DF7, so the pair reads as one piece from the floor up. Speed Queen also makes it in white (PDR108W)."
+    },
+    {
+      "name": "A riser, plain and simple",
+      "line": "A solid base with a clean front panel, built to carry the machine. It is a riser, not a storage drawer."
+    }
+  ],
+  "also": ["Sold one at a time: a washer and dryer side by side take two", "For Speed Queen front load laundry"],
+  "specs": [
+    ["Type", "Riser pedestal, no drawer"],
+    ["Color", "Matte Black"],
+    ["Fits", "Speed Queen FF7 front load washers and DF7 dryers"],
+    ["Width", "26 7/8 in."],
+    ["Height", "8 in."],
+    ["Depth", "27 in."],
+    ["Machine height on the pedestal", "48 7/16 in."],
+    ["Quantity", "One pedestal per machine"]
+  ],
+  "gallery": [
+    {
+      "file": "ped-b",
+      "alt": "Speed Queen 8-inch riser pedestal in matte black, front view",
+      "sizes": {
+        "400": [400, 172],
+        "800": [800, 344],
+        "1600": [855, 368]
+      }
+    },
+    {
+      "file": "ped-b-washer",
+      "alt": "A matte black Speed Queen FF7 front load washer standing on the 8-inch pedestal",
+      "sizes": {
+        "400": [242, 400],
+        "800": [484, 800],
+        "1600": [855, 1414]
+      }
+    },
+    {
+      "file": "ped-b-pair",
+      "alt": "A matte black FF7 washer and DF7 dryer side by side, each on its own 8-inch pedestal",
+      "sizes": {
+        "400": [400, 355],
+        "800": [800, 710],
+        "1600": [1594, 1414]
+      }
+    }
+  ],
+  "sources": {
+    "page": "https://speedqueen.com/products/front-load-washers/ff7011bn/",
+    "sheet": "spec sheets/sq_fl_sell_sheet.pdf",
+    "sheetDate": "2025",
+    "read": "2026-11-18",
+    "photos": "Cut from Speed Queen's front view of the FF7 and DF7 pair on pedestals (FF7-DF7_B_Pair_Ped_Front.jpg in supplier-digital-assets/speed-queen/Large): the pedestal alone, the washer on its pedestal, and the pair. Speed Queen's drop has no picture of the pedestal by itself.",
+    "differences": [
+      "Part number: Speed Queen's sell sheet calls the matte black pedestal PDR108B. Wilson's item number in NetSuite and ePASS is PDR108MB.",
+      "Speed Queen has no product page for the pedestal. Its page for the FF7 washer lists it as the matching accessory; the dimensions are from the front load sell sheet.",
+      "No drawer: from Wilson's NetSuite item ('8in. Pedestal for Matching Front Load Washers and Dryers - No Drawer') and Andrew, 11/18. Speed Queen's sheet gives only the dimensions.",
+      "Machine height on the pedestal is arithmetic: the sheet's 40 7/16 in. plus 8 in."
+    ],
+    "leftOut": ["Speed Queen's sell sheet for the SF7 stacked washer and dryer also lists the pedestal as available. The page does not mention the stack; say so if you sell it that way.", "Weight and installation hardware: neither the sheet nor Speed Queen's page gives them."],
+    "note": "Facts from Speed Queen's front load sell sheet and Wilson's NetSuite item; wording is Wilson's own. The page says it is a riser without a drawer in three places and no more (Andrew, 11/18): under the title, in the last reason, and in the specifications. Price and stock are live from the shop and are not in this file."
+  }
+}

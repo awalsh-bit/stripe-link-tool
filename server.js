@@ -270,7 +270,7 @@ import { computeCashProjection } from "./lib/cash-projection.js";
 import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
 import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
-import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
+import { getCatalog, resolveModel, supplierLabel, shopBucketFor, shopAccessoryBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
 import { listServiceMapRows, isSeeded as serviceMapSeeded, isMiscId, overlayAddons, serviceMapView, applyServiceMapOp, resetServiceMap,
   listBrandMapRows, overlayBrandLayer, brandMapView, applyBrandMapOp, brandServicesKey, brandKeyOf } from "./lib/shop-service-map.js";
 import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass, buildAddonIndex, servicesKeyFor, panelReadyFor, isUnknownFinish } from "./lib/merch-classes.js";
@@ -7661,7 +7661,7 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandMap              — model → { brand } (NetSuite catalog / snapshot)
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
-function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = ({ brand }) => brand, images, mapPolicy, mapFloor, mapRegular = {}, statusById, clearanceUnitKeys, mapExemptFor = () => "", accessoryKeys = new Set() }) {
+function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = ({ brand }) => brand, images, mapPolicy, mapFloor, mapRegular = {}, statusById, clearanceUnitKeys, mapExemptFor = () => "", pageKeys = new Set(), accessoryKeys = new Set() }) {
   const brandBlocked = shopBrandBlocker();
   const byModel = new Map();
   const heldByModel = new Map(); // ALL units spoken for / reserved, per model (for the stock table)
@@ -7686,10 +7686,14 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = 
     // stock is carried so the setup prompt and the website's cart can sell it,
     // still off the storefront grid.
     const bucket = shopBucketFor(known, prod);
-    const category = bucket || (accessoryKeys.has(key) ? "Accessory" : "");
+    // 11/18: an accessory with a product page of its own (data/product-pages)
+    // is listed like any model, in its department's accessory section - the
+    // Speed Queen pedestal under Laundry Accessories. No page, no listing.
+    const pageBucket = !bucket && pageKeys.has(key) ? shopAccessoryBucketFor(known) : "";
+    const category = bucket || pageBucket || (accessoryKeys.has(key) ? "Accessory" : "");
     if (!category) continue;
     let g = byModel.get(key);
-    if (!g) { g = { key, model, category, accessoryOnly: !bucket, prod, subclass: merchSubclassFor(known, prod), merchClass: merchClassFor(known, prod), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
+    if (!g) { g = { key, model, category, accessoryOnly: !bucket && !pageBucket, prod, subclass: merchSubclassFor(known, prod), merchClass: merchClassFor(known, prod), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
     g.units.push({ serial, id: `${model}|${serial}#S` });
     if (!g.list && Number(u.list) > 0) { g.list = Number(u.list); g.listCode = u.listCode || ""; }
     if (!g.map && Number(u.map) > 0) { g.map = Number(u.map); g.mapCode = u.mapCode || ""; }
@@ -7993,7 +7997,7 @@ async function computeShopCatalogFresh() {
   const brandNames = {};
   for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
   const stock = snapshot
-    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, nameBrand, images, mapPolicy, mapFloor, mapRegular, statusById, clearanceUnitKeys, mapExemptFor, accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
+    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, nameBrand, images, mapPolicy, mapFloor, mapRegular, statusById, clearanceUnitKeys, mapExemptFor, pageKeys: new Set(await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => [])), accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
     : { items: [], models: [] };
   items.push(...stock.items);
   unifyBrandSpellings(items, stock.models); // two spellings of one name become one

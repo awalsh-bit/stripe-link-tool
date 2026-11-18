@@ -118,12 +118,76 @@ Kept, with its condition: VitaFreshPro's "up to three times longer" is given as 
 
 One to three of the gallery pictures on each page are Bosch's own graphics, with Bosch's words on them. The alt text says so.
 
+## The Speed Queen pages
+
+*Added 11/18. Andrew: "time to do all of the speed queen models... let's use all of the individual ones and skip over the pairs for the moment... for now we just need individual model product pages."*
+
+Thirty pages, one for every model on Speed Queen's four sell sheets:
+
+| Series | Models |
+| --- | --- |
+| TR7, TR5, TR3 top load washers | TR7006WN, TR7006BN, TR5006WN, TR3006WN |
+| TC5 top load washer | TC5003WN, TC5003BN |
+| DR7, DR5, DR3 dryers | DR7004WG, DR7004WE, DR7004BG, DR7004BE, DR5004WG, DR5004WE, DR3004WG, DR3004WE |
+| DC5 dryer | DC5004WG, DC5004WE, DC5004BG, DC5004BE |
+| FF7 front load washer | FF7011WN, FF7011BN (left hinge), FF7012WN, FF7012BN (right hinge) |
+| DF7 dryer | DF7004WG, DF7004WE, DF7004BG, DF7004BE |
+| SF7 stacked washer and dryer | SF7008WG, SF7008WE, SF7008BG, SF7008BE |
+
+**One folder of photos for the whole line.** A gas dryer and an electric one are the same cabinet, so the photos live once in `product-photos/SPEEDQUEEN/` and each record points there with `"photoKey": "SPEEDQUEEN"`. Sixty-seven pictures, 3.9 MB. They came from `supplier-digital-assets/speed-queen/Large` (the 2,048-pixel JPGs; the PSD originals were not needed).
+
+**Ten dryers have no photo of their own in the drop:** DR3004WG/WE, DC5004WG/WE/BG/BE and DF7004WG/WE/BG/BE. Each of those pages has one picture: the dryer cut out of the front view of its pair (`TR3-DR3_Pair_Front`, `TC5-DC5_W_Pair_Front`, `TC5-DC5_B_Pair_Front`, `FF7-DF7_W_Pair_Front`, `FF7-DF7_B_Pair_Front`). The record says so under `sources.photos`. When single-unit photos turn up, send them and the pages get the full set. The pair, lineup and room-with-a-pair photos are not used anywhere yet.
+
+**Where the facts come from.** Speed Queen's product pages (read 11/18) and the four sell sheets in `spec sheets/`. Three pages would not load (DR7004WE, DC5004WE, FF7011WN); those models use the page for the same machine in its other color or fuel. Cycle names on the dial models are read from Speed Queen's own photo of the control panel.
+
+**Where the sources disagree or are silent:**
+
+- **TR7 cycles.** The headline on Speed Queen's page says "8 Special Cycles"; its specification table and the sell sheet say 16 preset cycles. The page says 16.
+- **ENERGY STAR.** Stated for the dryers (DR7, DR5, DR3, DC5, DF7). Speed Queen's pages for the FF7 washer and the SF7 stack show only an EnergyGuide label, so those pages make no ENERGY STAR claim.
+- **Weight** is the shipping weight Speed Queen publishes. It gives no net weight.
+- **Left out:** Speed Queen's list prices, the Ripon, Wisconsin passage that is the same on every one of its pages, and connection requirements (volts, amps, gas line, venting), which are in the installation guide and not on the page or the sheet.
+- **"Built for 25 years"** is on the TR7 page only, where Speed Queen's own page was read saying it, and it is attributed to Speed Queen.
+
+The records are generated, not hand-written: the line's facts and wording sit once per series, and each model's record is that plus its color, fuel and hinge. To change a sentence on every DR7 page, it is one edit and a rebuild. Ask and it is done.
+
+## The pedestal, and how an accessory gets onto the shop
+
+*Added 11/18. Andrew: "It deserves its own page and needs to clarify its nonstorage nature."*
+
+**The rule.** Accessories stay off the shop's listings, as before, with one way on: **an accessory that has a product page is listed.** Writing the page is the switch. It shows as its own tile in its department's accessory section (the pedestal is under Laundry, then Laundry Accessories), at its ePASS price, while it is in stock. Everything else about a listing still applies to it: it needs more than one unit on hand unless "show when only one" is set for it in the Shop Catalog, it can be hidden there, and a brand that is never sold online stays off.
+
+The section an accessory lands in comes from its NetSuite merch class: 220 is Laundry Accessories, 107 Refrigeration, 149 Cooking, 154 Ventilation, 816 Outdoor. An accessory with no NetSuite class is not listed even with a page.
+
+**The pages.** `PDR108MB` (matte black, the one in stock) and `PDR108W` (white, ready for when it is stocked).
+
+*Andrew, later on 11/18, on the first draft: "three places is enough. We still want to sell them and focus on what they do, not what they don't do."* So the page sells the lift and the match. The opening, the fact strip and the first three reasons are about what the pedestal does: 8 inches of added height, less bending, made for the FF7 and DF7, finished to match. It says there is no drawer in three places and no more:
+
+1. the line under the title ("Matte black riser for FF7 washers and DF7 dryers, no drawer"),
+2. the last reason ("A riser, plain and simple... It is a riser, not a storage drawer."),
+3. the specifications ("Type: Riser pedestal, no drawer").
+
+The title itself says "Riser". The FF7 and DF7 pages call it "a matching 8-inch riser pedestal" and leave it there.
+
+**Where its facts come from.**
+
+- **No drawer:** Wilson's NetSuite item ("8in. Pedestal for Matching Front Load Washers and Dryers - No Drawer") and Andrew. Speed Queen's sheet gives only dimensions.
+- **Dimensions** (26 7/8 x 8 x 27 in.): the front load sell sheet, which is now linked from both pedestal pages.
+- **Part number:** Speed Queen's sheet calls the matte black one PDR108B. Wilson's item is PDR108MB. The page shows Wilson's.
+- **Photos:** Speed Queen's drop has no picture of the pedestal alone, so all three are cut from its front view of the pair on pedestals: the pedestal by itself, the washer standing on it, and the pair.
+- **Left out:** Speed Queen's stacked sheet also lists the pedestal for the SF7. The page does not mention the stack. Say so if you sell it that way.
+
+The cart prompt ("Installs & accessories by brand" in Online Shop Orders) still works the way it did and is separate from this: name PDR108MB there for Speed Queen's front load washers and it is also offered when someone adds an FF7.
+
 ## Not done yet
 
 - **Photos live in the repo.** About 3 MB for a model with twelve pictures, which is fine for a handful. Two hundred models want the photos in the database or on a disk instead.
 - **Search engines.** The pages are marked not to be listed. That is one line to change when they are ready to be found.
 
 ## For developers
+
+- Accessory listing: `shopAccessoryBucketFor(ns)` in `lib/catalog-resolver.js` maps an accessory merch class to its section. `shopStockItems` takes `pageKeys` (from `listProductPageKeys`) and gives a model with no ordinary bucket, a page and an accessory class that section instead of leaving it out.
+
+- `photoKey` (optional, in a record): the folder under `product-photos/` that holds its pictures, when several models share one. Capital letters and digits only, 3 to 40 of them; anything else is ignored and the model's own folder is used.
 
 - `lib/shop-product-page.js`: `loadProductPage`, `loadProductPageTemplate`, `productOfferView` (the price and stock rules), `renderProductPage`, `productPhotoFile`, `listProductPageKeys` (the record file names, read at most once a minute).
 - A record's `displayModel` is the name to show when it differs from `model`. `model` stays the key for the address, the photo folder and Add to cart.

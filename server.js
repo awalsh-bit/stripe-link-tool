@@ -197,6 +197,9 @@ import {
   listShopBlockedBrands,
   addShopBlockedBrands,
   removeShopBlockedBrand,
+  listShopL1MapBrands,
+  addShopL1MapBrand,
+  removeShopL1MapBrand,
   importModelBrandCatalog,
   getModelBrandStats,
   saveShopMapPrices,
@@ -265,6 +268,8 @@ import { traceCommissionTicket, baseTicketOf, isTicketNumber } from "./lib/commi
 import { registerSiteWalkRoutes } from "./lib/site-walk-routes.js";
 import { ensureSiteWalkReportingViews } from "./lib/site-walk-reporting.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
+import { EVENT_EMAIL_MAX_RECIPIENTS, EVENT_EMAIL_MAX_FILES, EVENT_EMAIL_MAX_BYTES, EVENT_EMAIL_SUBJECT_MAX, EVENT_EMAIL_BODY_MAX, parseAddressList, buildRecipients, renderEventEmail, checkPdfFiles, resendSend, sendAll, isEmailAddress, escHtml } from "./lib/event-email.js";
+import { createEventEmail, getEventEmail, listEventEmails, listEventEmailRecipients, getEventEmailFiles, getEventEmailFile, markRecipientSent, markRecipientFailed, requeueEventEmail, finishEventEmail, markInterruptedEventEmails, listOptedOut, recipientByToken, optOut } from "./lib/event-email-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
 import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled, updateCallDetails, listOpenLookups } from "./lib/service-field-postgres.js";
@@ -737,6 +742,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/fireflavor.html",
   "/events.html",
   "/event.html",
+  "/email-preferences", // a guest's own "stop event emails" page, from the link in an event email (11/18)
   "/terms.html",
   "/terms-sign.html",
   "/card-saved.html",
@@ -803,6 +809,7 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/events/fire-flavor/rsvp",
   "/events", // /events (listing) and /events/<slug> (one event) — the event pages a person sets up on Event RSVPs
   "/api/public/events",
+  "/api/public/email-unsubscribe", // that page's button, and the mail apps' one-click unsubscribe (List-Unsubscribe-Post)
   "/api/terms/sign",
   "/api/service/setup-intent",
   "/api/service/submit-request",
@@ -7594,6 +7601,20 @@ function shopBrandBlocker() {
   return (...names) => names.some((n) => { const k = brandKey(n); return k && (keys.has(k) || long.some((b) => k.startsWith(b))); });
 }
 
+// Brands whose ePASS L1 price counts as MAP (Andrew 11/18: ePASS holds only
+// L1 for Sharp, so no floor was known and every Sharp card read "Price in
+// cart"). Set on the Express Assortment Catalog, kept in shop_l1_map_brands,
+// read fresh on every catalog build. A model of such a brand with no RETAIL /
+// brand MAP level in ePASS takes its L1 as the floor: at or above it the price
+// shows on the card, below it the card shows L1 and the price waits in the
+// cart. Matched on the brand's shop name, its older name or its ePASS brand
+// code, whole names only (a pricing rule must not spread to another brand that
+// merely starts the same way).
+function shopL1MapBrandMatcher(entries = []) {
+  const keys = new Set((entries || []).map((e) => brandKey(e?.brand ?? e)).filter(Boolean));
+  return (...names) => keys.size > 0 && names.some((n) => { const k = brandKey(n); return Boolean(k) && keys.has(k); });
+}
+
 function normalizeModelKey(model) {
   return String(model || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
 }
@@ -7751,7 +7772,7 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandMap              — model → { brand } (NetSuite catalog / snapshot)
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
-function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = ({ brand }) => brand, images, mapPolicy, mapFloor, mapRegular = {}, statusById, clearanceUnitKeys, mapExemptFor = () => "", pageKeys = new Set(), accessoryKeys = new Set() }) {
+function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = ({ brand }) => brand, images, mapPolicy, mapFloor, mapRegular = {}, statusById, clearanceUnitKeys, mapExemptFor = () => "", pageKeys = new Set(), accessoryKeys = new Set(), l1MapBrand = () => false }) {
   const brandBlocked = shopBrandBlocker();
   const byModel = new Map();
   const heldByModel = new Map(); // ALL units spoken for / reserved, per model (for the stock table)
@@ -7808,16 +7829,23 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, nameBrand = 
     // a sealed unit is free and priced, even when the grid wouldn't list it
     // (an accessory class, or a single unit).
     const accessorySell = !listed && accessoryKeys.has(g.key) && !blocked && !cfg.hidden && available.length > 0 && price > 0;
-    models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, subclass: g.subclass, merchClass: g.merchClass, category: g.category,
-      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge, mapExempt: !!cfg.mapExempt }, mapExempt: mapExemptFor(g.model), listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : g.accessoryOnly ? (accessorySell ? "accessory — sold from the setup prompt, not the grid" : !available.length ? "accessory — none available" : "accessory — no price") : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
-    if (!listed && !accessorySell) continue;
     // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
     // or above it the price is advertised on the card; below it (an override)
-    // it stays a cart reveal. Without an ePASS MAP, the old rule: published
-    // MAP feed + the brand/category whitelist.
-    const floor = g.map > 0 ? g.map : mapFloor[g.key];
+    // it stays a cart reveal. A brand set to "use L1 as MAP" (11/18) takes the
+    // model's L1 when ePASS has no MAP level for it. Otherwise the old rule:
+    // published MAP feed + the brand/category whitelist.
+    const usesL1 = l1MapBrand(brand, brandWas, g.brandCode);
+    const l1Floor = !(g.map > 0) && usesL1 && g.l1 > 0 ? g.l1 : 0;
+    const floor = g.map > 0 ? g.map : l1Floor > 0 ? l1Floor : mapFloor[g.key];
+    const mapFrom = g.map > 0 ? "epass" : l1Floor > 0 ? "l1" : Number(floor) > 0 ? "feed" : "";
     const mapExempt = mapExemptFor(g.model);
-    const mapPublic = Boolean(price) && (Boolean(mapExempt) || Boolean(Number.isFinite(Number(floor)) && Number(floor) > 0 && price >= Number(floor) - 0.005 && (g.map > 0 || shopMapRuleMatch(mapPolicy, brand, g.category))));
+    const mapPublic = Boolean(price) && (Boolean(mapExempt) || Boolean(Number.isFinite(Number(floor)) && Number(floor) > 0 && price >= Number(floor) - 0.005 && (g.map > 0 || l1Floor > 0 || shopMapRuleMatch(mapPolicy, brand, g.category))));
+    // The catalog page's row also says where the MAP came from (mapFrom) and
+    // what the shop card shows (card): "price", "floor" (the MAP, with the
+    // real price in the cart), "cart" ("Price in cart") or "call".
+    models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, subclass: g.subclass, merchClass: g.merchClass, category: g.category,
+      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || l1Floor || null, mapCode: g.map > 0 ? g.mapCode : l1Floor > 0 ? "L1" : g.mapCode, mapFrom, l1Brand: usesL1, card: !price ? "call" : mapPublic ? "price" : Number.isFinite(Number(floor)) && price < Number(floor) ? "floor" : "cart", l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge, mapExempt: !!cfg.mapExempt }, mapExempt: mapExemptFor(g.model), listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : g.accessoryOnly ? (accessorySell ? "accessory — sold from the setup prompt, not the grid" : !available.length ? "accessory — none available" : "accessory — no price") : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+    if (!listed && !accessorySell) continue;
     for (const x of available) {
       items.push({
         id: x.id, model: g.model, brand, brandCode: g.brandCode, product: g.prod, subclass: g.subclass, merchClass: g.merchClass, category: g.category, description: g.description,
@@ -7956,15 +7984,17 @@ async function computeShopCatalogFresh() {
   let expressSettings = null;
   let modelSettings = {};
   let brandMap = {};
+  let l1MapBrands = [];
   try {
-    [statuses, overrides, snapshot, mapPrices, expressSettings, modelSettings, brandMap] = await Promise.all([
+    [statuses, overrides, snapshot, mapPrices, expressSettings, modelSettings, brandMap, l1MapBrands] = await Promise.all([
       listClearanceStatuses(),
       listPriceOverrides(),
       getShopInventorySnapshot(),
       getShopMapPrices().catch(() => null),
       getShopExpressSettings(),
       listShopModelSettings().catch(() => ({})),
-      getModelBrandMap().catch(() => ({}))
+      getModelBrandMap().catch(() => ({})),
+      listShopL1MapBrands().catch((err) => { console.warn("L1-as-MAP brands unreadable:", err.message); return []; }) // unreadable -> no brand uses L1: cards fall back to "Price in cart", never to an unchecked price
     ]);
   } catch (err) {
     // If the DB is down, sell nothing rather than something already sold.
@@ -7982,6 +8012,19 @@ async function computeShopCatalogFresh() {
   const mapFloor = mapPrices?.prices || {};
   const mapRegular = mapPrices?.regular || {}; // the price without promotions, where it is above the floor (11/18)
   const nameBrand = createShopBrandNamer(brandTable, brandMap); // one name per brand (11/18) — see lib/shop-brand-names.js
+  const l1MapBrand = shopL1MapBrandMatcher(l1MapBrands);
+  // ePASS's price levels per model, as the feed carries them on each on-hand
+  // unit: the RETAIL / brand MAP level and L1. The in-stock listing reads them
+  // off its own units; the clearance list below needs them for the brands
+  // that use L1 as MAP.
+  const epassLevelsByKey = new Map();
+  for (const u of snapshot?.serialUnits || []) {
+    const k = normalizeModelKey(u?.model || u?.sku || ""); if (!k) continue;
+    const lv = epassLevelsByKey.get(k) || { map: 0, l1: 0 };
+    if (!lv.map && Number(u.map) > 0) lv.map = Number(u.map);
+    if (!lv.l1 && Number(u.l1) > 0) lv.l1 = Number(u.l1);
+    epassLevelsByKey.set(k, lv);
+  }
 
   const statusById = new Map(statuses.map((s) => [s.itemId, s]));
   // Live clearance (ePASS Unique Sell Price is the price): workbook-era price
@@ -8042,13 +8085,17 @@ async function computeShopCatalogFresh() {
     // Public (no-profile) price: whitelisted brand+category AND a MAP/UMRP
     // floor exists for the model AND our price is at or above it. No floor
     // entry → stays behind the gate; a penny below the floor → gate.
-    const floor = mapFloor[normalizeModelKey(item.model)];
+    // A brand set to "use L1 as MAP" (11/18) follows the in-stock rule
+    // instead: the model's ePASS MAP level, else its L1, is the floor.
+    const levels = l1MapBrand(itemBrand, item.brand, item.brandCode) ? epassLevelsByKey.get(normalizeModelKey(item.model)) : null;
+    const brandFloor = levels ? (levels.map > 0 ? levels.map : levels.l1 > 0 ? levels.l1 : 0) : 0;
+    const floor = brandFloor > 0 ? brandFloor : mapFloor[normalizeModelKey(item.model)];
     // Open-box units (ePASS serial type OPEN) are outside MAP (Andrew 11/10):
     // their price shows on the card. DISPLAY units are not — floor models
     // keep the in-cart reveal so the showroom isn't sold off a chip at a time.
     const mapExempt = mapExemptFor(item.model) || (String(serialType).toUpperCase() === "OPEN" ? "open" : "");
     const mapPublic = Boolean(mapExempt) || Boolean(
-      shopMapRuleMatch(mapPolicy, item.brand, item.category) &&
+      (brandFloor > 0 || shopMapRuleMatch(mapPolicy, item.brand, item.category)) &&
       Number.isFinite(Number(floor)) &&
       price >= Number(floor) - 0.005
     );
@@ -8087,7 +8134,7 @@ async function computeShopCatalogFresh() {
   const brandNames = {};
   for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
   const stock = snapshot
-    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, nameBrand, images, mapPolicy, mapFloor, mapRegular, statusById, clearanceUnitKeys, mapExemptFor, pageKeys: new Set(await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => [])), accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
+    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, nameBrand, images, mapPolicy, mapFloor, mapRegular, statusById, clearanceUnitKeys, mapExemptFor, l1MapBrand, pageKeys: new Set(await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => [])), accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
     : { items: [], models: [] };
   items.push(...stock.items);
   unifyBrandSpellings(items, stock.models); // two spellings of one name become one
@@ -8171,6 +8218,7 @@ async function computeShopCatalogFresh() {
     stockModels: stock.models,
     modelPhotos,
     mapExemptStats,
+    l1MapBrands, // [{ key, brand, addedBy, addedAt }] — the brands using L1 as MAP for this build
     snapshotAgeHours,
     mapPriceCount: Object.keys(mapFloor).length,
     snapshot: snapshot
@@ -9698,7 +9746,7 @@ app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/s
     }
     return res.json({ models, outlet, outletOff, exec, modelPhotos: catalog.modelPhotos || {}, modelPhotoMax: MODEL_PHOTO_MAX, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
       netsuiteModels: models.filter((m) => m.netsuite).length, snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX, blockedBrands: shopBlockedBrandEntries,
-      mapExempt: catalog.mapExemptStats || null });
+      mapExempt: catalog.mapExemptStats || null, l1MapBrands: catalog.l1MapBrands || [] });
   } catch (err) {
     console.error("Stock models failed:", err.message);
     return res.status(500).json({ error: "Unable to load the stock models." });
@@ -12627,6 +12675,31 @@ app.delete("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-order
     await refreshShopBlockedBrands();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brand_removed", targetUserId: null, detail: { entry: String(req.params.entry).slice(0, 40), removed } }).catch(() => {});
     return res.json({ ok: true, removed, brands: await listShopBlockedBrands() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that brand." }); }
+});
+
+// Brands whose L1 counts as MAP (Express Assortment Catalog, 11/18). Anyone
+// who can edit the catalog's models can set it; every change is audited and
+// the shop's cached catalog is dropped so the cards follow at once.
+app.get("/api/shop/l1-map-brands", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
+  try { return res.json({ brands: await listShopL1MapBrands() }); }
+  catch (err) { return res.status(500).json({ error: err.message || "Unable to load the brands." }); }
+});
+app.post("/api/shop/l1-map-brands", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
+  try {
+    const brand = String(req.body?.brand || "").trim();
+    const added = await addShopL1MapBrand({ brand, by: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    if (added) recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_l1_map_brand_added", targetUserId: null, detail: { brand: brand.slice(0, 40) } }).catch(() => {});
+    return res.json({ ok: true, added, brands: await listShopL1MapBrands() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to add that brand." }); }
+});
+app.delete("/api/shop/l1-map-brands/:brand", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
+  try {
+    const removed = await removeShopL1MapBrand(req.params.brand);
+    invalidateShopCatalog();
+    if (removed) recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_l1_map_brand_removed", targetUserId: null, detail: { brand: String(req.params.brand).slice(0, 40) } }).catch(() => {});
+    return res.json({ ok: true, removed, brands: await listShopL1MapBrands() });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that brand." }); }
 });
 
@@ -24222,6 +24295,244 @@ app.get("/api/events/:id/roster.csv", eventPage, async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: "Unable to export the roster." });
   }
+});
+
+// ---------------------------------------------------------------------------
+// EVENT EMAIL (11/18): email an event to up to 100 people, PDFs attached.
+// lib/event-email.js has the how and why. Anyone with Event RSVPs can send
+// (Andrew 11/18); every send is kept with who sent it, to whom, what it said
+// and the files, and audited. Each person gets their own email from
+// RESEND_FROM_EMAIL, with replies going to the event's contact (or the sender).
+// RESEND_API_BASE exists for local testing against a stand-in; never set it on Render.
+// ---------------------------------------------------------------------------
+const EVENT_EMAIL_API_BASE = String(process.env.RESEND_API_BASE || "https://api.resend.com").replace(/\/+$/, "");
+const EVENT_EMAIL_LOGO = () => `https://${SERVICE_PUBLIC_HOST}/logo-black.png`;
+const eventEmailPrefsUrl = (token) => `https://${SERVICE_PUBLIC_HOST}/email-preferences?t=${encodeURIComponent(token)}`;
+const eventEmailOneClickUrl = (token) => `https://${SERVICE_PUBLIC_HOST}/api/public/email-unsubscribe?t=${encodeURIComponent(token)}`;
+const eventEmailUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: EVENT_EMAIL_MAX_BYTES, files: EVENT_EMAIL_MAX_FILES, fields: 20, fieldSize: 256 * 1024 } });
+const eventEmailFiles = (req, res, next) => eventEmailUpload.array("files", EVENT_EMAIL_MAX_FILES)(req, res, (err) => {
+  if (!err) return next();
+  const msg = err.code === "LIMIT_FILE_SIZE" ? `Each PDF has to be under ${EVENT_EMAIL_MAX_BYTES / 1048576} MB.` : err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE" ? `Attach up to ${EVENT_EMAIL_MAX_FILES} PDFs.` : "Those attachments couldn't be read.";
+  return res.status(400).json({ error: msg });
+});
+const eventEmailRunning = new Set();
+const eventEmailStartedHere = new Set(); // every send this process started (the restart check leaves these alone)
+const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
+const eventWithUrl = (e) => (e ? { ...e, publicUrl: `${EVENT_SITE_BASE()}/events/${e.slug}` } : { name: "" });
+
+function eventEmailReplyTo(event, req) {
+  const email = String(event?.contactEmail || "").trim();
+  if (email && isEmailAddress(email.toLowerCase())) {
+    const name = String(event.contactName || "").replace(/[<>"]/g, "").trim();
+    return name ? `${name} <${email}>` : email;
+  }
+  return userReplyTo(req) || "";
+}
+function eventEmailDraft(req) {
+  const b = req.body || {};
+  const subject = String(b.subject || "").replace(/\s+/g, " ").trim();
+  const body = String(b.body || "").replace(/\r\n/g, "\n").trim();
+  if (!subject) return { error: "Give the email a subject." };
+  if (subject.length > EVENT_EMAIL_SUBJECT_MAX) return { error: `Keep the subject under ${EVENT_EMAIL_SUBJECT_MAX} characters.` };
+  if (!body) return { error: "Write the message." };
+  if (body.length > EVENT_EMAIL_BODY_MAX) return { error: `Keep the message under ${EVENT_EMAIL_BODY_MAX.toLocaleString("en-US")} characters.` };
+  return { subject, body, includeDetails: !(b.includeDetails === false || b.includeDetails === "false") };
+}
+function eventEmailMessage({ event, draft, recipient, attachments, replyTo, test = false }) {
+  const m = renderEventEmail({ event, subject: draft.subject, body: draft.body, name: recipient.name, includeDetails: draft.includeDetails,
+    unsubscribeUrl: test ? eventEmailPrefsUrl("test") : eventEmailPrefsUrl(recipient.token), logoUrl: EVENT_EMAIL_LOGO() });
+  return {
+    from: RESEND_FROM_EMAIL, to: [recipient.email], subject: (test ? "[Test] " : "") + m.subject, html: m.html, text: m.text,
+    ...(replyTo ? { reply_to: replyTo } : {}),
+    ...(test ? {} : { headers: { "List-Unsubscribe": `<${eventEmailOneClickUrl(recipient.token)}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }),
+    ...(attachments.length ? { attachments: attachments.map((a) => ({ filename: a.name, content: a.base64 })) } : {}),
+    tags: [{ name: "kind", value: test ? "event_email_test" : "event_email" }]
+  };
+}
+
+// The send itself, in the background. Started only by a person's Send (or
+// "Send to the rest"); after a restart an unfinished send waits for a person.
+async function runEventEmail(emailId) {
+  if (eventEmailRunning.has(emailId)) return;
+  eventEmailRunning.add(emailId);
+  try {
+    const send = await getEventEmail(emailId);
+    if (!send) return;
+    const event = eventWithUrl(await getEvent(send.eventId).catch(() => null));
+    const attachments = (await getEventEmailFiles(emailId)).map((f) => ({ name: f.name, base64: Buffer.from(f.data).toString("base64") }));
+    const queue = await listEventEmailRecipients(emailId, { status: "queued" });
+    const { stopped, left } = await sendAll({
+      recipients: queue,
+      build: (r) => eventEmailMessage({ event, draft: send, recipient: r, attachments, replyTo: send.replyTo }),
+      send: (message, key) => resendSend({ apiKey: RESEND_API_KEY, apiBase: EVENT_EMAIL_API_BASE, message, idempotencyKey: key }),
+      onResult: (r, out) => (out?.ok ? markRecipientSent(r.id, out.id) : markRecipientFailed(r.id, out?.error || "Not sent."))
+    });
+    for (const r of left) await markRecipientFailed(r.id, `Not sent: ${stopped?.error || "the send stopped."}`);
+    const status = await finishEventEmail(emailId, { stopReason: stopped?.error || "" });
+    console.log(`Event email ${emailId}: ${status}${stopped ? ` (${stopped.error})` : ""}`);
+  } catch (err) {
+    console.error("Event email send failed:", err.message);
+    await finishEventEmail(emailId, { stopReason: `Stopped by an error: ${String(err.message || err).slice(0, 200)}` }).catch(() => {});
+  } finally {
+    eventEmailRunning.delete(emailId);
+  }
+}
+if (process.env.DATABASE_URL) {
+  setTimeout(() => {
+    markInterruptedEventEmails({ except: eventEmailStartedHere })
+      .then((n) => { if (n) console.warn(`Event email: ${n} send(s) were cut short by a restart and wait for someone to press "Send to the rest".`); })
+      .catch((err) => console.warn("Event email start-up check failed:", err.message));
+  }, 7 * 1000).unref?.();
+}
+
+app.get("/api/events/:id/emails", eventPage, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(404).json({ error: "Event not found." });
+    const event = await getEvent(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    const invitees = await listInvitees(event.id);
+    const optedOut = await listOptedOut(invitees.map((i) => i.email));
+    return res.json({
+      emails: await listEventEmails(event.id), optedOut: [...optedOut],
+      limits: { recipients: EVENT_EMAIL_MAX_RECIPIENTS, files: EVENT_EMAIL_MAX_FILES, bytes: EVENT_EMAIL_MAX_BYTES, subject: EVENT_EMAIL_SUBJECT_MAX, body: EVENT_EMAIL_BODY_MAX },
+      configured: Boolean(RESEND_API_KEY && RESEND_FROM_EMAIL), from: RESEND_FROM_EMAIL, replyTo: eventEmailReplyTo(event, req),
+      testTo: req.authUser?.kind === "db" ? req.authUser.email : ""
+    });
+  } catch (err) { return res.status(500).json({ error: "Unable to load this event's emails." }); }
+});
+app.get("/api/events/:id/emails/:emailId", eventPage, async (req, res) => {
+  try {
+    if (!isUuid(req.params.emailId)) return res.status(404).json({ error: "Not found." });
+    const email = await getEventEmail(req.params.emailId);
+    if (!email || email.eventId !== req.params.id) return res.status(404).json({ error: "Not found." });
+    const recipients = (await listEventEmailRecipients(email.id)).map(({ token, ...r }) => r); // a guest's unsubscribe token stays private
+    return res.json({ email, recipients, running: eventEmailRunning.has(email.id) });
+  } catch (err) { return res.status(500).json({ error: "Unable to load that email." }); }
+});
+app.get("/api/events/:id/emails/:emailId/files/:seq", eventPage, async (req, res) => {
+  try {
+    if (!isUuid(req.params.emailId)) return res.status(404).json({ error: "Not found." });
+    const email = await getEventEmail(req.params.emailId);
+    const file = email && email.eventId === req.params.id ? await getEventEmailFile(email.id, Number.parseInt(req.params.seq, 10) || 0) : null;
+    if (!file) return res.status(404).json({ error: "Not found." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${file.name.replace(/"/g, "")}"`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.send(Buffer.from(file.data));
+  } catch (err) { return res.status(500).json({ error: "Unable to open that file." }); }
+});
+// How it will look, for one person (the first one picked, or a stand-in).
+app.post("/api/events/:id/emails/preview", eventPage, async (req, res) => {
+  try {
+    const event = isUuid(req.params.id) ? await getEvent(req.params.id) : null;
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    const draft = eventEmailDraft(req);
+    if (draft.error) return res.status(400).json({ error: draft.error });
+    const m = renderEventEmail({ event: eventWithUrl(event), subject: draft.subject, body: draft.body, name: String(req.body?.name || "").slice(0, 80), includeDetails: draft.includeDetails, unsubscribeUrl: eventEmailPrefsUrl("test"), logoUrl: EVENT_EMAIL_LOGO() });
+    return res.json({ ...m, from: RESEND_FROM_EMAIL, replyTo: eventEmailReplyTo(event, req) });
+  } catch (err) { return res.status(500).json({ error: "Unable to show the preview." }); }
+});
+// A copy to the person signed in, marked [Test]. Not kept with the event's sends.
+app.post("/api/events/:id/emails/test", eventPage, rateLimit("event-email-test", 30, 60 * 60 * 1000), eventEmailFiles, async (req, res) => {
+  try {
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    const to = req.authUser?.kind === "db" ? String(req.authUser.email || "").toLowerCase() : "";
+    if (!isEmailAddress(to)) return res.status(400).json({ error: "Sign in with your own account to send yourself a test." });
+    const event = isUuid(req.params.id) ? await getEvent(req.params.id) : null;
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    const draft = eventEmailDraft(req);
+    if (draft.error) return res.status(400).json({ error: draft.error });
+    const pdfs = checkPdfFiles(req.files || []);
+    if (pdfs.error) return res.status(400).json({ error: pdfs.error });
+    const message = eventEmailMessage({ event: eventWithUrl(event), draft, recipient: { email: to, name: req.authUser?.displayName || "" }, attachments: pdfs.files.map((f) => ({ name: f.name, base64: f.data.toString("base64") })), replyTo: eventEmailReplyTo(event, req), test: true });
+    const out = await resendSend({ apiKey: RESEND_API_KEY, apiBase: EVENT_EMAIL_API_BASE, message });
+    if (!out.ok) return res.status(502).json({ error: `The test didn't go: ${out.error}` });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "event_email_test", targetUserId: null, detail: { eventId: event.id, to, subject: draft.subject.slice(0, 150), files: pdfs.files.map((f) => f.name) } }).catch(() => {});
+    return res.json({ ok: true, to });
+  } catch (err) { return res.status(500).json({ error: "Unable to send the test." }); }
+});
+// Send to the list: answers at once (202) and sends in the background; the page follows along.
+app.post("/api/events/:id/emails", eventPage, rateLimit("event-email-send", 20, 60 * 60 * 1000), eventEmailFiles, async (req, res) => {
+  try {
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    if (req.body?.confirm !== "send") return res.status(400).json({ error: "Confirm the send first." });
+    const event = isUuid(req.params.id) ? await getEvent(req.params.id) : null;
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    const draft = eventEmailDraft(req);
+    if (draft.error) return res.status(400).json({ error: draft.error });
+    const pdfs = checkPdfFiles(req.files || []);
+    if (pdfs.error) return res.status(400).json({ error: pdfs.error });
+    let ids = [];
+    try { ids = JSON.parse(String(req.body?.inviteeIds || "[]")); } catch { ids = []; }
+    const wanted = new Set((Array.isArray(ids) ? ids : []).map(String));
+    const picked = (await listInvitees(event.id)).filter((i) => wanted.has(i.id));
+    const pasted = parseAddressList(req.body?.extra || "");
+    if (pasted.invalid.length) return res.status(400).json({ error: `These aren't email addresses: ${pasted.invalid.slice(0, 5).join(", ")}${pasted.invalid.length > 5 ? ` and ${pasted.invalid.length - 5} more` : ""}.` });
+    const optedOut = await listOptedOut([...picked.map((i) => i.email), ...pasted.found.map((x) => x.email)]);
+    const { send, skipped } = buildRecipients({ invitees: picked, extras: pasted.found, optedOut });
+    if (!send.length) return res.status(400).json({ error: skipped.length ? "Everyone picked has unsubscribed from event emails." : "Pick at least one person with an email address." });
+    if (send.length > EVENT_EMAIL_MAX_RECIPIENTS) return res.status(400).json({ error: `That's ${send.length} people. One send goes to ${EVENT_EMAIL_MAX_RECIPIENTS} at most: split it into two.` });
+    // a double click, or the same email sent twice in a row
+    const recent = (await listEventEmails(event.id)).find((e) => e.subject === draft.subject && e.body === draft.body && Date.now() - Date.parse(e.createdAt) < 2 * 60 * 1000);
+    if (recent) return res.status(409).json({ error: "That email went out a moment ago. Check the list of sent emails below before sending it again." });
+    const created = await createEventEmail({ eventId: event.id, ...draft, replyTo: eventEmailReplyTo(event, req), by: eventActor(req), byName: req.authUser?.displayName || "", recipients: send, skipped, files: pdfs.files });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "event_email_sent", targetUserId: null,
+      detail: { eventId: event.id, emailId: created.id, subject: draft.subject.slice(0, 150), recipients: send.length, skipped: skipped.length, files: pdfs.files.map((f) => f.name) } }).catch(() => {});
+    eventEmailStartedHere.add(created.id);
+    setImmediate(() => { runEventEmail(created.id); });
+    return res.status(202).json({ email: created });
+  } catch (err) {
+    console.error("Event email could not start:", err.message);
+    return res.status(500).json({ error: "Unable to start the send." });
+  }
+});
+// "Send to the rest": the ones that failed, or never went because of a restart.
+app.post("/api/events/:id/emails/:emailId/retry", eventPage, async (req, res) => {
+  try {
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    const email = isUuid(req.params.emailId) ? await getEventEmail(req.params.emailId) : null;
+    if (!email || email.eventId !== req.params.id) return res.status(404).json({ error: "Not found." });
+    if (eventEmailRunning.has(email.id)) return res.status(409).json({ error: "That email is still going out." });
+    const n = await requeueEventEmail(email.id);
+    if (!n) { await finishEventEmail(email.id); return res.status(400).json({ error: "Everyone on that email already has it." }); }
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "event_email_retry", targetUserId: null, detail: { eventId: email.eventId, emailId: email.id, recipients: n } }).catch(() => {});
+    eventEmailStartedHere.add(email.id);
+    setImmediate(() => { runEventEmail(email.id); });
+    return res.status(202).json({ ok: true, requeued: n });
+  } catch (err) { return res.status(500).json({ error: "Unable to send to the rest." }); }
+});
+
+// PUBLIC (service host): a guest's own way out. The page asks first (link
+// scanners open links, so a visit alone changes nothing); the button, and a
+// mail app's one-click unsubscribe, do it.
+function emailPrefsPage(title, bodyHtml) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${escHtml(title)} · Wilson AC &amp; Appliance</title>
+<style>body{margin:0;background:#f8f8f1;color:#1f2a1f;font-family:Arial,Helvetica,sans-serif;}main{max-width:520px;margin:48px auto;padding:28px 24px;background:#fff;border:1px solid #d9dfcf;border-radius:14px;}h1{font-size:21px;margin:0 0 12px;}p{font-size:15px;line-height:1.6;margin:0 0 14px;}button{background:#2f6f4f;color:#fff;border:0;border-radius:10px;font:inherit;font-weight:700;padding:12px 20px;cursor:pointer;}small{color:#5d6a5b;font-size:13px;line-height:1.5;display:block;margin-top:18px;}img{display:block;margin:0 0 18px;}@media (max-width:560px){main{margin:16px;}}</style></head>
+<body><main><img src="/logo-black.png" alt="Wilson AC &amp; Appliance" width="150">${bodyHtml}<small>Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · <a href="tel:512-894-0907">512-894-0907</a></small></main></body></html>`;
+}
+app.get("/email-preferences", rateLimit("email-prefs", 120, 60 * 60 * 1000), async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const t = String(req.query.t || "");
+  if (t === "test") return res.send(emailPrefsPage("Event emails", `<h1>This is a test copy</h1><p>In the real email, this link lets a guest stop getting Wilson's event emails.</p>`));
+  try {
+    const r = await recipientByToken(t);
+    if (!r) return res.status(404).send(emailPrefsPage("Event emails", `<h1>This link isn't working</h1><p>It may have been copied only in part. To stop event emails, reply to the email and we'll take care of it.</p>`));
+    if (r.optedOut) return res.send(emailPrefsPage("Unsubscribed", `<h1>You're unsubscribed</h1><p>${escHtml(r.email)} won't get Wilson's event emails any more.</p>`));
+    return res.send(emailPrefsPage("Event emails", `<h1>Stop event emails?</h1><p>Wilson won't send ${escHtml(r.email)} any more event invitations or event news. Emails about your own orders and service are not affected.</p>
+<form method="post" action="/api/public/email-unsubscribe"><input type="hidden" name="t" value="${escHtml(t)}"><button type="submit">Unsubscribe</button></form>`));
+  } catch (err) { return res.status(500).send(emailPrefsPage("Event emails", `<h1>Something went wrong</h1><p>Please try again in a minute.</p>`)); }
+});
+app.post("/api/public/email-unsubscribe", rateLimit("email-unsub", 60, 60 * 60 * 1000), express.urlencoded({ extended: false, limit: "4kb" }), async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const t = String(req.query.t || req.body?.t || "");
+  const fromPage = !req.query.t; // our page posts the token in the form; a mail app's one-click posts to the header's URL
+  try {
+    const r = await recipientByToken(t);
+    if (!r) return fromPage ? res.status(404).send(emailPrefsPage("Event emails", `<h1>This link isn't working</h1><p>Reply to the email and we'll take you off the list.</p>`)) : res.status(404).type("text/plain").send("Not found.");
+    const added = await optOut({ email: r.email, via: fromPage ? "link" : "one-click", emailId: r.emailId, eventId: r.eventId });
+    if (added) recordAudit({ ip: req.ip, actorUserId: null, action: "event_email_unsubscribed", targetUserId: null, detail: { emailId: r.emailId, eventId: r.eventId, via: fromPage ? "link" : "one-click" } }).catch(() => {});
+    return fromPage ? res.send(emailPrefsPage("Unsubscribed", `<h1>You're unsubscribed</h1><p>${escHtml(r.email)} won't get Wilson's event emails any more.</p>`)) : res.type("text/plain").send("Unsubscribed.");
+  } catch (err) { return fromPage ? res.status(500).send(emailPrefsPage("Event emails", `<h1>Something went wrong</h1><p>Please try again in a minute.</p>`)) : res.status(500).type("text/plain").send("Try again later."); }
 });
 
 // Generic phrases that don't identify the product/service being refunded.

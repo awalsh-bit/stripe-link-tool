@@ -138,6 +138,22 @@
     .count.go { cursor: pointer; border: 0; font: inherit; text-align: left; color: inherit; }
     .count.go:hover { background: rgba(var(--primary-rgb), 0.14); }
     .count.need { background: #fef3c7; } .count.need:hover { background: #fde68a; }
+    /* Brands that use L1 as MAP (11/18) */
+    .l1map { border: 1px solid #edf1f7; border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; }
+    .l1map .ttl { font-size: 13.5px; font-weight: 700; }
+    .l1map .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .l1chip { display: inline-flex; align-items: center; gap: 5px; background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 3px 3px 3px 11px; font-size: 12.5px; font-weight: 700; }
+    .l1chip .n { font-weight: 500; color: #4338ca; }
+    .l1chip button { appearance: none; border: 0; background: transparent; color: inherit; width: 24px; height: 24px; border-radius: 999px; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; font-family: inherit; }
+    .l1chip button:hover, .l1chip button:focus-visible { background: rgba(55, 48, 163, 0.14); outline: none; }
+    .l1map .none { color: var(--muted); font-size: 12.5px; }
+    .l1map .pick { display: inline-flex; gap: 6px; align-items: center; }
+    .l1map select { border: 1.5px solid var(--border); border-radius: 10px; padding: 7px 9px; font-size: 13px; background: #fff; font-family: inherit; max-width: 100%; min-width: 0; }
+    .l1map .msg { font-size: 12.5px; color: var(--muted); }
+    .l1map .msg.ok { color: #166534; font-weight: 600; } .l1map .msg.err { color: #b91c1c; font-weight: 600; }
+    .l1map .help { flex-basis: 100%; font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
+    .tag.l1 { background: #eef2ff; color: #3730a3; }
+    .stock-table .sub.incart { color: #92400e; font-weight: 600; }
     /* needs-a-price / held units: no picture, just what to do */
     .ocard .why { font-size: 13px; line-height: 1.45; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 10px; color: #78350f; }
     .ocard .why.mark { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
@@ -223,7 +239,7 @@
       .d-foot .ws-btn { flex: 1; }
       .d-foot .msg { flex-basis: 100%; }
     }
-    @media (max-width: 720px) { body { padding: 16px 10px; } .surface { padding: 14px; } .filters select { max-width: 100%; flex: 1; } .cards { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { body { padding: 16px 10px; } .surface { padding: 14px; } .filters select { max-width: 100%; flex: 1; } .cards { grid-template-columns: 1fr; } .l1map .pick { flex: 1 1 100%; } .l1map .pick select { flex: 1; } }
   </style>
 </head>
 <body data-shell-label="Express Assortment Catalog" data-shell-icon="sales">
@@ -236,6 +252,7 @@
         <p class="section-note">
           Every model the ePASS feed says is in stock and what the store does with it. Each row shows the model's current setup —
           <b>click a row to edit it</b>: price override, show when only one, hide, chip, MAP exempt, and its pictures.
+          A price shows on the shop card only when the model's MAP is known; <b>Use L1 as MAP</b> below sets that, brand by brand, for brands whose models carry only L1 in ePASS.
           The store posts in-stock models automatically: <b>2–3 units</b> show <b>Low Stock</b>, <b>4 or more</b> show <b>In Stock</b>,
           a <b>single</b> unit stays off until you turn on <i>Show when only one</i>. Price defaults to the model's <b>RETAIL</b> price in ePASS.
           Pictures you add replace the catalog thumbnail — <b>Actual photos</b> (ours; the shop marks them <i>Actual product photo</i>)
@@ -244,6 +261,13 @@
         </p>
       </div>
       <div class="counts" id="counts"></div>
+      <div class="l1map" id="l1Map">
+        <span class="ttl">Use L1 as MAP</span>
+        <span class="chips" id="l1List"></span>
+        <span class="pick"><select id="l1Pick" aria-label="Brand to add"><option value="">Add a brand…</option></select><button type="button" class="ws-btn quiet" id="l1Add" disabled>Add</button></span>
+        <span class="msg" id="l1Msg" role="status"></span>
+        <p class="help">For these brands, a model with no RETAIL or MAP price in ePASS uses its <b>L1</b> price as MAP. At or above L1 the price shows on the shop card; below it (an override or an outlet price) the card shows L1 and the real price shows in the cart. A model with its own RETAIL or MAP price in ePASS keeps that one.</p>
+      </div>
       <div class="tabs" role="tablist">
         <button type="button" id="tabModels" class="on" role="tab">Models<span class="n" id="nModels"></span></button>
         <button type="button" id="tabOutlet" role="tab">Outlet units<span class="n" id="nOutlet"></span></button>
@@ -259,6 +283,7 @@
           <option value="blocked">Blocked brands</option>
           <option value="single">Single unit (toggle to show)</option>
           <option value="noprice">No price</option>
+          <option value="incart">Price in cart on the shop</option>
           <option value="custom">Anything set by hand</option>
         </select>
         <select id="fPic" title="Where the model's picture comes from">
@@ -361,6 +386,7 @@
         if (mode === "blocked") return m.blocked;
         if (mode === "single") return !m.listed && /single unit/.test(m.reason || "");
         if (mode === "noprice") return !m.price;
+        if (mode === "incart") return m.listed && m.card === "cart";
         if (mode === "custom") return isCustom(m);
         return true;
       }
@@ -393,6 +419,7 @@
         if (s.price != null && m.map && s.price < m.map && !m.mapExempt) t.push('<span class="tag warn" title="Override is below MAP — the price shows in the cart only">below MAP</span>');
         if (s.hidden) t.push('<span class="tag off">Hidden</span>');
         if (s.showSingle) t.push('<span class="tag" title="Listed even when only one unit is in stock">Shows when only one</span>');
+        if (m.mapFrom === "l1") t.push(`<span class="tag l1" title="${esc(m.brand)} uses L1 as MAP (set at the top of the page): ePASS has no RETAIL or MAP price for this model">MAP = L1</span>`);
         if (m.mapExempt) t.push(`<span class="tag" title="${m.mapExempt === "manual" ? "MAP exempt — set by hand" : m.mapExempt === "netsuite" ? "Discontinued in NetSuite — MAP no longer applies" : "Obsolete / being discontinued in ePASS — MAP no longer applies"}">${m.mapExempt === "manual" ? "MAP exempt" : "Discontinued"}</span>`);
         if (s.badge) t.push(`<span class="eye-prev ${esc(s.badgeStyle || "red")}" title="Chip on the card">${esc(s.badge)}</span>`);
         if (s.hideStockBadge) t.push('<span class="tag" title="The In Stock / Low Stock chip is dropped from this card">No stock chip</span>');
@@ -401,7 +428,8 @@
         if (ns) t.push(`<span class="tag asset">${plural(ns, "supplier asset", "supplier assets")}</span>`);
         return t.length ? t.join("") : '<span class="std">Standard</span>';
       }
-      const priceLine = (m) => `<b>${money(m.settings.price ?? m.listPrice)}</b>${m.settings.price != null ? `<div class="sub">ePASS ${money(m.listPrice)}</div>` : m.listCode ? `<div class="sub">${esc(m.listCode)}</div>` : ""}${m.map && m.map !== (m.settings.price ?? m.listPrice) ? `<div class="sub">MAP ${money(m.map)}</div>` : ""}${execLine(m)}`;
+      const cardLine = (m) => !m.listed ? "" : m.card === "cart" ? `<div class="sub incart" title="The shop card says Price in cart: no MAP is known for this model">price in cart</div>` : m.card === "floor" ? `<div class="sub incart" title="Below MAP: the shop card shows the MAP and the real price shows in the cart">card shows MAP</div>` : "";
+      const priceLine = (m) => `<b>${money(m.settings.price ?? m.listPrice)}</b>${m.settings.price != null ? `<div class="sub">ePASS ${money(m.listPrice)}</div>` : m.listCode ? `<div class="sub">${esc(m.listCode)}</div>` : ""}${m.map && m.map !== (m.settings.price ?? m.listPrice) ? `<div class="sub">MAP ${money(m.map)}</div>` : ""}${cardLine(m)}${execLine(m)}`;
       const unitsLine = (m) => `${m.available}${m.inStock !== m.available ? ` <span class="sub" style="display:inline;">of ${m.inStock}</span>` : ""}${m.held ? `<div class="sub">+${m.held} held</div>` : ""}`;
 
       function renderModels(rows) {
@@ -426,7 +454,7 @@
         $("modelCards").innerHTML = rows.slice(0, 200).map((m) => `<div class="card mcard" data-model="${esc(m.key)}" role="button" tabindex="0">
             <div class="head">${thumb(m.image, picSource(m), m.model, (m.photos || []).length)}<div class="who"><div class="model">${esc(m.model)}</div><div class="brand">${esc(m.brand)}${m.merchClass ? ` · ${esc(m.merchClass)}` : ""}</div></div><div class="chips">${storePill(m)}</div></div>
             <div class="desc">${esc(m.description)}</div>
-            <div class="row"><span class="price">${money(m.settings.price ?? m.listPrice)}<small>${m.settings.price != null ? "override" : "ePASS " + esc(m.listCode || "price")}</small></span><span class="meta">${m.available} available${m.held ? ` · ${m.held} held` : ""}</span></div>
+            <div class="row"><span class="price">${money(m.settings.price ?? m.listPrice)}<small>${m.settings.price != null ? "override" : "ePASS " + esc(m.listCode || "price")}${m.listed && m.card === "cart" ? " · price in cart" : m.listed && m.card === "floor" ? " · card shows MAP" : ""}</small></span><span class="meta">${m.available} available${m.held ? ` · ${m.held} held` : ""}</span></div>
             ${execLine(m).split('class="sub exec').join('class="exec')}
             <div class="foot"><div class="setup">${setupTags(m)}</div><span class="go">Edit ›</span></div>
           </div>`).join("") + (rows.length > 200 ? `<p class="meta">Showing the first 200 of ${rows.length} — narrow the search to see the rest.</p>` : "") || '<p class="meta">Nothing matches.</p>';
@@ -498,6 +526,7 @@
         const needs = offAll.filter((u) => u.why === "needsPrice"), marked = offAll.filter((u) => u.why === "marked");
         const units = (off === "needs" ? needs : off === "marked" ? marked : outletAll).filter((u) => (!brand || u.brand === brand) && (off || photoMatch(u, $("fPhoto").value)) && (!q || `${u.model} ${u.serial} ${u.brand} ${u.description} ${u.categoryLabel}`.toUpperCase().includes(q)));
         const listed = all.filter((m) => m.listed).length;
+        const inCartCount = all.filter((m) => m.listed && m.card === "cart").length;
         const unitCount = all.reduce((s, m) => s + (m.available || 0), 0);
         const photographed = outletAll.filter((u) => u.photoSource === "unit").length;
         const handPicked = Object.values(data.modelPhotos || {}).filter((list) => list.length);
@@ -509,6 +538,7 @@
           <div class="count"><b>${outletAll.length}</b>outlet units${photographed ? ` · ${photographed} photographed` : ""}</div>
           ${needs.length ? `<button type="button" class="count go need" data-go="needs" title="Open-box and aged units with no Unique Sell Price in ePASS — click to list them"><b>${needs.length}</b>need a price ›</button>` : ""}
           ${marked.length ? `<button type="button" class="count go" data-go="marked" title="Units held, marked sold or on an online order — click to list them"><b>${marked.length}</b>held / marked sold ›</button>` : ""}
+          ${inCartCount ? `<button type="button" class="count go" data-store="incart" title="On the store, but the card says Price in cart because no MAP is known for the model. Click to list them."><b>${inCartCount}</b>price in cart ›</button>` : ""}
           <div class="count" title="Models whose pictures were set by hand on this page"><b>${handPicked.length}</b>models with hand-picked pictures${handPics.length ? ` · ${kindCount(handPics, "actual")} actual, ${kindCount(handPics, "supplier")} supplier` : ""}</div>
           <div class="count"><b>${view === "models" ? rows.length : units.length}</b>shown</div>
           ${data.snapshot?.uploadedAt ? `<div class="count"><b>${esc(whenText(data.snapshot.uploadedAt))}</b>feed snapshot</div>` : ""}
@@ -536,6 +566,8 @@
       // only when they tick the box (a file like this tends to get forwarded).
       let exportSet = { kind: "models", rows: [] };
       const yn = (v) => (v ? "Yes" : "No");
+      const MAP_FROM = { epass: "ePASS RETAIL / MAP", l1: "L1 (brand uses L1 as MAP)", feed: "MAP feed" };
+      const CARD_SHOWS = { price: "The price", floor: "The MAP (price in cart)", cart: "Price in cart", call: "Call for price" };
       const picLabel = { none: "None", catalog: "Catalog thumbnail", supplier: "Supplier asset", actual: "Actual photo", unit: "This unit's own photo", "": "Catalog thumbnail" };
       function exportColumns(kind, withCost) {
         if (kind === "models") return [
@@ -543,7 +575,7 @@
           ["Merch category", (m) => m.merchCategory], ["Merch class", (m) => m.merchClass], ["Merch subclass", (m) => m.merchSubclass], ["Shop department", (m) => m.categoryLabel],
           ["On the store", (m) => yn(m.listed)], ["Store status", (m) => m.listed ? (m.available > data.lowMax ? "In Stock" : "Low Stock") : "Off"], ["Off because", (m) => m.listed ? "" : m.reason],
           ["Units for sale", (m) => m.available], ["Sealed units on hand", (m) => m.inStock], ["Held for tickets", (m) => m.held || 0],
-          ["Selling price", (m) => m.settings.price ?? m.listPrice], ["ePASS price", (m) => m.listPrice], ["ePASS price code", (m) => m.listCode], ["MAP", (m) => m.map], ["MAP code", (m) => m.mapCode],
+          ["Selling price", (m) => m.settings.price ?? m.listPrice], ["ePASS price", (m) => m.listPrice], ["ePASS price code", (m) => m.listCode], ["MAP", (m) => m.map], ["MAP code", (m) => m.mapCode], ["MAP from", (m) => MAP_FROM[m.mapFrom] || ""], ["Shop card shows", (m) => m.listed ? CARD_SHOWS[m.card] || "" : ""],
           ["Override price", (m) => m.settings.price], ["Override below MAP", (m) => m.settings.price != null && m.map ? yn(m.settings.price < m.map) : ""],
           ["MAP exempt", (m) => m.mapExempt === "manual" ? "By hand" : m.mapExempt === "netsuite" ? "Discontinued (NetSuite)" : m.mapExempt ? "Discontinued (ePASS)" : "No"],
           ["Show when only one", (m) => yn(m.settings.showSingle)], ["Hidden", (m) => yn(m.settings.hidden)], ["Chip", (m) => m.settings.badge], ["Chip color", (m) => m.settings.badge ? m.settings.badgeStyle || "red" : ""], ["No stock chip", (m) => yn(m.settings.hideStockBadge)],
@@ -587,6 +619,53 @@
       }
       $("exportBtn").addEventListener("click", exportCsv);
 
+      // ---- Brands that use L1 as MAP (11/18) ----
+      // A brand on the list: its models with no RETAIL / MAP price in ePASS
+      // take L1 as MAP, so their price can show on the shop card. The server
+      // decides; this only adds and removes brands and shows the effect.
+      const bkey = (v) => String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+      function renderL1() {
+        const list = data.l1MapBrands || [];
+        const models = data.models || [];
+        const on = new Set(list.map((b) => b.key));
+        const usesIt = (b, m) => m.mapFrom === "l1" && (bkey(m.brand) === b.key || bkey(m.brandCode) === b.key);
+        $("l1List").innerHTML = list.length ? list.map((b) => {
+          const n = models.filter((m) => usesIt(b, m)).length;
+          const who = [b.addedBy, b.addedAt ? whenText(b.addedAt) : ""].filter(Boolean).join(", ");
+          return `<span class="l1chip"${who ? ` title="Added by ${esc(who)}"` : ""}>${esc(b.brand)}<span class="n">· ${n ? plural(n, "model", "models") : "no model needs it today"}</span><button type="button" data-l1-remove="${esc(b.brand)}" aria-label="Stop using L1 as MAP for ${esc(b.brand)}" title="Stop using L1 as MAP for ${esc(b.brand)}">×</button></span>`;
+        }).join("") : '<span class="none">No brands yet.</span>';
+        // brands whose cards say "Price in cart" for want of a MAP, counted in the list
+        const inCart = new Map();
+        for (const m of models) if (m.listed && m.card === "cart" && !m.map) inCart.set(m.brand, (inCart.get(m.brand) || 0) + 1);
+        const pick = $("l1Pick"), cur = pick.value;
+        pick.innerHTML = `<option value="">Add a brand…</option>` + (data.brands || []).filter((b) => !on.has(bkey(b)))
+          .map((b) => `<option value="${esc(b)}">${esc(b)}${inCart.get(b) ? ` — ${inCart.get(b)} in cart` : ""}</option>`).join("");
+        if ([...pick.options].some((o) => o.value === cur)) pick.value = cur;
+        $("l1Add").disabled = !pick.value;
+      }
+      function l1Say(text, kind = "") { const el = $("l1Msg"); el.textContent = text; el.className = "msg" + (kind ? " " + kind : ""); }
+      async function l1Call(method, url, body, doneText) {
+        l1Say("Saving…"); $("l1Add").disabled = true;
+        for (const b of $("l1List").querySelectorAll("button")) b.disabled = true;
+        try {
+          const res = await fetch(url, { method, credentials: "same-origin", headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(out.error || "That didn't save.");
+          await load();
+          l1Say(doneText, "ok");
+        } catch (err) { l1Say(err.message || "That didn't save.", "err"); if (data) renderL1(); }
+      }
+      $("l1Pick").addEventListener("change", () => { $("l1Add").disabled = !$("l1Pick").value; });
+      $("l1Add").addEventListener("click", () => {
+        const b = $("l1Pick").value; if (!b) return;
+        l1Call("POST", "/api/shop/l1-map-brands", { brand: b }, `${b} now uses L1 as MAP. The shop shows it on its next page load.`);
+      });
+      $("l1List").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-l1-remove]"); if (!btn) return;
+        const b = btn.dataset.l1Remove;
+        l1Call("DELETE", `/api/shop/l1-map-brands/${encodeURIComponent(b)}`, null, `${b} no longer uses L1 as MAP.`);
+      });
+
       async function load() {
         const status = $("stockStatus");
         if (!data) status.textContent = "Loading…";
@@ -597,6 +676,7 @@
           data = body;
           fillSelect($("fBrand"), body.brands || []);
           fillSelect($("fClass"), body.merchClasses || [], "— no merch class (not in NetSuite) —");
+          renderL1();
           status.textContent = body.paused ? "Shop is paused — the snapshot is stale." : (status.textContent === "Loading…" ? "" : status.textContent);
           render();
         } catch (err) { status.textContent = err.message; throw err; }
@@ -609,7 +689,11 @@
       $("tabOutlet").addEventListener("click", () => { view = "outlet"; $("tabOutlet").classList.add("on"); $("tabModels").classList.remove("on"); render(); });
       if (location.hash === "#outlet") $("tabOutlet").click();
       if (location.hash === "#needs-price") { $("fPhoto").value = "needs"; $("tabOutlet").click(); }
-      $("counts").addEventListener("click", (e) => { const go = e.target.closest("[data-go]"); if (!go) return; $("fPhoto").value = go.dataset.go; $("tabOutlet").click(); });
+      $("counts").addEventListener("click", (e) => {
+        const st = e.target.closest("[data-store]");
+        if (st) { $("fStore").value = st.dataset.store; $("tabModels").click(); return; }
+        const go = e.target.closest("[data-go]"); if (!go) return; $("fPhoto").value = go.dataset.go; $("tabOutlet").click();
+      });
 
       // ---- Pictures: shrink in the browser before upload ----
       // Phones and supplier portals hand us 3–9 MB; 1600 px JPEG is a few
@@ -690,7 +774,7 @@
             <div class="tile"><div class="v">${storePill(r)}</div><div class="l">Store</div></div>
             <div class="tile"><div class="v">${r.available}${r.inStock !== r.available ? ` <span class="meta">of ${r.inStock}</span>` : ""}</div><div class="l">Units for sale</div>${r.held ? `<div class="x">+${r.held} held for tickets</div>` : ""}</div>
             <div class="tile"><div class="v">${money(r.listPrice)}</div><div class="l">ePASS ${esc(r.listCode || "price")}</div></div>
-            <div class="tile"><div class="v">${money(r.map)}</div><div class="l">MAP${r.mapCode && r.mapCode !== "RETAIL" ? " · " + esc(r.mapCode) : ""}</div>${r.mapExempt ? `<div class="x">${r.mapExempt === "manual" ? "exempt by hand" : "discontinued — no longer applies"}</div>` : ""}</div>
+            <div class="tile"><div class="v">${money(r.map)}</div><div class="l">MAP${r.mapCode && r.mapCode !== "RETAIL" ? " · " + esc(r.mapCode) : ""}</div>${r.mapExempt ? `<div class="x">${r.mapExempt === "manual" ? "exempt by hand" : "discontinued — no longer applies"}</div>` : r.mapFrom === "l1" ? `<div class="x">${esc(r.brand)} uses L1 as MAP</div>` : !r.map ? `<div class="x">none in ePASS${r.listed && r.card === "cart" ? " — the card says Price in cart" : ""}</div>` : ""}</div>
             ${data.exec ? `<div class="tile exec" title="Executives only. Average cost of the sealed units on hand."><div class="v">${r.cost ? money(r.cost.avg) : "—"}</div><div class="l">Cost${r.cost && r.cost.units > 1 ? ` · avg of ${r.cost.units}` : ""}</div>${r.cost && r.cost.min !== r.cost.max ? `<div class="x">${money(r.cost.min)} – ${money(r.cost.max)}</div>` : !r.cost ? '<div class="x">none in ePASS</div>' : ""}</div>
             <div class="tile exec" title="Executives only. Margin at the price in the box below — it follows what you type."><div class="v" id="stMargin">—</div><div class="l">Margin</div><div class="x" id="stMarginAt"></div></div>` : ""}
           </div>

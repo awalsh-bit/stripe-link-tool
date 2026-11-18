@@ -1,6 +1,6 @@
 # Express shop: product pages
 
-*Added 11/17 as one test item, the Bosch SHP78CM5N dishwasher. On 11/18 the four Miele dishwashers on the list got pages, shop tiles began linking to them, five Bosch refrigerators followed, and then the Bosch SHP65DP5N dishwasher.*
+*Added 11/17 as one test item, the Bosch SHP78CM5N dishwasher. On 11/18 the four Miele dishwashers on the list got pages, shop tiles began linking to them, five Bosch refrigerators followed, and then the Bosch SHP65DP5N dishwasher. Later on 11/18: the Speed Queen line and two Sharp microwave drawers.*
 
 A product page sells one model: its photos, a short lead, five features with a line each, specifications, the spec sheet, and the price with an Add to cart button.
 
@@ -21,6 +21,8 @@ A product page sells one model: its photos, a short lead, five features with a l
 | `/p/B36CD80SNS` | Bosch 800 Series counter-depth 3-door refrigerator, ice and water at the door |
 | `/p/B36CT80SNS` | Bosch 800 Series counter-depth 3-door refrigerator, bar handles, water dispenser inside |
 | `/p/B36CT81ENS` | Bosch 800 Series counter-depth 3-door refrigerator, recessed handles, water dispenser inside |
+| `/p/SMD2470ASY` | Sharp 24" Microwave Drawer, stainless steel |
+| `/p/SMD2479JS` | Sharp 24" Smart Microwave Drawer, Easy Wave Open, stainless steel with a viewing window |
 
 Search engines are told not to list these pages yet.
 
@@ -149,6 +151,29 @@ Left out on purpose:
 Kept, with its condition: VitaFreshPro's "up to three times longer" is given as Bosch's figure, against a Bosch refrigerator without VitaFreshPro, with results varying by food.
 
 One to three of the gallery pictures on each page are Bosch's own graphics, with Bosch's words on them. The alt text says so.
+
+## The Sharp microwave drawer pages
+
+*Added 11/18. Andrew: "SMD2470ASY, SMD2479JS have photos and should be ready to build."*
+
+Facts come from the spec sheets already in `spec sheets` (SMD2470ASY dated 10/22/2025, SMD2479JS 10/15/2025) and from Sharp's product pages. Both sheets are now listed in `data/shop-spec-sheets.json`, so each page has a spec sheet button. The pictures are Sharp's web images from `supplier-digital-assets/sharp`: two for the SMD2470ASY and three for the SMD2479JS, all on white. The SMD2470ASY's are 1,500 pixels wide, so its largest size is the original rather than 1,600.
+
+Where the sources disagree:
+
+- **Closing, SMD2470ASY.** The sheet says a soft nudge closes it; Sharp's page says hands-free close. The page follows the sheet.
+- **Flush mounting, SMD2470ASY.** The sheet's first page mentions built-in airflow control for flush installation, but its table says the flush-mount kit is sold separately and names it (SKMD24F0AS). The page says flush mounting takes Sharp's kit. The SMD2479JS needs no kit, by both its sheet and Sharp's page.
+- **The app, SMD2479JS.** The sheet calls it SHARP HOME, Sharp's page the Sharp Kitchen app. The page uses SHARP HOME, the newer source.
+
+Left out on purpose:
+
+- **"One of the most trusted brands in microwaves"** and **"the original inventor"** of the microwave drawer: no basis is given.
+- **A viewing window on the SMD2470ASY.** Its pictures show a dark glass front, but neither Sharp source calls it a window. The SMD2479JS's window is in both.
+- **Power levels on the SMD2470ASY.** The sheet prints "00".
+- **ADA.** The sheets only say the drawer must be installed to ADA guidelines.
+
+Kept, with their conditions: Alexa needs the Amazon Alexa app, and an Echo device is not included (the SMD2479JS sheet's footnotes).
+
+Not linked: the installation manual on file, `SMD2470AS_SMD3070AS_IM.pdf` (2020), is for the earlier SMD2470AS. Sharp publishes one for the SMD2479JS that is not on file. Drop either in `spec sheets` and ask Claude to add the button.
 
 ## The Speed Queen pages
 

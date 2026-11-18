@@ -596,7 +596,9 @@ floors SZ-UMRP, WOLF-UMRP, BESTMAP, SCOTMAP. Stored in
 its Shop Orders override, else **RETAIL**, else a brand UMRP/MAP code, else
 L1 (then `Model.ListPrice`). The advertise floor is RETAIL or the brand code:
 at or above it the price shows on the card; below it (an override) it shows
-in the cart only. No price level at all → "Call for price".
+in the cart only. No price level at all → "Call for price". Since 11/18 a
+brand on the catalog's **Use L1 as MAP** list takes L1 as the floor when a
+model has neither (docs/shop/pricing-visibility.md).
 
 **Brands never sold online** (they don't allow e-commerce): Sub-Zero (SZ),
 Wolf (WOLF), Wolf Gourmet (WG), Cove (COVE), Gaggenau (GAGGE) — kept off

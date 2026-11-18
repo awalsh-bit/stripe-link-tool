@@ -31,6 +31,7 @@
     .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
     .status.error { background: #fee2e2; color: #991b1b; }
     .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .layout > * { min-width: 0; } /* a wide roster table scrolls inside its box instead of stretching the page (phones) */
     .ev-list { display: grid; gap: 8px; }
     .ev-card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; cursor: pointer; background: #fff; }
     .ev-card:hover { border-color: rgba(var(--primary-rgb), 0.5); }
@@ -54,7 +55,7 @@
     .alloc > .low { border-color: #fde68a; background: #fffbeb; }
     .alloc > .ok { border-color: #bbf7d0; background: #f0fdf4; }
     .link-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-bottom: 10px; }
-    .link-row code { background: #f3f4f6; border-radius: 8px; padding: 4px 8px; font-size: 12.5px; }
+    .link-row code { background: #f3f4f6; border-radius: 8px; padding: 4px 8px; font-size: 12.5px; overflow-wrap: anywhere; min-width: 0; }
     .tbl-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef1f6; vertical-align: middle; white-space: nowrap; }
@@ -88,6 +89,61 @@
     .gt-row { display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px 80px 30px; gap: 8px; align-items: center; margin-bottom: 6px; }
     .gt-row .small { text-align: center; }
     .hint { color: var(--muted); font-size: 11.5px; }
+    /* Email guests (11/18) */
+    .drawer.mail { width: min(900px, 100vw); }
+    .m-sec { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+    .m-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    .m-head .t { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .m-count { border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 800; background: rgba(var(--primary-rgb), 0.1); color: var(--primary); font-variant-numeric: tabular-nums; }
+    .m-count.over { background: #fee2e2; color: #991b1b; }
+    .st-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .st-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px 4px 8px; font-size: 12.5px; cursor: pointer; background: #fff; user-select: none; }
+    .st-chip input { margin: 0; width: 15px; height: 15px; accent-color: var(--primary); }
+    .st-chip.dim { opacity: 0.5; cursor: default; }
+    .linkbtn { appearance: none; border: 0; background: none; color: var(--primary); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 2px 4px; }
+    .m-list { max-height: 260px; overflow: auto; border: 1px solid #eef1f6; border-radius: 10px; }
+    .m-row { display: grid; grid-template-columns: 22px minmax(0, 1.2fr) minmax(0, 1fr) 90px minmax(0, 1.4fr); gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #f1f4f8; font-size: 13px; cursor: pointer; }
+    .m-row:last-child { border-bottom: 0; }
+    .m-row input { margin: 0; width: 16px; height: 16px; accent-color: var(--primary); }
+    .m-row .co, .m-row .em { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m-row .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m-row.off { cursor: default; opacity: 0.55; }
+    .m-row.off .em { font-style: italic; }
+    .m-extra { width: 100%; min-height: 64px; margin-top: 10px; }
+    .m-note { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+    .m-note.bad { color: #991b1b; }
+    .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin: 0 0 14px; cursor: pointer; }
+    .chk input { width: 17px; height: 17px; margin: 1px 0 0; accent-color: var(--primary); flex: none; }
+    .files { display: grid; gap: 6px; margin-top: 8px; }
+    .f label.btn { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: #374151; cursor: pointer; }
+    .file { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; font-size: 13px; }
+    .file .pdf { background: #b91c1c; color: #fff; font-size: 10px; font-weight: 800; border-radius: 5px; padding: 3px 5px; }
+    .file .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preview { width: 100%; height: 520px; border: 1px solid var(--border); border-radius: 12px; background: #f4f4ef; display: none; margin-top: 10px; }
+    .preview.show { display: block; }
+    .m-foot { flex-wrap: wrap; }
+    .m-foot .who { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+    .confirm { display: none; flex-basis: 100%; align-items: center; gap: 8px; flex-wrap: wrap; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 9px 12px; font-size: 13.5px; }
+    .confirm.show { display: flex; }
+    .progress { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; display: none; }
+    .progress.show { display: block; }
+    .bar { height: 8px; border-radius: 999px; background: #eef1f6; overflow: hidden; margin: 8px 0 6px; }
+    .bar > span { display: block; height: 100%; background: var(--primary); width: 0; transition: width 0.3s ease; }
+    .sent-list { display: grid; gap: 8px; }
+    .sent-list > * { min-width: 0; }
+    .sent { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+    .sent .top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .sent .sj { font-weight: 700; flex: 1 1 200px; min-width: 0; }
+    .sent .meta { color: var(--muted); font-size: 12px; }
+    .sent .counts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .sent .counts span { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; background: #f3f4f6; color: #374151; }
+    .sent .counts .ok { background: #dcfce7; color: #166534; } .sent .counts .bad { background: #fee2e2; color: #991b1b; } .sent .counts .run { background: #e0f2fe; color: #075985; }
+    .sent .att { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+    .sent .att a { color: var(--primary); }
+    .sent .who-list { margin-top: 8px; }
+    .sent .who-list td { font-size: 12.5px; }
+    .sent .why { color: #991b1b; white-space: normal; }
+    @media (max-width: 700px) { .m-row { grid-template-columns: 22px minmax(0, 1fr) 80px; } .m-row .co, .m-row .em { display: none; } .preview { height: 440px; } }
     @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .f-row, .f-row3 { grid-template-columns: 1fr; } .add-box { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -96,7 +152,7 @@
     <div id="internal-shell-header"></div>
     <div class="surface">
       <h2>Events</h2>
-      <p class="note">Set up an event here and publish it — it gets its own page on <strong>service.wilsonappliance.com/events/…</strong> with an RSVP form, and shows on the events listing when marked visible. The roster below each event is the RSVP tracker: add or import invitees, track Planned → Pending → Confirmed, and online RSVPs land on the same list automatically (matched by email, then name).</p>
+      <p class="note">Set up an event here and publish it — it gets its own page on <strong>service.wilsonappliance.com/events/…</strong> with an RSVP form, and shows on the events listing when marked visible. The roster below each event is the RSVP tracker: add or import invitees, track Planned → Pending → Confirmed, and online RSVPs land on the same list automatically (matched by email, then name). <strong>Email guests</strong> sends an event email to up to 100 people at a time, each their own copy, with PDFs attached if you like.</p>
       <div id="status" class="status"></div>
       <div class="toolbar">
         <select id="filter"><option value="all">All events</option><option value="published">Published</option><option value="draft">Drafts</option><option value="archived">Archived</option></select>
@@ -154,6 +210,37 @@
       </div>
     </div>
     <div class="drawer-foot"><button type="button" class="btn primary" id="saveBtn">Save event</button><span class="small" id="saveNote"></span></div>
+  </div>
+
+  <div class="drawer-back" id="mailBack"></div>
+  <div class="drawer mail" id="mailDrawer" role="dialog" aria-modal="true" aria-labelledby="mailTitle">
+    <div class="drawer-head"><h3 id="mailTitle">Email guests</h3><button type="button" class="btn quiet" id="mailClose">Close</button></div>
+    <div class="drawer-body">
+      <div class="progress" id="mProgress"></div>
+      <div class="m-sec">
+        <div class="m-head"><span class="t">To</span><span class="m-count" id="mCount">0 people</span><span class="spacer"></span><button type="button" class="linkbtn" id="mAll">Everyone with an email</button><button type="button" class="linkbtn" id="mNone">Clear</button></div>
+        <div class="st-chips" id="mChips"></div>
+        <div class="m-list" id="mList"></div>
+        <textarea class="m-extra" id="mExtra" placeholder="Other addresses: one per line, or separated by commas.&#10;jane@example.com, Sam Lee <sam@example.com>"></textarea>
+        <div class="m-note" id="mExtraNote"></div>
+      </div>
+      <div class="f"><label for="mSubject">Subject</label><input type="text" id="mSubject" maxlength="150"></div>
+      <div class="f"><label for="mBody">Message</label><textarea id="mBody" rows="10"></textarea><div class="hint">Everyone gets their own email. Write {first name} where you want the person's first name; for an address with no name it's left out ("Hi {first name}," reads "Hi,"). Leave a blank line between paragraphs.</div></div>
+      <label class="chk"><input type="checkbox" id="mDetails" checked><span>Add the event's card: date and time, place, and the RSVP button <span class="hint" id="mDetailsNote"></span></span></label>
+      <div class="f"><label>PDFs</label>
+        <div><label class="btn quiet" style="display:inline-block;">Attach PDFs<input type="file" id="mFiles" accept="application/pdf,.pdf" multiple style="display:none;"></label> <span class="hint" id="mFileHint"></span></div>
+        <div class="files" id="mFileList"></div>
+      </div>
+      <div><button type="button" class="btn quiet" id="mPrevBtn">Preview</button> <span class="hint" id="mPrevNote"></span></div>
+      <iframe class="preview" id="mPreview" title="Email preview" sandbox></iframe>
+    </div>
+    <div class="drawer-foot m-foot">
+      <button type="button" class="btn quiet" id="mTestBtn">Send me a test</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn primary" id="mSendBtn" disabled>Send</button>
+      <div class="confirm" id="mConfirm"><span id="mConfirmText"></span><span class="spacer"></span><button type="button" class="btn quiet" id="mCancel">Cancel</button><button type="button" class="btn primary" id="mYes">Yes, send it</button></div>
+      <div class="who" id="mWho"></div>
+    </div>
   </div>
 
   <script src="internal-shell.js"></script>
@@ -214,6 +301,7 @@
           <div class="toolbar" style="margin-bottom:6px;">
             <div><h3 style="margin:0;">${esc(e.name)} <span class="chip ${e.status}">${e.status}</span></h3><div class="small">${esc(fmtDT(e.startsAt))}${e.endsAt ? " – " + esc(fmtT(e.endsAt)) : ""}${e.location ? " · " + esc(e.location) : ""}${e.rsvpDeadline ? " · RSVP by " + esc(fmtDT(e.rsvpDeadline)) : ""}</div></div>
             <span class="spacer"></span>
+            <button type="button" class="btn primary" id="mailBtn">Email guests</button>
             <button type="button" class="btn quiet" id="editBtn">Edit</button>
             ${canPublish ? `<button type="button" class="btn primary" id="pubBtn">Publish</button>` : `<button type="button" class="btn warn" id="unpubBtn">Unpublish</button>`}
             ${e.status !== "archived" ? `<button type="button" class="btn quiet" id="archBtn">Archive</button>` : `<button type="button" class="btn danger" id="delBtn" title="Executives only">Delete</button>`}
@@ -240,10 +328,14 @@
               <label class="btn quiet" style="text-align:center;">Import workbook / CSV<input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none;"></label>
             </div>
           </div>
+          <details id="sentBox" open><summary>Emails sent <span class="small" id="sentCount"></span></summary><div class="sent-list" id="sentList"><div class="small">Loading…</div></div></details>
           <details><summary>Online RSVPs (${rsvps.length})</summary>
             ${rsvps.length ? `<div class="tbl-wrap"><table><thead><tr><th>When</th><th>Name</th><th>Answer</th><th>Guests</th><th>Type</th><th>Company</th><th>Email</th><th>Phone</th><th>Notes</th></tr></thead><tbody>${rsvps.map((r) => `<tr><td>${esc(fmtDT(r.updatedAt))}</td><td>${esc(r.fullName)}</td><td>${r.attending ? "Yes" : "Can't make it"}</td><td>${r.attending ? r.guestCount : "—"}</td><td>${esc(r.guestType)}</td><td>${esc(r.company)}</td><td>${esc(r.email)}</td><td>${esc(r.phone)}</td><td style="white-space:normal;">${esc(r.notes)}</td></tr>`).join("")}</tbody></table></div>` : '<div class="small">None yet.</div>'}
           </details>`;
         $("editBtn").addEventListener("click", () => openEditor(e));
+        $("mailBtn").addEventListener("click", () => openMail());
+        $("sentList").addEventListener("click", onSentClick);
+        loadSent();
         $("copyBtn").addEventListener("click", async () => { try { await navigator.clipboard.writeText(e.publicUrl); setStatus("Link copied.", "ok"); } catch { setStatus(e.publicUrl, "ok"); } });
         $("pubBtn")?.addEventListener("click", () => setEventStatus(e, "published"));
         $("unpubBtn")?.addEventListener("click", () => { if (confirm("Unpublish? The public page stops taking RSVPs and drops off the listing.")) setEventStatus(e, "draft"); });
@@ -342,7 +434,208 @@
           state.selected = out.event.id; $("filter").value = state.editing ? $("filter").value : "all"; await loadEvents();
         } catch (err) { setStatus(err.message, "error"); } finally { $("saveBtn").disabled = false; }
       });
-      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeEditor(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeEditor(); closeMail(); } });
+      // ---- Email guests (11/18) ----------------------------------------
+      // Pick people off the roster (and add any other addresses), write it,
+      // attach PDFs, send. Everyone gets their own email; the server sends
+      // them in the background and this page follows along. Nothing goes out
+      // without the Yes on the confirm line.
+      const mail = { info: null, picked: new Set(), files: [], sending: null, timer: null, sentTimer: null };
+      const emailOk = (e) => /^[^\s@<>(),;:"]+@[^\s@<>(),;:"]+\.[^\s@<>(),;:"]{2,}$/.test(String(e || "").trim());
+      const mb = (n) => (n / 1048576).toFixed(n < 104858 ? 2 : 1) + " MB";
+      // The same reading of pasted addresses as the server's (lib/event-email.js).
+      function parseList(text) {
+        const found = [], invalid = [];
+        const rest = String(text || "").replace(/"([^"\n]*)"\s*<([^<>\n]*)>|([^,;\n<>"]*)<([^<>\n]*)>/g, (m, qn, qe, n, e) => {
+          const email = String(qe ?? e).trim().toLowerCase();
+          if (emailOk(email)) found.push({ email, name: String(qn ?? n ?? "").trim() }); else invalid.push(m.trim());
+          return "\n";
+        });
+        for (const raw of rest.split(/[,;\n\r\t]+/)) { const t = raw.trim().replace(/^mailto:/i, ""); if (!t) continue; if (emailOk(t)) found.push({ email: t.toLowerCase(), name: "" }); else invalid.push(t); }
+        return { found, invalid };
+      }
+      const optedOut = () => new Set(mail.info?.optedOut || []);
+      const reachable = (i) => emailOk(i.email) && !optedOut().has(String(i.email).toLowerCase());
+      function audience() {
+        const emails = new Set();
+        for (const i of state.roster.invitees) if (mail.picked.has(i.id) && reachable(i)) emails.add(i.email.toLowerCase());
+        const extra = parseList($("mExtra").value);
+        for (const x of extra.found) if (!optedOut().has(x.email)) emails.add(x.email);
+        return { count: emails.size, extra };
+      }
+      async function loadMailInfo() { mail.info = await api(`/api/events/${state.selected}/emails`); return mail.info; }
+      async function openMail() {
+        const e = state.roster.event;
+        try { await loadMailInfo(); } catch (err) { setStatus(err.message, "error"); return; }
+        $("mailTitle").textContent = `Email guests: ${e.name}`;
+        if (!$("mSubject").value || $("mailDrawer").dataset.event !== e.id) {
+          mail.picked = new Set(); mail.files = []; $("mExtra").value = ""; $("mSubject").value = e.name; $("mBody").value = "Hi {first name},\n\n"; $("mDetails").checked = true;
+          $("mPreview").classList.remove("show"); $("mProgress").classList.remove("show");
+        }
+        $("mailDrawer").dataset.event = e.id;
+        $("mDetailsNote").textContent = e.status === "published" ? "" : "(the RSVP button shows once the event is published)";
+        $("mWho").textContent = mail.info.configured ? `From ${mail.info.from}${mail.info.replyTo ? ` · replies go to ${mail.info.replyTo}` : ""}${mail.info.testTo ? ` · tests go to ${mail.info.testTo}` : ""}` : "Email isn't set up on this server (RESEND_API_KEY / RESEND_FROM_EMAIL), so nothing can be sent.";
+        $("mFileHint").textContent = `Up to ${mail.info.limits.files} PDFs, ${mail.info.limits.bytes / 1048576} MB together.`;
+        renderPick(); renderFiles(); hideConfirm();
+        $("mailDrawer").classList.add("show"); $("mailBack").classList.add("show");
+      }
+      function closeMail() { if (!$("mailDrawer").classList.contains("show")) return; $("mailDrawer").classList.remove("show"); $("mailBack").classList.remove("show"); hideConfirm(); }
+      $("mailClose").addEventListener("click", closeMail); $("mailBack").addEventListener("click", closeMail);
+      function renderPick() {
+        const inv = state.roster.invitees;
+        const out = optedOut();
+        const byStatus = state.statuses.map((st) => { const all = inv.filter((i) => i.status === st && reachable(i)); return { st, all, on: all.length > 0 && all.every((i) => mail.picked.has(i.id)) }; });
+        $("mChips").innerHTML = byStatus.map((b) => `<label class="st-chip${b.all.length ? "" : " dim"}"><input type="checkbox" data-st="${esc(b.st)}"${b.on ? " checked" : ""}${b.all.length ? "" : " disabled"}>${esc(b.st)} <span class="small">${b.all.length}</span></label>`).join("");
+        $("mList").innerHTML = inv.length ? inv.map((i) => {
+          const why = !i.email ? "no email" : !emailOk(i.email) ? "email looks wrong" : out.has(String(i.email).toLowerCase()) ? "unsubscribed" : "";
+          return `<label class="m-row${why ? " off" : ""}"><input type="checkbox" data-id="${i.id}"${mail.picked.has(i.id) && !why ? " checked" : ""}${why ? " disabled" : ""}><span class="nm">${esc(i.name || "(no name)")}</span><span class="co">${esc(i.company)}</span><span class="small">${esc(why || i.status)}</span><span class="em">${esc(why ? `${i.email ? i.email + " · " : ""}${why}` : i.email)}</span></label>`;
+        }).join("") : '<div class="small" style="padding:10px;">Nobody on the roster yet: add addresses below.</div>';
+        updateCount();
+      }
+      function updateCount() {
+        const a = audience(), max = mail.info?.limits?.recipients || 100;
+        $("mCount").textContent = `${a.count} ${a.count === 1 ? "person" : "people"}${a.count > max ? ` (over ${max})` : ""}`;
+        $("mCount").classList.toggle("over", a.count > max);
+        const n = a.extra.found.length, bad = a.extra.invalid;
+        $("mExtraNote").className = "m-note" + (bad.length ? " bad" : "");
+        $("mExtraNote").textContent = bad.length ? `Not email addresses: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? ` and ${bad.length - 4} more` : ""}. Fix or remove them to send.` : n ? `${n} other ${n === 1 ? "address" : "addresses"} added.` : "";
+        const blocked = !mail.info?.configured || !a.count || a.count > max || bad.length > 0 || Boolean(mail.sending);
+        $("mSendBtn").disabled = blocked;
+        $("mSendBtn").textContent = a.count ? `Send to ${a.count} ${a.count === 1 ? "person" : "people"}` : "Send";
+        if (blocked) hideConfirm();
+      }
+      $("mChips").addEventListener("change", (ev) => {
+        const box = ev.target.closest("[data-st]"); if (!box) return;
+        for (const i of state.roster.invitees) if (i.status === box.dataset.st && reachable(i)) { if (box.checked) mail.picked.add(i.id); else mail.picked.delete(i.id); }
+        renderPick();
+      });
+      $("mList").addEventListener("change", (ev) => { const box = ev.target.closest("[data-id]"); if (!box) return; if (box.checked) mail.picked.add(box.dataset.id); else mail.picked.delete(box.dataset.id); renderPick(); });
+      $("mAll").addEventListener("click", () => { for (const i of state.roster.invitees) if (reachable(i)) mail.picked.add(i.id); renderPick(); });
+      $("mNone").addEventListener("click", () => { mail.picked.clear(); renderPick(); });
+      $("mExtra").addEventListener("input", updateCount);
+      // PDFs: checked here for size and type; the server checks again.
+      function renderFiles() {
+        $("mFileList").innerHTML = mail.files.map((f, k) => `<div class="file"><span class="pdf">PDF</span><span class="fn">${esc(f.name)}</span><span class="small">${mb(f.size)}</span><button type="button" class="x" data-rmf="${k}" title="Remove ${esc(f.name)}" aria-label="Remove ${esc(f.name)}">✕</button></div>`).join("");
+      }
+      $("mFiles").addEventListener("change", (ev) => {
+        const lim = mail.info.limits; const msgs = [];
+        for (const f of ev.target.files || []) {
+          if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") { msgs.push(`${f.name} isn't a PDF.`); continue; }
+          if (mail.files.length >= lim.files) { msgs.push(`Up to ${lim.files} PDFs.`); break; }
+          if (mail.files.reduce((a, x) => a + x.size, 0) + f.size > lim.bytes) { msgs.push(`${f.name} would take the PDFs over ${lim.bytes / 1048576} MB.`); continue; }
+          mail.files.push(f);
+        }
+        ev.target.value = ""; renderFiles();
+        if (msgs.length) setStatus(msgs.join(" "), "error");
+      });
+      $("mFileList").addEventListener("click", (ev) => { const x = ev.target.closest("[data-rmf]"); if (!x) return; mail.files.splice(Number(x.dataset.rmf), 1); renderFiles(); });
+      function draftForm() {
+        const fd = new FormData();
+        fd.append("subject", $("mSubject").value); fd.append("body", $("mBody").value); fd.append("includeDetails", $("mDetails").checked ? "true" : "false");
+        for (const f of mail.files) fd.append("files", f, f.name);
+        return fd;
+      }
+      const firstPicked = () => state.roster.invitees.find((i) => mail.picked.has(i.id) && reachable(i)) || null;
+      $("mPrevBtn").addEventListener("click", async () => {
+        const who = firstPicked();
+        try {
+          const out = await api(`/api/events/${state.selected}/emails/preview`, { method: "POST", body: JSON.stringify({ subject: $("mSubject").value, body: $("mBody").value, includeDetails: $("mDetails").checked, name: who?.name || "Jordan Example" }) });
+          $("mPreview").srcdoc = out.html; $("mPreview").classList.add("show");
+          $("mPrevNote").textContent = `As ${who ? who.name || who.email : "a guest named Jordan"} sees it. Subject: ${out.subject}${mail.files.length ? ` · ${mail.files.length} PDF${mail.files.length === 1 ? "" : "s"} attached` : ""}`;
+        } catch (err) { setStatus(err.message, "error"); }
+      });
+      $("mTestBtn").addEventListener("click", async () => {
+        $("mTestBtn").disabled = true;
+        try {
+          const res = await fetch(`/api/events/${state.selected}/emails/test`, { method: "POST", credentials: "same-origin", body: draftForm() });
+          const out = await res.json().catch(() => ({})); if (!res.ok) throw new Error(out.error || "The test didn't go.");
+          setStatus(`Test sent to ${out.to}.`, "ok");
+        } catch (err) { setStatus(err.message, "error"); } finally { $("mTestBtn").disabled = false; }
+      });
+      function hideConfirm() { $("mConfirm").classList.remove("show"); $("mSendBtn").style.display = ""; }
+      $("mSendBtn").addEventListener("click", () => {
+        const a = audience();
+        $("mConfirmText").textContent = `Send "${$("mSubject").value.trim()}" to ${a.count} ${a.count === 1 ? "person" : "people"}${mail.files.length ? ` with ${mail.files.length} PDF${mail.files.length === 1 ? "" : "s"}` : ""}? Once sent it can't be called back.`;
+        $("mConfirm").classList.add("show"); $("mSendBtn").style.display = "none";
+      });
+      $("mCancel").addEventListener("click", hideConfirm);
+      $("mYes").addEventListener("click", async () => {
+        $("mYes").disabled = true;
+        const fd = draftForm();
+        fd.append("inviteeIds", JSON.stringify([...mail.picked])); fd.append("extra", $("mExtra").value); fd.append("confirm", "send");
+        try {
+          const res = await fetch(`/api/events/${state.selected}/emails`, { method: "POST", credentials: "same-origin", body: fd });
+          const out = await res.json().catch(() => ({})); if (!res.ok) throw new Error(out.error || "The send didn't start.");
+          hideConfirm(); follow(out.email.id);
+        } catch (err) { setStatus(err.message, "error"); hideConfirm(); } finally { $("mYes").disabled = false; }
+      });
+      // Follow a send until it's done.
+      function follow(id) {
+        const eventId = state.selected;
+        mail.sending = id; updateCount();
+        const box = $("mProgress"); box.classList.add("show"); box.textContent = "Starting…";
+        box.scrollIntoView({ block: "nearest" });
+        const tick = async () => {
+          try {
+            const out = await api(`/api/events/${eventId}/emails/${id}`);
+            const c = out.email.counts, done = c.sent + c.failed;
+            const still = out.email.status === "sending";
+            box.innerHTML = `<b>${still ? "Sending…" : out.email.status === "done" ? "Sent." : out.email.status === "partial" ? "Sent, with some that didn't go." : "Not sent."}</b> ${c.sent} of ${c.total} sent${c.failed ? `, ${c.failed} didn't go` : ""}${c.skipped ? `, ${c.skipped} left out (unsubscribed)` : ""}.
+              <div class="bar"><span style="width:${c.total ? Math.round((done / c.total) * 100) : 0}%"></span></div>
+              ${out.email.stopReason ? `<div class="m-note bad">${esc(out.email.stopReason)}</div>` : ""}${!still && c.failed ? '<div class="m-note">The list of sent emails on the event shows who didn\'t get it and why, with a button to send to them again.</div>' : ""}`;
+            if (still) { mail.timer = setTimeout(tick, 1500); return; }
+            // sent: the list is cleared so the same people aren't sent it twice by a second click
+            mail.sending = null; mail.picked.clear(); $("mExtra").value = "";
+            if (state.selected === eventId) { renderPick(); loadSent(); } else updateCount();
+          } catch (err) { mail.timer = setTimeout(tick, 3000); }
+        };
+        clearTimeout(mail.timer); tick();
+      }
+      // The event's sent emails.
+      const fmtWhen = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      async function loadSent() {
+        const id = state.selected; if (!id || !$("sentList")) return;
+        clearTimeout(mail.sentTimer);
+        try {
+          const info = await loadMailInfo();
+          if (state.selected !== id || !$("sentList")) return;
+          $("sentCount").textContent = info.emails.length ? `(${info.emails.length})` : "";
+          $("sentList").innerHTML = info.emails.length ? info.emails.map(sentCard).join("") : '<div class="small">No emails sent for this event yet. "Email guests" above sends one.</div>';
+          if (info.emails.some((x) => x.status === "sending")) mail.sentTimer = setTimeout(loadSent, 3000);
+        } catch (err) { $("sentList").innerHTML = `<div class="small">${esc(err.message)}</div>`; }
+      }
+      function sentCard(x) {
+        const c = x.counts, left = c.failed + (x.status === "interrupted" ? c.queued : 0);
+        const label = { sending: "sending", done: "sent", partial: "partly sent", failed: "not sent", interrupted: "cut short" }[x.status] || x.status;
+        return `<div class="sent" data-email="${x.id}">
+          <div class="top"><span class="sj">${esc(x.subject)}</span><span class="meta">${esc(fmtWhen(x.createdAt))} · ${esc(x.sentByName || x.sentBy)}</span></div>
+          <div class="counts"><span class="${x.status === "sending" ? "run" : x.status === "done" ? "ok" : x.status === "partial" || x.status === "interrupted" || x.status === "failed" ? "bad" : ""}">${esc(label)}</span><span>${c.sent} of ${c.total} sent</span>${c.failed ? `<span class="bad">${c.failed} didn't go</span>` : ""}${x.status === "interrupted" && c.queued ? `<span class="bad">${c.queued} not tried</span>` : ""}${c.skipped ? `<span>${c.skipped} unsubscribed</span>` : ""}</div>
+          ${x.files.length ? `<div class="att">${x.files.map((f, k) => `<a href="/api/events/${x.eventId}/emails/${x.id}/files/${k}" target="_blank" rel="noopener">${esc(f.name)}</a>`).join("")}</div>` : ""}
+          ${x.stopReason ? `<div class="m-note bad">${esc(x.stopReason)}</div>` : ""}
+          <div style="margin-top:6px;"><button type="button" class="linkbtn" data-who="${x.id}">Who got it</button>${left && x.status !== "sending" ? ` <button type="button" class="btn quiet" data-retry="${x.id}" style="margin-left:6px;">Send to the ${left} who didn't get it</button>` : ""}</div>
+          <div class="who-list" id="who-${x.id}"></div>
+        </div>`;
+      }
+      async function onSentClick(ev) {
+        const who = ev.target.closest("[data-who]");
+        if (who) {
+          const box = $("who-" + who.dataset.who);
+          if (box.innerHTML) { box.innerHTML = ""; return; }
+          try {
+            const out = await api(`/api/events/${state.selected}/emails/${who.dataset.who}`);
+            box.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Note</th></tr></thead><tbody>${out.recipients.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.email)}</td><td>${esc({ sent: "sent", failed: "didn't go", queued: "not tried", skipped: "unsubscribed" }[r.status] || r.status)}${r.sentAt ? ` <span class="small">${esc(fmtWhen(r.sentAt))}</span>` : ""}</td><td class="${r.status === "failed" ? "why" : "small"}">${esc(r.status === "skipped" ? "" : r.error)}</td></tr>`).join("")}</tbody></table></div>`;
+          } catch (err) { setStatus(err.message, "error"); }
+          return;
+        }
+        const again = ev.target.closest("[data-retry]");
+        if (again) {
+          if (!confirm(again.textContent.trim() + "? The same message and PDFs go to them.")) return;
+          again.disabled = true;
+          try { await api(`/api/events/${state.selected}/emails/${again.dataset.retry}/retry`, { method: "POST", body: "{}" }); setStatus("Sending to the rest…", "ok"); loadSent(); }
+          catch (err) { setStatus(err.message, "error"); again.disabled = false; }
+        }
+      }
+
       loadEvents(false);
     })();
   </script>

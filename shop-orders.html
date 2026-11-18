@@ -92,6 +92,7 @@
     .ws-tag.contact { background: #eef2ff; color: #3730a3; }
     .ws-tag.card { background: #f0fdf4; color: #166534; }
     .ws-tag.nocard { background: #fee2e2; color: #991b1b; }
+    .ws-tag.byhand { background: #fef3c7; color: #92400e; }
     .ws-lines { font-size: 13px; line-height: 1.6; color: #374151; }
     .ws-lines .ws-serial { color: var(--muted); font-size: 11.5px; }
     .ws-lines .ws-total { font-weight: 700; color: inherit; }
@@ -364,7 +365,9 @@
           The wider list: every ZIP we can deliver to at all, each with its own fee. <b>A ZIP with a fee is in the delivery area. A ZIP with no fee is only waiting for one, and is not offered delivery.</b>
           The Delivery ZIP codes list above is still the express area, where a shopper orders online and picks a date.
           Paste rows from the spreadsheet with its header row (ZIP, City, County, Miles, Fee: any of them, in any order). Pasting again never wipes a fee that is already set.
-          <br><b>The shop does not use these fees yet.</b> Taking orders from this wider area is the next step on the storefront; until then this is where the list and the fees are kept.
+          <br><b>A fee set here is what the shop charges for delivery to that ZIP</b>, in the express area too; an express ZIP with no fee here pays the standard $49.95.
+          A ZIP outside the express area that has a fee here orders online at that fee with no date to pick; the order comes in tagged <b>Schedule by hand</b> for you to call and set the day.
+          A ZIP on neither list is told to call or text: it cannot check out, not even for pickup.
         </p>
         <div class="exp-row" style="align-items:flex-start;">
           <textarea id="dzPaste" rows="3" placeholder="Paste from the spreadsheet, header row included: ZIP, City, County, Miles, Fee" style="flex:1; min-width:240px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px; font-family:inherit;"></textarea>
@@ -563,7 +566,9 @@
             ? `<div style="font-weight:700; color:#1d4ed8;">CUSTOMER PICKUP — ${order.delivery?.later
                 ? "client will schedule later (30-day pickup window on clearance/outlet units)"
                 : `requested <u>${esc(order.delivery?.dateLabel || order.delivery?.date || "")}</u>`}. Confirm via the client's preferred contact method when it's ready.</div>`
-            : `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}${order.delivery?.date ? ` · <strong>Requested day: ${esc(order.delivery.dateLabel || order.delivery.date)}</strong> — call with the 4-hour window 2 business days prior` : ""}</div>`,
+            : order.delivery?.manualSchedule
+              ? `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)} · <strong style="color:#92400e;">SCHEDULE BY HAND</strong> — ZIP ${esc(order.delivery?.zip || addr.zip || "")} is outside the express area, so no day was picked. Call the client to set the delivery day.</div>`
+              : `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}${order.delivery?.date ? ` · <strong>Requested day: ${esc(order.delivery.dateLabel || order.delivery.date)}</strong> — call with the 4-hour window 2 business days prior` : ""}</div>`,
           ...(order.totals?.discount ? [`<div style="color:#86198f; font-weight:600;">Promo ${esc(order.totals.promo?.code || "")}${order.totals.promo?.description ? ` (${esc(order.totals.promo.description)})` : ""} — −${money(order.totals.discount)}</div>`] : []),
           ...(order.totals?.tax != null ? [`<div>Sales tax — ${money(order.totals.tax)}</div>`] : []),
           `<div class="ws-total">Estimated total — ${money(order.totals?.total)}</div>`
@@ -587,6 +592,7 @@
             <span class="ws-spacer"></span>
             <span class="ws-tag contact">${esc(c.preferredContact || "Contact")} preferred</span>
             ${cardTag}
+            ${order.delivery?.manualSchedule && order.delivery?.method !== "pickup" ? `<span class="ws-tag byhand">Schedule by hand</span>` : ""}
             <span class="ws-pill ${esc(order.status)}">${esc(order.status.toUpperCase())}</span>
           </div>
           <div class="ws-lines">${lines}</div>

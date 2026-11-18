@@ -13,7 +13,24 @@
        never blocks first paint of the storefront. -->
   <link rel="preconnect" href="https://js.stripe.com" crossorigin />
   <style>
-    .fulfill-opt.need-day { outline: 2px solid #dc2626; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(220, 38, 38, .12); }
+    .fulfill-opt.need-day, .cz-form.need-zip { outline: 2px solid #dc2626; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(220, 38, 38, .12); }
+    /* The cart's ZIP step (11/19): asked before the delivery and pickup options, which depend on it. */
+    .cart-zip { margin-top: 14px; }
+    .cz-form { display: block; border: 1.5px solid #cfe3d2; border-radius: 12px; padding: 11px 13px; background: #fff; }
+    .cz-form .cz-q { display: block; font-size: 14px; font-weight: 700; color: var(--ink); }
+    .cz-form .cz-note { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .cz-form .cz-row { display: flex; gap: 8px; margin-top: 9px; }
+    .cz-form input { flex: 1; min-width: 0; padding: 8px 10px; font-size: 15px; letter-spacing: .04em; }
+    .cz-form .btn { padding: 8px 14px; font-size: 14px; }
+    .cz-form .cz-err { display: block; color: var(--danger); font-size: 12.5px; margin-top: 6px; }
+    .cz-form .cz-err:empty { display: none; }
+    .cz-known { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13.5px; color: var(--muted); }
+    .cz-known b { color: var(--ink); }
+    .cz-known .linklike { display: inline; margin: 0; font-size: 13px; }
+    .cz-out { margin-top: 10px; border: 1.5px solid #E8D3BA; background: var(--copper-soft, #F6EBDD); border-radius: 12px; padding: 11px 13px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+    .cz-call { display: flex; gap: 8px; }
+    .cz-call .btn { flex: 1; text-decoration: none; }
+    .cz-call a.text-us svg { margin-right: .4em; }
     .need-day-tag { display:inline-block; margin-left:6px; font-size:12px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; border-radius:999px; padding:1px 8px; vertical-align:1px; }
     @keyframes cart-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
     #checkoutBtn.shake { animation: cart-shake .45s ease; }
@@ -51,22 +68,7 @@
     .small-text { font-size: 12.5px; }
     .muted { color: var(--muted); }
 
-    /* ---- ZIP gate ---- */
-    .gate {
-      position: fixed; inset: 0; z-index: 100; background: rgba(17, 24, 39, 0.55);
-      display: flex; align-items: center; justify-content: center; padding: 18px;
-      backdrop-filter: blur(6px);
-    }
-    .gate.hidden { display: none; }
-    .gate-card { background: #fff; border-radius: 18px; max-width: 430px; width: 100%; padding: 34px 30px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,0.25); }
-    .gate-card img { height: 44px; margin-bottom: 14px; }
-    .gate-card h1 { font-size: 21px; margin-bottom: 8px; }
-    .gate-card p { font-size: 14.5px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
-    .gate-row { display: flex; gap: 10px; margin: 0; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    .gate-row input { text-align: center; font-size: 18px; letter-spacing: 0.08em; }
-    .gate-error { color: var(--danger); font-size: 13.5px; margin-top: 12px; display: none; line-height: 1.5; }
-    .gate-error.show { display: block; }
 
     /* ---- Header ---- */
     header {
@@ -590,6 +592,22 @@
     .deal-tile.active .dt-count { background: var(--copper); color: #fff; }
     .deal-tile.active .dt-count::before { content: "✓ "; }
     .deal-grid.has-active .deal-tile:not(.active) { opacity: .72; }
+    /* "Do we deliver to you?" (11/19): the ZIP question that used to be a gate at the door, asked here instead.
+       One line; once answered it says what that ZIP gets, with Change. */
+    .zip-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); font-size: 14px; line-height: 1.45; }
+    .zip-strip[hidden] { display: none; }
+    .zip-strip .zs-ic { width: 22px; height: 22px; flex: none; color: var(--copper); fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .zip-strip .zs-q { font-family: var(--f-display); font-weight: 600; font-size: 15px; color: var(--ink); }
+    .zip-strip .zs-ask { display: inline-flex; gap: 8px; align-items: center; }
+    .zip-strip .zs-ask[hidden], .zip-strip .zs-q[hidden], .zip-strip .zs-change[hidden] { display: none; }
+    .zip-strip input { width: 112px; padding: 7px 10px; font-size: 15px; letter-spacing: .04em; }
+    .zip-strip .btn { padding: 7px 14px; font-size: 14px; }
+    .zip-strip .zs-answer { flex: 1 1 260px; min-width: 0; color: var(--ink); }
+    .zip-strip .zs-answer:empty { display: none; }
+    .zip-strip .zs-answer.err { color: var(--danger); flex-basis: 100%; }
+    .zip-strip.known[data-area="none"] { background: var(--copper-soft); border-color: #E8D3BA; }
+    .zip-strip .zs-change { background: none; border: none; padding: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    @media (max-width: 560px) { .zip-strip { padding: 10px 12px; } .zip-strip .zs-ask { flex: 1 1 100%; } .zip-strip input { flex: 1; width: auto; } }
     @media (min-width: 1024px) {
       .deal-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
       .deal-tile { min-height: 150px; padding: 16px 16px 14px; }
@@ -794,27 +812,6 @@
 </head>
 <body>
 
-  <!-- ZIP gate -->
-  <div class="gate" id="zipGate">
-    <div class="gate-card">
-      <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
-      <h1>Express Assortment</h1>
-      <p><strong>Better choices, already made.</strong> Products selected through decades of sales and service
-      experience, in stock for quick delivery — available for delivery in the Wilson AC &amp; Appliance local
-      area only. Enter your delivery ZIP code to come in.</p>
-      <!-- A real <form> of its own (Andrew 10/12): with no form on the page,
-           Chrome and Safari treated this box as the username for the
-           password fields further down and offered saved passwords. In its
-           own form, typed and named as a postal code, it is just a ZIP. -->
-      <form class="gate-row" id="gateForm" autocomplete="on" novalidate>
-        <label for="gateZip" class="sr-only">Delivery ZIP code</label>
-        <input id="gateZip" name="postal-code" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="ZIP code" autocomplete="postal-code" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <button class="btn primary" id="gateBtn" type="submit">Enter</button>
-      </form>
-      <div class="gate-error" id="gateError"></div>
-    </div>
-  </div>
-
   <!-- Site header (Andrew 11/10): identical to wilsonappliance.com — built
        by site-header.js from the shared link table. The shop adds its own
        controls (menu button, account, cart, search) and a department ribbon
@@ -901,6 +898,19 @@
          11/11 (Andrew): shoppers arriving from an ad go straight to the Top
          Deals cards. The empty anchor stays — notices are placed before it. -->
     <div id="heroStrip"></div>
+    <!-- Do we deliver to you? (11/19): the door gate is gone; this asks the same question without blocking the
+         shop. Its own <form>, typed and named as a postal code, like the gate's was (10/12), so browsers never
+         take it for a username. -->
+    <form class="zip-strip" id="zipStrip" autocomplete="on" novalidate>
+      <svg class="zs-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 4h13v12H1zM14 8h4.5L22 11.5V16h-8z"/><circle cx="5.5" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/></svg>
+      <label class="zs-q" id="zsQ" for="zsZip">Do we deliver to you?</label>
+      <span class="zs-ask" id="zsAsk">
+        <input id="zsZip" name="postal-code" type="text" inputmode="numeric" maxlength="10" placeholder="ZIP code" autocomplete="postal-code" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="btn ghost" id="zsBtn" type="submit">Check</button>
+      </span>
+      <span class="zs-answer" id="zsAnswer" role="status" aria-live="polite"></span>
+      <button type="button" class="zs-change" id="zsChange" hidden>Change</button>
+    </form>
 
     <section class="deal-grid" id="dealRow" aria-label="Top deals"></section>
     <div class="deal-slide" id="dealSlide" hidden>
@@ -1136,6 +1146,9 @@
   const state = {
     token: localStorage.getItem(TOKEN_KEY) || "",
     zip: sessionStorage.getItem(ZIP_KEY) || "",
+    // What that ZIP may do (11/19): "express" | "extended" | "none", "" until the server has said. zipFee: its
+    // delivery fee. addressZip: the saved delivery address's ZIP (signed in), where a delivery actually goes.
+    zipArea: "", zipFee: null, addressZip: "", needZip: false, zipEditStrip: false, zipEditCart: false,
     catalog: null,
     unlocked: false,
     shopperName: "",
@@ -1172,67 +1185,100 @@
   const GRID_PAGE = 20;
   const money = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // ---------- ZIP gate ----------
-  async function checkZip(zip) {
-    const res = await fetch("/api/shop/zip-check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ zip })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Unable to check that ZIP.");
-    return data.allowed;
+  // ---------- Delivery ZIP ----------
+  // The gate at the door came off 11/19 (Andrew): anyone can come in and look. The ZIP is asked where it decides
+  // something - the "Do we deliver to you?" strip above the deals, and the cart, before checkout. What it decides:
+  //   express   delivery with a day to pick, or pickup (as before)
+  //   extended  delivery at that ZIP's fee with no day to pick (Wilson calls to schedule it), or pickup
+  //   none      call or text only: no checkout and no pickup
+  // Kept in this tab under the key the gate used, so the product pages, the strip and the cart share it. The
+  // server applies the same rules at checkout; this only keeps the page in step with it.
+  const ZIP_AREAS = ["express", "extended", "none"];
+  const fiveDigits = (z) => (String(z || "").trim().match(/^(\d{5})(?:-\d{4})?$/) || [])[1] || "";
+  const zipKnown = () => Boolean(state.zip && state.zipArea);
+  const SMS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  function rememberZip(z) { try { if (z) sessionStorage.setItem(ZIP_KEY, z); else sessionStorage.removeItem(ZIP_KEY); } catch {} }
+  // What the shop says about a ZIP. The product pages say the same words (data/product-pages/template.html).
+  // "text us" and the number become links (linkPhone) wherever this is shown.
+  function zipAnswerHtml(z, area, fee) {
+    const name = esc(state.delivery?.name || "White Glove Delivery + Haul Away");
+    const feeText = fee != null && Number.isFinite(Number(fee)) ? money(Number(fee)) : "";
+    if (area === "express") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}, and you choose your delivery day at checkout.`;
+    if (area === "extended") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}. Order online and we'll call you to schedule your delivery day.`;
+    return `We can't take online orders for <b>${esc(z)}</b>. Call 512-894-0907 or text us and we'll help you from there.`;
   }
-
-  async function initGate() {
-    if (state.zip) {
-      try {
-        if (await checkZip(state.zip)) {
-          $("zipGate").classList.add("hidden");
-          return true;
-        }
-      } catch {}
-      sessionStorage.removeItem(ZIP_KEY);
-      state.zip = "";
-    }
-    return false;
+  // An answer (zip-check, or the catalog's deliveryArea) -> the page.
+  function applyZipInfo(info) {
+    const z = fiveDigits(info?.zip);
+    if (!z || !ZIP_AREAS.includes(info?.area)) return false;
+    state.zip = z;
+    state.zipArea = info.area;
+    state.zipFee = info.area === "none" || info.fee == null || !Number.isFinite(Number(info.fee)) ? null : Number(info.fee);
+    if (state.needZip) { state.needZip = false; state.cartNotice = null; } // the "enter your ZIP" nag is answered
+    rememberZip(z);
+    if (state.delivery && state.zipFee != null) state.delivery = { ...state.delivery, price: state.zipFee };
+    // the wider area picks no day for delivery, so a day picked under express doesn't carry over
+    if (state.zipArea === "extended" && state.fulfillment.method === "delivery") state.fulfillment.date = null;
+    renderZipStrip();
+    return true;
   }
+  async function lookUpZip(zip) {
+    const res = await fetch("/api/shop/zip-check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zip }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "We couldn't check that ZIP code just now. Please try again.");
+    return data;
+  }
+  async function setZip(zip) {
+    const z = fiveDigits(zip);
+    if (!z) throw new Error("Enter a 5-digit ZIP code.");
+    const info = await lookUpZip(z);
+    applyZipInfo({ ...info, zip: info.zip || z });
+    if ($("cartDrawer").classList.contains("show") && !state.checkout.open) renderCart();
+    return info;
+  }
+  // A delivery that needs no day picked: the wider area, where Wilson calls to schedule it.
+  const callsToSchedule = () => state.fulfillment.method === "delivery" && state.zipArea === "extended";
+  // Outside both areas: the cart offers a call or a text where checkout would be.
+  const outsideArea = () => zipKnown() && state.zipArea === "none";
+  const CALL_OR_TEXT_BUTTONS = `<div class="cz-call"><a class="btn primary" href="tel:512-894-0907">Call 512-894-0907</a><a class="btn ghost text-us" href="sms:+15128940907">${SMS_SVG}Text Us</a></div>`;
 
-  $("gateBtn").addEventListener("click", async () => {
-    const zip = $("gateZip").value.trim();
-    const err = $("gateError");
-    err.classList.remove("show");
-    if (!/^\d{5}$/.test(zip)) {
-      err.textContent = "Enter a 5-digit ZIP code.";
-      err.classList.add("show");
-      return;
-    }
-    $("gateBtn").disabled = true;
-    try {
-      const allowed = await checkZip(zip);
-      if (!allowed) {
-        err.innerHTML = "We're sorry — online ordering isn't available for delivery to " + zip +
-          " yet. Come see the deals in person at our Dripping Springs showroom, or call 512-894-0907 or text us.";
-        linkPhone(err);
-        err.classList.add("show");
-        return;
-      }
-      state.zip = zip;
-      sessionStorage.setItem(ZIP_KEY, zip);
-      $("zipGate").classList.add("hidden");
-      loadCatalog();
-    } catch (e) {
-      err.textContent = e.message;
-      err.classList.add("show");
-    } finally {
-      $("gateBtn").disabled = false;
-    }
+  function renderZipStrip() {
+    const box = $("zipStrip");
+    if (!box) return;
+    const known = zipKnown() && !state.zipEditStrip;
+    box.classList.toggle("known", known);
+    box.dataset.area = known ? state.zipArea : "";
+    $("zsQ").hidden = known;
+    $("zsAsk").hidden = known;
+    $("zsChange").hidden = !known;
+    const a = $("zsAnswer");
+    if (known) { a.className = "zs-answer"; a.innerHTML = zipAnswerHtml(state.zip, state.zipArea, state.zipFee); linkPhone(a); }
+    else if (!a.classList.contains("err")) a.textContent = "";
+  }
+  $("zipStrip").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("zsBtn"), a = $("zsAnswer");
+    if (btn.disabled) return;
+    a.className = "zs-answer"; a.textContent = "";
+    btn.disabled = true;
+    try { await setZip($("zsZip").value); state.zipEditStrip = false; renderZipStrip(); }
+    catch (err) { a.className = "zs-answer err"; a.textContent = err.message; }
+    finally { btn.disabled = false; }
   });
-  $("gateForm").addEventListener("submit", (e) => { e.preventDefault(); if (!$("gateBtn").disabled) $("gateBtn").click(); });
+  $("zsChange").addEventListener("click", () => {
+    state.zipEditStrip = true;
+    $("zsAnswer").className = "zs-answer";
+    renderZipStrip();
+    $("zsZip").value = state.zip;
+    $("zsZip").focus(); $("zsZip").select();
+  });
 
   // ---------- Catalog ----------
   function catalogUrl() {
-    return "/api/shop/catalog" + (state.token ? "?token=" + encodeURIComponent(state.token) : "");
+    // zip: the ZIP this visitor gave, so the delivery fee shown is that ZIP's (11/19); a saved address outranks it on the server
+    let zip = ""; try { zip = (sessionStorage.getItem(ZIP_KEY) || "").slice(0, 5); } catch {}
+    const q = [state.token ? "token=" + encodeURIComponent(state.token) : "", /^\d{5}$/.test(zip) ? "zip=" + zip : ""].filter(Boolean);
+    return "/api/shop/catalog" + (q.length ? "?" + q.join("&") : "");
   }
   // Starts the catalog request without waiting on anything else; loadCatalog
   // picks the response up. Lets boot run the ZIP check and the catalog fetch
@@ -1281,6 +1327,10 @@
     state.addons = data.addons;
     state.delivery = data.delivery;
     state.fulfillOptions = data.fulfillment || null;
+    // The ZIP the server judged this visit by (11/19): the saved delivery address when there is one, else the one
+    // this tab gave. A stored ZIP the server can't read is dropped.
+    state.addressZip = data.deliveryArea?.fromAddress ? fiveDigits(data.deliveryArea.zip) : "";
+    if (!applyZipInfo(data.deliveryArea) && !state.zipArea) { state.zip = ""; rememberZip(""); renderZipStrip(); }
     // Drop a stale chosen day if it's no longer offered (page left open
     // overnight) — checked against the day pool for the chosen method;
     // "later" is always a valid pickup choice.
@@ -1316,6 +1366,7 @@
     }
     $("pausedNote").style.display = state.paused ? "block" : "none";
     $("heroStrip").style.display = "";
+    $("zipStrip").hidden = state.paused; // nothing to order while ordering is paused
     $("cartBtn").style.display = state.paused ? "none" : "";
     $("filterBar").style.display = "";
   }
@@ -2399,8 +2450,9 @@
   }
 
   // A signed-in shopper with no address on file (they chose Customer Pickup
-  // the first time) who now wants this cart delivered.
-  async function openAddressStep() {
+  // the first time) who now wants this cart delivered - or (11/19) whose
+  // saved address is in another ZIP than the one this cart was given (`zip`).
+  async function openAddressStep({ zip = "" } = {}) {
     try {
       const res = await fetch("/api/shop/profile?token=" + encodeURIComponent(state.token));
       const data = await res.json();
@@ -2415,9 +2467,14 @@
       openRegister();
       return;
     }
-    $("regZip").value = $("regZip").value || state.zip;
+    if (zip) {
+      // a new ZIP: the street on file belongs to the old one
+      $("regLine1").value = ""; $("regLine2").value = ""; $("regCity").value = "";
+      $("regZip").value = zip;
+    } else $("regZip").value = $("regZip").value || state.zip;
     showAuthPanel("reg");
     setRegMode("address");
+    if (zip) $("regLead").innerHTML = `Add the delivery address in ${esc(zip)} for this order — or <button type="button" class="linklike" data-reg-skip>switch to Customer Pickup</button>, which is complimentary.`;
     $("registerOverlay").classList.add("show");
     setTimeout(() => $("regLine1").focus(), 50);
   }
@@ -2683,7 +2740,11 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Unable to save that address.");
         state.hasAddress = hasDeliveryAddress(data.profile);
+        state.addressZip = state.hasAddress ? fiveDigits(data.profile?.address?.zip) : "";
+        // the address's ZIP is the cart's now: its area and fee decide the options (a day, or a call to schedule)
+        if (state.addressZip) await setZip(state.addressZip).catch(() => {});
         $("registerOverlay").classList.remove("show");
+        renderCart();
         startCheckout();
       } catch (e) {
         regFail(e.message);
@@ -2834,6 +2895,8 @@
       if (!res.ok) throw new Error(data.error || "Unable to save your profile.");
       state.shopperName = data.firstName || state.shopperName;
       state.hasAddress = hasDeliveryAddress(data.profile);
+      state.addressZip = state.hasAddress ? fiveDigits(data.profile?.address?.zip) : "";
+      if (state.addressZip) setZip(state.addressZip).catch(() => {}); // the saved address is where a delivery goes
       renderHeader();
       pfStatus(state.hasAddress ? "Saved — your delivery details are up to date." : "Saved — your contact details are up to date.", true);
     } catch (e) {
@@ -3269,7 +3332,8 @@
       if (a.taxable !== false) taxableAddons += a.price * l.qty;
     }
     const pickup = state.fulfillment.method === "pickup";
-    const delivery = items.length && !pickup ? (state.delivery?.price || 0) : 0;
+    // no delivery fee until the ZIP is known (it sets the fee), and none where we can't deliver (11/19)
+    const delivery = items.length && !pickup && zipKnown() && state.zipArea !== "none" ? (state.delivery?.price || 0) : 0;
     // Promo: percent / dollars off the appliances, or the delivery fee
     // waived. Mirrors the server; it re-prices at checkout anyway.
     let discount = 0, promoNote = "";
@@ -3346,7 +3410,7 @@
       box.style.display = msg ? "block" : "none";
     }
     const btn = document.getElementById("checkoutBtn");
-    if (btn) btn.classList.toggle("shake", !!msg && !!state.needDay);
+    if (btn) btn.classList.toggle("shake", !!msg && !!(state.needDay || state.needZip));
   }
 
   function renderCart() {
@@ -3358,8 +3422,9 @@
     notice.style.cssText = "display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px;";
     body.appendChild(notice);
     const t = cartTotals();
-    // a day was picked (or pickup chosen) since the nag: clear it
-    if (state.needDay && (state.fulfillment.date || !state.delivery)) { state.needDay = false; state.cartNotice = null; }
+    // a day was picked (or pickup chosen, or the ZIP is one where we call to schedule) since the nag: clear it
+    if (state.needDay && (state.fulfillment.date || !state.delivery || callsToSchedule())) { state.needDay = false; state.cartNotice = null; }
+    if (state.needZip && zipKnown()) { state.needZip = false; state.cartNotice = null; }
 
     if (!t.items.length && !t.special.length) {
       body.innerHTML = "<p class='muted' style='padding: 30px 0; text-align:center;'>Your cart is empty.</p>";
@@ -3434,9 +3499,47 @@
       }
     }
 
+    // Where it's going (11/19): the ZIP first, since the options under it depend on it.
     if (state.delivery) {
+      const zipBox = document.createElement("div");
+      zipBox.className = "cart-zip";
+      const asking = !zipKnown() || state.zipEditCart;
+      zipBox.innerHTML = asking ? `
+        <form class="cz-form${state.needZip ? " need-zip" : ""}" id="czForm" autocomplete="on" novalidate>
+          <label class="cz-q" for="czZip">What's your ZIP code?${state.needZip ? ` <span class="need-day-tag">Enter it to continue</span>` : ""}</label>
+          <span class="cz-note">It sets your delivery and pickup options.</span>
+          <span class="cz-row">
+            <input id="czZip" name="postal-code" type="text" inputmode="numeric" maxlength="10" placeholder="ZIP code" autocomplete="postal-code" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(state.zip)}">
+            <button type="submit" class="btn ghost" id="czBtn">Check</button>
+          </span>
+          <span class="cz-err" id="czErr" role="alert"></span>
+        </form>`
+        : `<div class="cz-known"><span>Your ZIP code: <b>${esc(state.zip)}</b></span><button type="button" class="linklike" id="czChange">Change</button></div>`;
+      body.appendChild(zipBox);
+      const form = zipBox.querySelector("#czForm");
+      if (form) form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector("#czBtn"), err = form.querySelector("#czErr");
+        if (btn.disabled) return;
+        err.textContent = ""; btn.disabled = true;
+        try { state.zipEditCart = false; await setZip(form.querySelector("#czZip").value); renderCart(); }
+        catch (x) { state.zipEditCart = zipKnown(); err.textContent = x.message; btn.disabled = false; }
+      });
+      const change = zipBox.querySelector("#czChange");
+      if (change) change.addEventListener("click", () => { state.zipEditCart = true; renderCart(); const i = document.getElementById("czZip"); if (i) { i.focus(); i.select(); } });
+    }
+
+    if (state.delivery && zipKnown() && state.zipArea === "none") {
+      // Outside both areas: call or text, nothing to choose (the buttons sit where checkout would)
+      const out = document.createElement("div");
+      out.className = "cz-out";
+      out.innerHTML = zipAnswerHtml(state.zip, "none");
+      linkPhone(out);
+      body.appendChild(out);
+    } else if (state.delivery && zipKnown()) {
       const f = state.fulfillment;
       const opts = state.fulfillOptions || {};
+      const byCall = state.zipArea === "extended"; // delivery here has no day to pick: we call to schedule it
       // Express carts — every unit is a washer, dryer, or freestanding
       // refrigerator the warehouse team installs — get the fast schedule
       // (same-day before 11 AM, next day after).
@@ -3447,16 +3550,18 @@
       const days = (expressCart && opts.expressDates ? opts.expressDates : opts.deliveryDates) || [];
       // Cart changed from express to mixed (or vice versa): a chosen day
       // that's no longer on offer silently un-picks itself.
-      if (f.method === "delivery" && f.date && !days.some((d) => d.date === f.date)) f.date = null;
+      if (f.method === "delivery" && f.date && (byCall || !days.some((d) => d.date === f.date))) f.date = null;
       const chooser = document.createElement("div");
       chooser.innerHTML = `
         <label class="fulfill-opt${f.method === "delivery" ? " on" : ""}${state.needDay && f.method === "delivery" ? " need-day" : ""}">
           <input type="radio" name="fulfillMethod" value="delivery"${f.method === "delivery" ? " checked" : ""}>
           <span class="fo-body">
             <span class="fo-nm"><span>${esc(state.delivery.name)}</span>
-              <span class="fo-price"><span class="compare">${money(state.delivery.regularPrice)}</span>${money(state.delivery.price)}</span>
+              <span class="fo-price">${Number(state.delivery.regularPrice) > Number(state.delivery.price) ? `<span class="compare">${money(state.delivery.regularPrice)}</span>` : ""}${money(state.delivery.price)}</span>
             </span>
-            ${f.method === "delivery" ? `
+            ${f.method === "delivery" && byCall ? `
+              <span class="fo-note" style="font-weight:600; color: var(--text, #1f2937); display:block; margin-top:6px;">${esc(opts.callToScheduleNote || "We'll call you to schedule your delivery day.")}</span>
+            ` : f.method === "delivery" ? `
               <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:${state.needDay ? ` <span class="need-day-tag">Choose a day to continue</span>` : ""}</span>
               <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}${d.sameDay ? " sameday" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
             ` : ""}
@@ -3537,23 +3642,23 @@
         <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span class="muted">quoted</span></div>
         <div class="tax-note">A Wilson consultant will price everything above and confirm with you before anything is ordered.</div>
         <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
-        <button class="btn primary" id="checkoutBtn" style="width:100%;">Request pricing</button>`;
-      document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
+        ${outsideArea() ? CALL_OR_TEXT_BUTTONS : `<button class="btn primary" id="checkoutBtn" style="width:100%;">Request pricing</button>`}`;
+      document.getElementById("checkoutBtn")?.addEventListener("click", startCheckout);
       paintNotice();
       return;
     }
     $("drawerTotals").innerHTML = `
       <div class="tot-row"><span>Appliances</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
-      <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span>${state.fulfillment.method === "pickup" ? "FREE" : money(t.delivery)}</span></div>
-      ${promoRow}
+      <div class="tot-row"><span>${state.fulfillment.method === "pickup" && !outsideArea() ? "Customer Pickup" : "White Glove Delivery"}</span><span>${outsideArea() ? `<span class="muted">call or text</span>` : state.fulfillment.method === "pickup" ? "FREE" : zipKnown() ? money(t.delivery) : `<span class="muted">set by ZIP code</span>`}</span></div>
+      ${outsideArea() ? "" : promoRow}
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       ${t.special.length ? `<div class="tot-row"><span>Special-order items (${t.special.length})</span><span class="muted">quoted separately</span></div>` : ""}
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
       ${t.special.length ? `<div class="tax-note">Special-order items are priced by a consultant, who confirms with you first.</div>` : ""}
       <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
-      <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
-    document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
+      ${outsideArea() ? CALL_OR_TEXT_BUTTONS : `<button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`}`;
+    document.getElementById("checkoutBtn")?.addEventListener("click", startCheckout);
     paintNotice();
     const rm = document.getElementById("promoRm");
     if (rm) rm.addEventListener("click", () => { setPromo(null); renderCart(); });
@@ -3577,11 +3682,24 @@
   // ---------- Checkout ----------
   async function startCheckout() {
     const quoteOnly = !state.cart.itemIds.length && state.cart.special.length > 0;
+    // The ZIP comes first (11/19, the door gate came off): it decides what the cart may offer.
+    if (state.delivery && !zipKnown()) {
+      state.needZip = true;
+      state.zipEditCart = true;
+      if (!$("cartDrawer").classList.contains("show")) openCart(); else renderCart();
+      alertLine("Enter your ZIP code to see your delivery and pickup options.", { sticky: true });
+      const box = document.getElementById("czZip");
+      if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus({ preventScroll: true }); }
+      return;
+    }
+    // Outside both areas: the cart already says call or text; nothing goes further.
+    if (outsideArea()) { if (!$("cartDrawer").classList.contains("show")) openCart(); else renderCart(); return; }
     // Blind scheduling: a delivery order needs its day picked first. (Also
     // catches the post-registration resume — it lands back on the cart with
     // the chooser highlighted rather than dead-ending.) A quote-only cart
-    // has nothing to schedule yet; the consultant sets the date.
-    if (!quoteOnly && state.delivery && !state.fulfillment.date) {
+    // has nothing to schedule yet; the consultant sets the date. Nor does a
+    // delivery in the wider area, where we call to schedule it (11/19).
+    if (!quoteOnly && state.delivery && !state.fulfillment.date && !callsToSchedule()) {
       state.needDay = true;
       if (!$("cartDrawer").classList.contains("show")) openCart(); else renderCart();
       alertLine(state.fulfillment.method === "pickup"
@@ -3606,6 +3724,12 @@
       openAddressStep();
       return;
     }
+    // The cart's ZIP and the saved address's disagree (11/19): the truck goes to the saved address, so ask for
+    // the address in the ZIP this cart was priced for.
+    if (state.fulfillment.method !== "pickup" && state.addressZip && state.zip && state.addressZip !== state.zip) {
+      openAddressStep({ zip: state.zip });
+      return;
+    }
     state.checkout.open = true;
     $("drawerTitle").textContent = "Secure checkout";
     const body = $("drawerBody");
@@ -3622,7 +3746,7 @@
           ].join("<br>")).join("<br>")}
           <br>${state.fulfillment.method === "pickup"
             ? `Customer Pickup (${state.fulfillment.date === "later" ? "scheduling later" : esc(fulfillDayLabel() || "day TBD")}) — FREE`
-            : `${esc(state.delivery?.name || "Delivery")} (${esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
+            : `${esc(state.delivery?.name || "Delivery")} (${callsToSchedule() ? `to ${esc(state.zip)}, we'll call to schedule` : esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
           ${t.discount ? `<br><span id="sumPromo">Promo ${esc(state.promo.code)} (${esc(promoLabel(state.promo))}) — −${money(t.discount)}</span>` : ""}
           <br>Sales tax — <span id="sumTax">${money(t.tax)}</span>
           <br><strong>Estimated total — <span id="sumTotal">${money(t.total)}</span></strong>
@@ -3664,6 +3788,16 @@
         setPromo(null);
         state.promoNotice = `${data.error} Your total below is without the code.`;
         return startCheckout();
+      }
+      if (!res.ok && (data.needZip || data.outsideArea)) {
+        // The server judged the ZIP differently (the lists changed, or the saved address is elsewhere): back to
+        // the cart, which now says what that ZIP can do.
+        state.checkout.open = false;
+        if (data.zip) await setZip(data.zip).catch(() => {});
+        else { state.zipArea = ""; state.needZip = true; }
+        renderCart();
+        alertLine(data.error || "Enter your ZIP code to continue.", { sticky: true });
+        return;
       }
       if (!res.ok && data.needAddress) {
         // The server has no delivery address for this shopper (this page's
@@ -3734,6 +3868,13 @@
         body: JSON.stringify({ token: state.token, special: specialPayload(), fulfillment: { ...fulfillPayload(), deliveryName: state.delivery?.name || "" }, handoff: state.handoffToken || "" })
       });
       const data = await res.json().catch(() => ({}));
+      if (!res.ok && (data.needZip || data.outsideArea)) {
+        if (data.zip) await setZip(data.zip).catch(() => {});
+        else { state.zipArea = ""; state.needZip = true; }
+        renderCart();
+        alertLine(data.error || "Enter your ZIP code to continue.", { sticky: true });
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "We couldn't send that request.");
       state.cart = { itemIds: [], addonLines: [], special: [] };
       state.fulfillment = { method: "delivery", date: null };
@@ -3755,7 +3896,8 @@
   }
 
   function fulfillPayload() {
-    return { method: state.fulfillment.method === "pickup" ? "pickup" : "delivery", date: state.fulfillment.date };
+    // zip: the ZIP this cart was given (11/19); the server judges a pickup by it, a delivery by the saved address
+    return { method: state.fulfillment.method === "pickup" ? "pickup" : "delivery", date: callsToSchedule() ? null : state.fulfillment.date, zip: state.zip || "" };
   }
 
   function fulfillDayLabel() {
@@ -3833,7 +3975,9 @@
         ? (state.fulfillment.date === "later"
             ? "Customer pickup — we'll be in touch to schedule it."
             : `Customer pickup requested for ${fulfillDayLabel()}.`)
-        : `Delivery requested for ${fulfillDayLabel()}.`;
+        : callsToSchedule()
+          ? `Delivery to ${state.zip}: we'll call you to schedule your delivery day.`
+          : `Delivery requested for ${fulfillDayLabel()}.`;
       const hadSpecial = state.cart.special.length;
       state.cart = { itemIds: [], addonLines: [], special: [] };
       state.fulfillment = { method: "delivery", date: null };
@@ -3877,15 +4021,10 @@
   }
 
   // ---------- Boot ----------
-  (async () => {
-    // Returning visitor with a stored ZIP: kick off the catalog request at the
-    // same time as the ZIP re-check rather than after it. If the ZIP check
-    // fails the response is simply dropped.
-    const pending = state.zip ? fetchCatalog().catch(() => null) : null;
-    if (pending) showSkeleton();
-    const passed = await initGate();
-    if (passed) loadCatalog(pending ? pending.then((r) => r || fetchCatalog()) : undefined);
-  })();
+  // No gate at the door (11/19): the shop opens straight away. The catalog
+  // carries what the server makes of this tab's ZIP, if it has one.
+  renderZipStrip();
+  loadCatalog();
 })();
 </script>
 </body>

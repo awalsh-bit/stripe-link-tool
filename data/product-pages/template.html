@@ -127,6 +127,21 @@
     .b-cta { margin-top: 16px; }
     .b-cta .btn { width: 100%; min-height: 54px; font-size: 16.5px; }
     .btn.is-in-cart { border-color: var(--ok); background: var(--ok-bg); color: var(--ok-text); }
+    /* Do we deliver to you? (11/19) */
+    .b-zip { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+    .b-zip-q { display: block; font-family: var(--f-display); font-weight: 600; font-size: 15px; color: var(--ink); }
+    .b-zip-q[hidden], .b-zip-row[hidden], .b-zip-change[hidden] { display: none; }
+    .b-zip-row { display: flex; gap: 8px; margin-top: 8px; }
+    .b-zip-row input { flex: 1; min-width: 0; font: inherit; font-size: 15px; letter-spacing: .04em; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); }
+    .b-zip-row input:focus { outline: none; border-color: var(--copper); box-shadow: 0 0 0 3px rgba(190,125,60,.18); }
+    .b-zip-row .btn { padding: 9px 16px; font-size: 14.5px; }
+    .b-zip-a { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+    .b-zip-a:empty { display: none; }
+    .b-zip-row + .b-zip-a { margin-top: 8px; }
+    .b-zip-a.err { color: #b91c1c; }
+    .b-zip-a a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+    .b-zip.known[data-area="none"] { background: var(--copper-soft); border-color: #E8D3BA; }
+    .b-zip-change { margin-top: 4px; background: none; border: none; padding: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
     .in-cart { display: flex; align-items: center; justify-content: center; min-height: 54px; border: 1px solid var(--ok); border-radius: var(--r); background: var(--ok-bg); color: var(--ok-text); font-weight: 700; font-size: 16px; }
     .b-assure { list-style: none; margin-top: 16px; display: grid; gap: 9px; font-size: 14px; color: var(--ink-2); }
     .b-assure li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; }
@@ -404,6 +419,55 @@
     }
     syncCart();
     window.addEventListener("pageshow", (e) => { if (e.persisted) syncCart(); });
+
+    // Do we deliver to you? (11/19) The shop's answer for a ZIP, in the shop's words (shop.html zipAnswerHtml),
+    // and the ZIP kept in this tab ("wilsonShopZip") so the cart starts from it.
+    (function () {
+      const form = document.getElementById("zipBox");
+      if (!form) return;
+      const input = document.getElementById("zipIn"), btn = document.getElementById("zipBtn"), ans = document.getElementById("zipAns");
+      const q = document.getElementById("zipQ"), ask = document.getElementById("zipAsk"), change = document.getElementById("zipChange");
+      const five = (z) => (String(z || "").trim().match(/^(\d{5})(?:-\d{4})?$/) || [])[1] || "";
+      const money = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const SMS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+      // built from fixed words, a 5-digit ZIP and a number only
+      function answer(d) {
+        const z = five(d.zip), name = String(d.name || "White Glove Delivery + Haul Away").replace(/[<>&"]/g, "");
+        const fee = d.fee != null && isFinite(Number(d.fee)) ? money(Number(d.fee)) : "";
+        if (d.area === "express") return "Yes, we deliver to <b>" + z + "</b>. " + name + " is " + fee + ", and you choose your delivery day at checkout.";
+        if (d.area === "extended") return "Yes, we deliver to <b>" + z + "</b>. " + name + " is " + fee + ". Order online and we'll call you to schedule your delivery day.";
+        return "We can't take online orders for <b>" + z + '</b>. Call <a href="tel:512-894-0907">512-894-0907</a> or <a class="text-us" href="sms:+15128940907">' + SMS + "Text Us</a> and we'll help you from there.";
+      }
+      function show(d) {
+        const known = Boolean(d);
+        form.classList.toggle("known", known);
+        form.dataset.area = known ? d.area : "";
+        q.hidden = known; ask.hidden = known; change.hidden = !known;
+        ans.className = "b-zip-a";
+        ans.innerHTML = known ? answer(d) : "";
+      }
+      async function check(zip) {
+        const res = await fetch("/api/shop/zip-check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zip: zip }) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !["express", "extended", "none"].includes(d.area)) throw new Error(d.error || "We couldn't check that ZIP code just now. Please try again.");
+        return d;
+      }
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (btn.disabled) return;
+        const z = five(input.value);
+        ans.className = "b-zip-a";
+        if (!z) { ans.className = "b-zip-a err"; ans.textContent = "Enter a 5-digit ZIP code."; return; }
+        btn.disabled = true;
+        try { const d = await check(z); try { sessionStorage.setItem("wilsonShopZip", five(d.zip) || z); } catch {} show({ ...d, zip: five(d.zip) || z }); }
+        catch (x) { ans.className = "b-zip-a err"; ans.textContent = x.message; }
+        finally { btn.disabled = false; }
+      });
+      change.addEventListener("click", () => { show(null); input.focus(); input.select(); });
+      // a ZIP this tab already gave (the shop, another product page): answer it straight away
+      let saved = ""; try { saved = five(sessionStorage.getItem("wilsonShopZip")); } catch {}
+      if (saved) { input.value = saved; check(saved).then((d) => show({ ...d, zip: five(d.zip) || saved })).catch(() => {}); }
+    })();
 
     // phone: the price and button ride along the bottom whenever the main
     // button is off the screen

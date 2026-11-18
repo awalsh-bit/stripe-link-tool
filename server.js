@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow } from "./lib/shop-product-page.js";
-import { parseDeliveryZipPaste, deliveryAreaFor, listShopDeliveryZips, importShopDeliveryZips, setShopDeliveryZipFees, removeShopDeliveryZips } from "./lib/shop-delivery-zips.js";
+import { parseDeliveryZipPaste, deliveryAreaFor, cleanZip as cleanShopZip, listShopDeliveryZips, importShopDeliveryZips, setShopDeliveryZipFees, removeShopDeliveryZips } from "./lib/shop-delivery-zips.js";
 import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
   readLinks,
@@ -259,7 +259,8 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets, modelDiscountsFromFeed } from "./lib/epass-feed-finished.js";
-import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldSerialOptions, listSoldSerialDetail } from "./lib/epass-sold-serials-postgres.js";
+import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldUnitsForTicket, listSoldSerialOptions, listSoldSerialDetail } from "./lib/epass-sold-serials-postgres.js";
+import { traceCommissionTicket, baseTicketOf, isTicketNumber } from "./lib/commission-ticket-trace.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
@@ -7190,9 +7191,11 @@ const SHOP_MAP_PRICE_URL = String(process.env.SHOP_MAP_PRICE_URL || "");
 const SHOP_DELIVERY_OFFER = {
   id: "white-glove-delivery",
   name: "White Glove Delivery + Haul Away",
+  // The standard fee. A fee set for the ZIP on Shop Orders replaces it (shopDeliveryFeeFor). The "regular $89.95,
+  // special online offer" markdown that used to sit here is gone (Andrew 11/19: "let's get rid of the discount
+  // that's hard coded and I'll build promo codes for free delivery later").
   price: 49.95,
-  regularPrice: 89.95,
-  note: "Special online offer — includes delivery and haul off of the appliance being replaced (if applicable)."
+  note: "Includes delivery and haul off of the appliance being replaced (if applicable)."
 };
 
 // Blind scheduling (Andrew, 2026-08-18): at checkout the client picks a DAY
@@ -7201,6 +7204,8 @@ const SHOP_DELIVERY_OFFER = {
 // days before the selected day. Customer pickup skips both the fee and the
 // scheduling entirely.
 const SHOP_SCHEDULE_NOTE = "You'll receive a 4-hour arrival window two business days before your selected day.";
+// Delivery outside the express area (Andrew 11/19): no day to pick at checkout; Wilson calls to set one.
+const SHOP_CALL_TO_SCHEDULE_NOTE = "We'll call you to schedule your delivery day.";
 const SHOP_PICKUP_OFFER = {
   id: "customer-pickup",
   method: "pickup",
@@ -7361,6 +7366,29 @@ setTimeout(refreshShopDeliveryZips, 6 * 1000).unref?.();
 setInterval(refreshShopDeliveryZips, 5 * 60 * 1000).unref?.();
 // { zip, area: "express" | "extended" | "none", fee, miles, city }
 const shopDeliveryArea = (zip) => deliveryAreaFor(zip, { expressSet: shopZipSet, deliveryMap: shopDeliveryZipMap });
+// The delivery fee for a ZIP (Andrew 11/19, "the delivery fee we set should override"): the fee set for that ZIP on
+// Shop Orders, in the express area or outside it; the standard fee where none is set or no ZIP is known.
+const shopDeliveryFeeFor = (zip) => { const a = shopDeliveryArea(zip); return a.fee != null ? a.fee : SHOP_DELIVERY_OFFER.price; };
+// What priceShopCart is told about where the order is going. The ZIP is ALWAYS the shopper's saved delivery
+// address, set here by the server - never a value the page sends.
+const shopFulfillmentFor = (fulfillment, shopper) => ({ ...(fulfillment && typeof fulfillment === "object" ? fulfillment : {}), zip: String(shopper?.address?.zip || "").slice(0, 5) });
+// The ZIP the area rules judge a checkout by (Andrew 11/19: no gate at the door, the ZIP is asked in the cart).
+// Delivery: the saved address, always - that is where the truck goes. Pickup: the ZIP the shopper gave in the
+// cart, else the saved address's.
+function shopCheckoutZip(shopper, fulfillment) {
+  const own = cleanShopZip(String(shopper?.address?.zip || "").trim().slice(0, 5));
+  if (fulfillment?.method !== "pickup" && shopperHasDeliveryAddress(shopper)) return own;
+  return cleanShopZip(String(fulfillment?.zip || "").trim().slice(0, 5)) || own;
+}
+const shopOutsideAreaMessage = (zip) => `We can't take online orders for ${zip || "that ZIP code"}. Call 512-894-0907 or text us and we'll help you from there.`;
+// Outside both delivery areas it is call or text only: no checkout, no pickup (Andrew 11/19: "people do weird
+// things like checkout and ask us to ship things via UPS/FedEx"). Express and the wider area both pass.
+function shopZipBlock(shopper, fulfillment) {
+  const zip = shopCheckoutZip(shopper, fulfillment);
+  if (!zip) return { status: 400, body: { needZip: true, error: "Enter your ZIP code to see delivery and pickup options." } };
+  if (shopDeliveryArea(zip).area === "none") return { status: 403, body: { outsideArea: true, zip, error: shopOutsideAreaMessage(zip) } };
+  return null;
+}
 
 // The four data files only change on a deploy; read them once a minute at
 // most instead of on every catalog build.
@@ -8191,6 +8219,11 @@ function priceShopCart(catalog, cart, fulfillment, promo = null) {
       if (!choice) return { badSchedule: true };
       delivery = { ...SHOP_PICKUP_OFFER, date: choice.date, dateLabel: choice.label };
     }
+  } else if (shopDeliveryArea(fulfillment?.zip).area === "extended") {
+    // The wider delivery area (Andrew 11/19): that ZIP's fee, and no day to pick - Wilson calls to schedule it,
+    // and Shop Orders flags the order to schedule by hand. `fulfillment.zip` is the saved address's (shopFulfillmentFor).
+    const zip = shopDeliveryArea(fulfillment.zip).zip;
+    delivery = { ...SHOP_DELIVERY_OFFER, price: shopDeliveryFeeFor(zip), method: "delivery", date: null, dateLabel: "", zip, area: "extended", manualSchedule: true, scheduleNote: SHOP_CALL_TO_SCHEDULE_NOTE };
   } else {
     const requestedDate = String(fulfillment?.date || "").trim();
     // Express carts (all units installable by the warehouse team) choose
@@ -8202,7 +8235,8 @@ function priceShopCart(catalog, cart, fulfillment, promo = null) {
     const choice = dateChoices.find((c) => c.date === requestedDate);
     if (!choice) return { badSchedule: true };
     delivery = {
-      ...SHOP_DELIVERY_OFFER, method: "delivery", date: choice.date, dateLabel: choice.label,
+      ...SHOP_DELIVERY_OFFER, price: shopDeliveryFeeFor(fulfillment?.zip), method: "delivery", date: choice.date, dateLabel: choice.label,
+      ...(cleanShopZip(String(fulfillment?.zip || "").slice(0, 5)) ? { zip: cleanShopZip(String(fulfillment.zip).slice(0, 5)), area: shopDeliveryArea(fulfillment.zip).area } : {}),
       scheduleNote: choice.sameDay ? "Same-day: our warehouse team will call to coordinate arrival today." : SHOP_SCHEDULE_NOTE,
       ...(choice.sameDay ? { sameDay: true } : {}),
       ...(expressCart ? { express: true } : {})
@@ -8236,6 +8270,7 @@ function priceShopCart(catalog, cart, fulfillment, promo = null) {
       ...(promo ? { discount, promo: { code: promo.code, description: promo.description, kind: promo.kind, value: promo.value } } : {}),
       fulfillment: method,
       deliveryDate: delivery.date || null,
+      ...(delivery.manualSchedule ? { deliverySchedule: "call" } : {}),
       taxRate: SHOP_TAX_RATE,
       tax,
       total,
@@ -8275,12 +8310,12 @@ app.post("/api/shop/promo-check", rateLimit("shop-promo-check", 30, 15 * 60 * 10
     // Price without the schedule check: a shopper can apply a code before
     // picking a day, so a missing/stale day shouldn't block the code.
     const pickup = req.body?.fulfillment?.method === "pickup";
-    let priced = priceShopCart(catalog, req.body?.cart, { method: pickup ? "pickup" : "delivery", date: req.body?.fulfillment?.date });
+    let priced = priceShopCart(catalog, req.body?.cart, shopFulfillmentFor({ method: pickup ? "pickup" : "delivery", date: req.body?.fulfillment?.date }, shopper));
     if (priced.badSchedule) {
       // "later" pickup always prices; put the delivery fee back for the
       // delivery case so free-delivery codes show the right amount.
       priced = priceShopCart(catalog, req.body?.cart, { method: "pickup", date: "later" });
-      if (!pickup && priced.totals) priced.totals = { ...priced.totals, fulfillment: "delivery", delivery: SHOP_DELIVERY_OFFER.price };
+      if (!pickup && priced.totals) priced.totals = { ...priced.totals, fulfillment: "delivery", delivery: shopDeliveryFeeFor(shopper?.address?.zip) };
     }
     if (priced.empty) return res.status(400).json({ error: "Add an appliance to your cart first." });
     if (priced.unavailable) return res.status(409).json({ error: "An item in your cart is no longer available. Refresh to see what's still in stock." });
@@ -8294,16 +8329,17 @@ app.post("/api/shop/promo-check", rateLimit("shop-promo-check", 30, 15 * 60 * 10
   }
 });
 
-// PUBLIC: the door check.
+// PUBLIC: "do we deliver to you?" - the shop strip, the cart and the product pages (the door gate came off 11/19).
 app.post("/api/shop/zip-check", (req, res) => {
   const zip = String(req.body?.zip || "").trim().slice(0, 10);
   if (!/^\d{5}/.test(zip)) {
     return res.status(400).json({ error: "Enter a 5-digit ZIP code." });
   }
-  // `allowed` is the express area, as it always was. `area` adds the wider answer (11/19):
-  // "extended" is a ZIP outside express that Wilson delivers to for the fee given.
+  // `allowed` is the express area, as it always was. `area` is the answer the pages use (11/19):
+  // express (order online, pick a day), extended (order online at that ZIP's fee, Wilson calls to schedule),
+  // none (call or text only).
   const where = shopDeliveryArea(zip);
-  return res.json({ allowed: shopZipAllowed(zip), area: where.area, fee: where.area === "extended" ? where.fee : null });
+  return res.json({ zip: where.zip, allowed: shopZipAllowed(zip), area: where.area, fee: where.area === "none" ? null : shopDeliveryFeeFor(zip), name: SHOP_DELIVERY_OFFER.name });
 });
 
 // Shared shopper-field validation for registration and profile edits.
@@ -8325,8 +8361,8 @@ function validateShopperFields(b) {
   if (!firstName || !lastName) return { error: "First and last name are required." };
   // Guest checkout (11/12): a shopper who picks up their own order never
   // has to give an address, so a blank one is a valid "pickup" profile.
-  // A started address still has to be complete and inside the delivery
-  // area; checkout re-checks before any delivery order goes through.
+  // A started address still has to be complete and inside a delivery
+  // area (express or the wider one, 11/19); checkout re-checks.
   const hasAddress = Boolean(address.line1 || address.line2 || address.city || address.zip);
   if (hasAddress && (!address.line1 || !address.city || !address.zip)) {
     return { error: "Please complete the delivery address — street, city and ZIP — or leave it blank for Customer Pickup." };
@@ -8335,9 +8371,8 @@ function validateShopperFields(b) {
   if (!["Call", "Text", "Email"].includes(preferredContact)) return { error: "Choose a preferred contact method." };
   if (preferredContact === "Email" && !email) return { error: "Add an email address so we can reach you by email." };
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email address doesn't look right." };
-  if (hasAddress && !shopZipAllowed(address.zip)) {
-    return { error: "We deliver online orders within our local delivery area only — choose Customer Pickup, or call 512-894-0907." };
-  }
+  if (hasAddress && !cleanShopZip(address.zip.slice(0, 5))) return { error: "Enter a 5-digit ZIP code for the delivery address." };
+  if (hasAddress && shopDeliveryArea(address.zip).area === "none") return { error: shopOutsideAreaMessage(cleanShopZip(address.zip.slice(0, 5))) };
   if (!hasAddress) address.state = "TX";
   return { fields: { firstName, lastName, email, phone, preferredContact, address } };
 }
@@ -8347,18 +8382,16 @@ function shopperHasDeliveryAddress(shopper) {
   return Boolean(String(a.line1 || "").trim() && String(a.zip || "").trim());
 }
 
-// A delivery order needs somewhere to go: a pickup-only profile is sent
-// back to add an address (the page opens that step on `needAddress`), and
-// the ZIP list can change after a profile was made (Shop Orders).
-function shopDeliveryBlock(shopper, fulfillment) {
-  if (fulfillment?.method === "pickup") return null;
-  if (!shopperHasDeliveryAddress(shopper)) {
+// Can this checkout go ahead? A delivery order needs somewhere to go: a
+// pickup-only profile is sent back to add an address (the page opens that
+// step on `needAddress`). Then the area rules (shopZipBlock): a ZIP outside
+// both delivery areas cannot check out at all, pickup included (11/19). The
+// ZIP lists can change after a profile was made (Shop Orders).
+function shopCheckoutBlock(shopper, fulfillment) {
+  if (fulfillment?.method !== "pickup" && !shopperHasDeliveryAddress(shopper)) {
     return { status: 400, body: { needAddress: true, error: "Add a delivery address to continue — or choose Customer Pickup." } };
   }
-  if (!shopZipAllowed(shopper.address?.zip)) {
-    return { status: 403, body: { error: `We don't deliver online orders to ${String(shopper.address?.zip || "that ZIP").slice(0, 5)} right now — choose customer pickup, or call 512-894-0907.` } };
-  }
-  return null;
+  return shopZipBlock(shopper, fulfillment);
 }
 
 // The contact step asks "call or text?" before we know whether the number
@@ -9124,7 +9157,7 @@ app.get("/api/shop/services", async (req, res) => {
         byBrand: Object.fromEntries(Object.entries(addons.byBrand || {}).map(([k, e]) => [k, { installs: e.installs, connectors: e.connectors, products: e.products.map((p) => p.model) }])), // keyed by brandServicesKey; add to byKey's set, never replaces it
         products // model -> { brand, description, inStock, available } for every product byBrand names
       },
-      delivery: { id: SHOP_DELIVERY_OFFER.id, name: SHOP_DELIVERY_OFFER.name, price: SHOP_DELIVERY_OFFER.price, regularPrice: SHOP_DELIVERY_OFFER.regularPrice, note: SHOP_DELIVERY_OFFER.note, scheduleNote: SHOP_SCHEDULE_NOTE },
+      delivery: { id: SHOP_DELIVERY_OFFER.id, name: SHOP_DELIVERY_OFFER.name, price: SHOP_DELIVERY_OFFER.price, note: SHOP_DELIVERY_OFFER.note, scheduleNote: SHOP_SCHEDULE_NOTE },
       pickup: { id: SHOP_PICKUP_OFFER.id, name: SHOP_PICKUP_OFFER.name, price: 0 },
       uncrate: { id: "uncrate-set-in-place", name: "Uncrate, set in place", price: 0, description: "Appliance's exterior packaging may be removed and the product inspected. No interior packaging removed and no installation included" },
       taxRate: SHOP_TAX_RATE,
@@ -9232,6 +9265,9 @@ app.post("/api/shop/submit-quote", rateLimit("shop-submit-quote", 20, 60 * 60 * 
     if (!wanted.length) return res.status(400).json({ error: "Nothing to quote." });
     const f = req.body?.fulfillment && typeof req.body.fulfillment === "object" ? req.body.fulfillment : null;
     const fulfillment = f ? { method: f.method === "pickup" ? "pickup" : "delivery", date: String(f.date || "").slice(0, 20), deliveryName: String(f.deliveryName || "").slice(0, 80) } : null;
+    // outside both delivery areas: call or text, not a request from the cart (11/19)
+    const zipBlocked = shopZipBlock(shopper, { method: fulfillment?.method === "pickup" ? "pickup" : "delivery", zip: f?.zip });
+    if (zipBlocked) return res.status(zipBlocked.status).json(zipBlocked.body);
     const customer = { firstName: shopper.firstName, lastName: shopper.lastName, email: shopper.email, phone: shopper.phone, zip: shopper.address?.zip || "", city: shopper.address?.city || "", address: [shopper.address?.line1, shopper.address?.line2].filter(Boolean).join(" "), contactMethod: shopper.preferredContact || "", clientCode: shopper.clientCode || "" };
     const { request, lines } = await fileWebsiteQuoteLead({ customer, items: wanted, notes: String(req.body?.notes || "").slice(0, 2000), reason: "special_order", source: "shop", ref: String(req.body?.handoff || "").slice(0, 80), ip: req.ip, fulfillment });
     if (req.body?.handoff) markShopHandoffConverted(String(req.body.handoff).slice(0, 80), { orderId: null, orderNumber: `QUOTE-${request.token}` }).catch(() => {});
@@ -9394,13 +9430,17 @@ app.get("/api/shop/catalog", async (req, res) => {
       shopperHasAddress: shopperHasDeliveryAddress(shopper),
       clientCode: shopper?.clientCode || "",
       addons: canBuild ? catalog.addons : null,
-      delivery: canBuild ? SHOP_DELIVERY_OFFER : null,
+      // the fee for where this shopper is: their saved address, else the ZIP the page says it has (11/19)
+      delivery: canBuild ? { ...SHOP_DELIVERY_OFFER, price: shopDeliveryFeeFor(shopperHasDeliveryAddress(shopper) ? shopper.address?.zip : req.query.zip) } : null,
+      // ...and what that ZIP may do (11/19, the gate came off): express, extended or none. The saved address wins.
+      deliveryArea: (() => { const a = shopDeliveryArea(shopperHasDeliveryAddress(shopper) ? shopper.address?.zip : req.query.zip); return a.zip ? { zip: a.zip, area: a.area, fee: a.area === "none" ? null : shopDeliveryFeeFor(a.zip), fromAddress: shopperHasDeliveryAddress(shopper) } : null; })(),
       fulfillment: canBuild ? {
         pickup: SHOP_PICKUP_OFFER,
         deliveryDates: shopDeliveryDateChoices(),
         expressDates: shopExpressDateChoices(catalog.express),
         expressNote: shopExpressNote(catalog.express),
         scheduleNote: SHOP_SCHEDULE_NOTE,
+        callToScheduleNote: SHOP_CALL_TO_SCHEDULE_NOTE,
         pickupDates: shopPickupDateChoices(),
         pickupLaterNote: SHOP_PICKUP_LATER_NOTE
       } : null,
@@ -9646,12 +9686,12 @@ app.post("/api/shop/setup-intent", rateLimit("shop-setup-intent", 30, 60 * 60 * 
   try {
     const shopper = await getShopperByToken(req.body?.token);
     if (!shopper) return res.status(401).json({ error: "Please add your contact details to check out." });
-    const blocked = shopDeliveryBlock(shopper, req.body?.fulfillment);
+    const blocked = shopCheckoutBlock(shopper, req.body?.fulfillment);
     if (blocked) return res.status(blocked.status).json(blocked.body);
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
-    let priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
+    let priced = priceShopCart(catalog, req.body?.cart, shopFulfillmentFor(req.body?.fulfillment, shopper));
     if (priced.badSchedule) {
       return res.status(400).json({ error: "Please pick a day for your delivery or pickup — the option you selected is no longer available." });
     }
@@ -9664,7 +9704,7 @@ app.post("/api/shop/setup-intent", rateLimit("shop-setup-intent", 30, 60 * 60 * 
     // silent drop that changes the total under the shopper.
     const promoRes = await resolveShopPromo({ code: req.body?.promo, priced, shopper });
     if (promoRes.error) return res.status(400).json({ error: promoRes.error, promoRejected: true });
-    if (promoRes.promo) priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment, promoRes.promo);
+    if (promoRes.promo) priced = priceShopCart(catalog, req.body?.cart, shopFulfillmentFor(req.body?.fulfillment, shopper), promoRes.promo);
 
     const customerConfig = {
       name: `${shopper.firstName} ${shopper.lastName}`,
@@ -11996,7 +12036,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
   try {
     const shopper = await getShopperByToken(req.body?.token);
     if (!shopper) return res.status(401).json({ error: "Please add your contact details to check out." });
-    const blocked = shopDeliveryBlock(shopper, req.body?.fulfillment);
+    const blocked = shopCheckoutBlock(shopper, req.body?.fulfillment);
     if (blocked) return res.status(blocked.status).json(blocked.body);
 
     const setupIntentId = String(req.body?.setupIntentId || "").trim();
@@ -12012,7 +12052,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
-    let priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
+    let priced = priceShopCart(catalog, req.body?.cart, shopFulfillmentFor(req.body?.fulfillment, shopper));
     if (priced.badSchedule) {
       return res.status(400).json({ error: "Please pick a day for your delivery or pickup — the option you selected is no longer available." });
     }
@@ -12024,7 +12064,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
     // capped code goes to whoever files first.
     const promoRes = await resolveShopPromo({ code: req.body?.promo, priced, shopper });
     if (promoRes.error) return res.status(400).json({ error: promoRes.error, promoRejected: true });
-    if (promoRes.promo) priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment, promoRes.promo);
+    if (promoRes.promo) priced = priceShopCart(catalog, req.body?.cart, shopFulfillmentFor(req.body?.fulfillment, shopper), promoRes.promo);
 
     const card = setupIntent.payment_method?.card || {};
     const cardSummary = card.brand
@@ -12101,6 +12141,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
         ...(priced.promo ? { promo: priced.promo.code, discount: priced.promo.discount } : {}),
         fulfillment: priced.totals.fulfillment,
         deliveryDate: priced.totals.deliveryDate,
+        ...(priced.delivery.manualSchedule ? { scheduleByHand: true, zip: priced.delivery.zip } : {}),
         conflicts: lockConflicts.length
       }
     }).catch(() => {});
@@ -12116,7 +12157,9 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
         ? (priced.delivery.later ? "Customer pickup — will schedule later" : `Customer pickup requested ${priced.delivery.dateLabel}`)
         : (priced.delivery.sameDay
             ? `SAME-DAY DELIVERY & INSTALL requested — TODAY (${priced.delivery.date})`
-            : `Delivery requested ${priced.delivery.dateLabel}`)
+            : priced.delivery.manualSchedule
+              ? `Delivery to ${priced.delivery.zip} (outside the express area) — call the client to schedule the day`
+              : `Delivery requested ${priced.delivery.dateLabel}`)
     }).catch((err) => console.error("Web order notification push failed:", err.message));
 
     return res.json({
@@ -15345,6 +15388,35 @@ app.post("/api/field-commissions/unpost", requireCommissionsPage, async (req, re
   } catch (err) {
     console.error("Commission unpost failed:", err.message);
     return res.status(500).json({ error: "Unable to retract the statement." });
+  }
+});
+
+// Where is a ticket? (Andrew 11/18: "the -1 ticket carrying the B36CD80SNS that
+// was delivered and stayed in the client's home wasn't on the sales commission
+// report".) Reads the ticket and its suffix tickets from the sold-units feed,
+// runs the statements for the months they finished in, and says unit by unit
+// which statement each is on and how it is treated. Read only.
+app.get("/api/field-commissions/ticket", requireCommissionsPage, async (req, res) => {
+  try {
+    const base = baseTicketOf(req.query.ticket);
+    if (!isTicketNumber(base)) return res.status(400).json({ error: "Type a ticket number, like R00015948." });
+    const units = await listSoldUnitsForTicket(base);
+    // newest four months of the family: each one computes a full statement run
+    const months = [...new Set(units.map((u) => String(u.finishDate || "").slice(0, 7)).filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort().slice(-4);
+    const statementsByMonth = {}, lineSources = {}, posts = {};
+    const pool = months.length ? await getPostgresPool() : null;
+    for (const m of months) {
+      const run = await computeFieldCommissionMonth(m);
+      if (run.month === m) statementsByMonth[m] = run.statements;
+      const src = pool ? (await pool.query(`SELECT MAX(source_filename) AS filename, COUNT(*)::int AS n FROM sales_order_lines WHERE source_month = $1`, [m]).catch(() => ({ rows: [] }))).rows[0] : null;
+      lineSources[m] = src && src.n > 0 ? { auto: String(src.filename || "") === AUTO_COMMISSION_LINES_NAME, filename: src.filename || "" } : null;
+      posts[m] = (await listCommissionPostsForMonth(m).catch(() => [])).map((p) => ({ code: p.code, postedAt: p.postedAt ? new Date(p.postedAt).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }) : "" }));
+    }
+    const names = await listSalespersonNames().catch(() => ({}));
+    return res.json(traceCommissionTicket({ ticket: base, units, statementsByMonth, lineSources, posts, names, monthLabel: commissionMonthLabel }));
+  } catch (err) {
+    console.error("Commission ticket lookup failed:", err.stack || err.message);
+    return res.status(500).json({ error: `Unable to look that ticket up — ${err.message}` });
   }
 });
 

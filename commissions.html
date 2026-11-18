@@ -85,6 +85,27 @@
 
     .asof { font-size: 13px; color: var(--muted); }
 
+    /* Where is a ticket? (11/18) */
+    .ticket-find { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair, #eef0f5); font-size: 13px; }
+    .ticket-find label { font-weight: 800; }
+    .ticket-find input { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 13px; width: 150px; background: var(--surface, #fff); color: inherit; text-transform: uppercase; outline: none; }
+    .ticket-find input:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+    .tf-out { margin-top: 12px; }
+    .tf-sum { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--primary-tint); font-size: 13.5px; line-height: 1.5; }
+    .tf-sum p { margin: 0; } .tf-sum p + p { margin-top: 6px; }
+    .tf-ticket { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+    .tf-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .tf-head b { font-size: 15px; color: var(--text); }
+    .tf-head .ghost-btn { padding: 5px 10px; font-size: 12px; margin-left: auto; }
+    .tf-note { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+    .tf-unit { display: grid; grid-template-columns: minmax(170px, 230px) 1fr; gap: 4px 16px; padding: 10px 0 0; margin-top: 10px; border-top: 1px solid var(--hair, #eef0f5); font-size: 13px; line-height: 1.45; }
+    .tf-unit .u-id b { display: block; font-size: 13.5px; }
+    .tf-unit .u-id span { display: block; color: var(--muted); font-size: 12.5px; }
+    .tf-unit .u-why { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+    .tf-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; background: #9ca3af; }
+    .tf-dot.pays { background: #16a34a; } .tf-dot.held, .tf-dot.zero { background: #d97706; } .tf-dot.missing { background: #dc2626; }
+    @media (max-width: 640px) { .tf-unit { grid-template-columns: 1fr; } .tf-head .ghost-btn { margin-left: 0; } }
+
     /* Plan reference */
     details.plan { font-size: 13px; color: var(--muted); }
     details.plan summary { cursor: pointer; font-weight: 700; color: var(--text); font-size: 14px; }
@@ -359,6 +380,14 @@
       <div class="balance-line" id="linesLine"></div>
       <div class="balance-line" id="balanceLine"></div>
       <div class="banner" id="errorBanner"></div>
+
+      <div class="ticket-find">
+        <label for="tfInput">Where is a ticket?</label>
+        <input type="text" id="tfInput" placeholder="R00015948" autocomplete="off" spellcheck="false" maxlength="24" />
+        <button type="button" class="ghost-btn" id="tfBtn">Find</button>
+        <span class="asof">Every unit on a ticket and its -1, -2 tickets: which month's statement it is on, and how it is treated there.</span>
+      </div>
+      <div class="tf-out" id="tfOut"></div>
 
       <details class="plan" style="margin-top: 14px;">
         <summary>Plan reference — all plans</summary>
@@ -982,6 +1011,55 @@
         el("errorBanner").className = "banner error show";
       } finally { run.disabled = false; run.textContent = label; }
     }
+
+    // ---- Where is a ticket? (11/18) ----
+    // A unit can be off a statement for ordinary reasons the statement cannot
+    // show: its ticket finished in another month, it sits in the folded
+    // excluded lines, it is held, or it pays 0%. This asks the server where
+    // each unit on a ticket (and its suffix tickets) landed. Read only.
+    function ticketFindHtml(t) {
+      if (!t.found) return `<div class="empty-sec">No units on file for ${escapeHtml(t.ticket)}. The lookup reads finished tickets from the ePASS feed, so an open ticket, or one with no serial units, has nothing to show.</div>`;
+      const day = (d) => { const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${Number(m[2])}/${Number(m[3])}/${m[1]}` : "no finish date"; };
+      const sum = (t.summary || []).length ? `<div class="tf-sum">${t.summary.map((x) => `<p>${escapeHtml(x)}</p>`).join("")}</div>` : "";
+      return sum + t.tickets.map((k) => `
+        <div class="tf-ticket">
+          <div class="tf-head">
+            <b>${escapeHtml(k.invoice)}</b>
+            <span>finished ${escapeHtml(day(k.finishDate))}</span>
+            ${k.monthLabel ? `<span>${escapeHtml(k.monthLabel)} statements</span>` : ""}
+            <span>${escapeHtml(k.salesperson || "no salesperson")}</span>
+            ${k.month ? `<button type="button" class="ghost-btn" data-tf-month="${escapeHtml(k.month)}">Run ${escapeHtml(monthLabel(k.month))}</button>` : ""}
+          </div>
+          ${(k.notes || []).map((n) => `<p class="tf-note">${escapeHtml(n)}</p>`).join("")}
+          ${k.units.map((u) => `
+            <div class="tf-unit">
+              <div class="u-id"><b>${escapeHtml(u.model || "—")}</b><span>${escapeHtml(u.serial || "no serial")}</span><span>${u.price == null ? "" : escapeHtml(money(u.price))}${u.returned ? " · Returned" : ""}${u.serialType ? ` · type ${escapeHtml(u.serialType)}` : ""}</span></div>
+              <div><span class="tf-dot ${escapeHtml(u.status)}"></span>${escapeHtml(u.text)}${(u.why || []).map((w) => `<p class="u-why">${escapeHtml(w)}</p>`).join("")}</div>
+            </div>`).join("")}
+        </div>`).join("");
+    }
+    async function findTicket() {
+      const typed = el("tfInput").value.trim();
+      const out = el("tfOut"), btn = el("tfBtn");
+      if (!typed) { out.innerHTML = ""; return; }
+      btn.disabled = true; btn.textContent = "Looking…";
+      out.innerHTML = `<div class="empty-sec">Reading the ticket and running its months…</div>`;
+      try {
+        const res = await fetch("/api/field-commissions/ticket?ticket=" + encodeURIComponent(typed), { credentials: "same-origin" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Unable to look that ticket up.");
+        out.innerHTML = ticketFindHtml(body);
+      } catch (err) { out.innerHTML = `<div class="balance-line warn">${escapeHtml(err.message)}</div>`; }
+      finally { btn.disabled = false; btn.textContent = "Find"; }
+    }
+    el("tfBtn").addEventListener("click", findTicket);
+    el("tfInput").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); findTicket(); } });
+    el("tfOut").addEventListener("click", (event) => {
+      const b = event.target.closest("[data-tf-month]");
+      if (!b) return;
+      editorKey = null;
+      load(b.dataset.tfMonth);
+    });
 
     el("monthSelect").addEventListener("change", () => { editorKey = null; });
     el("runBtn").addEventListener("click", () => { editorKey = null; load(el("monthSelect").value); });

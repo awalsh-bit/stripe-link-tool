@@ -30,26 +30,36 @@ Filter the list (find by ZIP, city or county; a range of miles; no fee yet / has
 
 Every change is recorded in the audit log with who made it.
 
-## What the shop does with it today
+## What the shop does with it
 
-Nothing a shopper can see. Checkout, delivery fees and the ZIP gate work exactly as before. The server can already answer, for any ZIP, whether it is express, in the wider area (with its fee) or outside both; the ZIP check adds that answer for the storefront step below.
+*Andrew, 11/19: "The delivery fee we set should override. Let's get rid of the discount that's hard coded and I'll build promo codes for free delivery later." Then: drop the ZIP gate at the door and keep the check for the transaction.*
 
-## Next: the storefront (not built yet)
+**There is no gate at the door any more.** Anyone can come in and browse. The ZIP is asked where it decides something:
 
-Andrew, 11/19: drop the ZIP gate at the door and keep the check for the transaction.
+- **"Do we deliver to you?"** A one-line ZIP box above the Top deals on the shop, and under Add to cart on every product page. It answers in a sentence and remembers the ZIP in that browser tab, so the cart starts from it.
+- **The cart.** Before the delivery and pickup options, the cart asks "What's your ZIP code?". Pressing Continue without one lights the box up. Until there is a ZIP, the delivery fee shows "set by ZIP code" and is left out of the total.
 
-| ZIP is | The shopper |
-| --- | --- |
-| Express | Orders online and picks a date, as today. |
-| In the total area only | Checks out with that ZIP's fee; Wilson schedules the delivery by hand. |
-| Outside both | Cannot check out. Call or Text Us. No pickup checkout either (people check out and ask for UPS). |
+What the ZIP decides:
 
-Plus a "do we deliver to you?" ZIP tool on the shop and product pages.
+| ZIP is | The shop says | The cart offers |
+| --- | --- | --- |
+| On the express list | "Yes, we deliver to 78620. White Glove Delivery + Haul Away is $49.95, and you choose your delivery day at checkout." | Delivery with a day to pick, or Customer Pickup, as before. |
+| On the total list with a fee, not express | "Yes, we deliver to 78205. White Glove Delivery + Haul Away is $189.00. Order online and we'll call you to schedule your delivery day." | Delivery at that ZIP's fee with **no day to pick** ("We'll call you to schedule your delivery day."), or Customer Pickup. |
+| Neither | "We can't take online orders for 10001. Call 512-894-0907 or Text Us and we'll help you from there." | No delivery, no pickup, no checkout. **Call** and **Text Us** buttons sit where checkout would be. A pricing request for special-order items is refused too. |
 
-Still to decide before that is built: whether a fee set here for an **express** ZIP replaces the standard express delivery fee, or express keeps its own.
+- **The fee follows the ZIP.** A fee set here is what the shop charges for delivery to that ZIP, in the express area too. An express ZIP with no fee here pays the standard fee, $49.95 (`SHOP_DELIVERY_OFFER.price` in `server.js`). The struck-through $89.95 and the "special online offer" wording are gone; free-delivery promo codes still work, in either area.
+- **A delivery goes to the saved address**, and the server prices and judges it by that address's ZIP. If the cart's ZIP and the saved address's differ, checkout first asks for the delivery address in the cart's ZIP.
+- **A pickup is judged by the ZIP the shopper gave in the cart** (else the saved address's). Outside both areas, pickup is refused too.
+- **A delivery address can now be saved anywhere in the total area** (it used to be express only). An address outside both areas is refused with the call-or-text message.
+- **Wider-area orders on Online Shop Orders** carry a yellow **Schedule by hand** tag, and the delivery line says the ZIP is outside the express area and no day was picked: call the client to set the day. The new-order flag on the floor's dashboards says the same.
+- The server applies every one of these rules itself at checkout. The pages only keep in step with it.
+
+To change what express customers pay: filter "In the express area", then Set fee.
 
 ## For developers
 
 - `lib/shop-delivery-zips.js`: `parseDeliveryZipPaste(text)`, `deliveryAreaFor(zip, { expressSet, deliveryMap })`, and the storage (`shop_delivery_zips`: zip, city, county, miles, fee).
-- `server.js`: `shopDeliveryArea(zip)`; `GET /api/shop/delivery-zips`, `POST .../import`, `.../fee`, `.../remove` (Shop Orders permission); `POST /api/shop/zip-check` now also returns `area` and, for the wider area, `fee`. `allowed` is still the express answer.
-- `shop-orders.html`: the `dzCard` section.
+- `server.js`: `shopDeliveryArea(zip)`; `GET /api/shop/delivery-zips`, `POST .../import`, `.../fee`, `.../remove` (Shop Orders permission); `POST /api/shop/zip-check` returns `{ zip, allowed, area, fee, name }` (`allowed` is still the express answer). `shopCheckoutZip` / `shopZipBlock` / `shopCheckoutBlock` are the checkout rules (setup-intent, submit-order; `shopZipBlock` also on submit-quote). `priceShopCart` prices a wider-area delivery with `date: null, manualSchedule: true, area: "extended", zip` and `totals.deliverySchedule: "call"`. The catalog sends `deliveryArea: { zip, area, fee, fromAddress }` and `fulfillment.callToScheduleNote`.
+- `shop.html`: the `zipStrip` form and the cart's `czForm`; `applyZipInfo` / `setZip` / `zipAnswerHtml`. The fulfillment payload carries `zip`.
+- `lib/shop-product-page.js` + `data/product-pages/template.html`: the product page's `zipBox` (buy mode only).
+- `shop-orders.html`: the `dzCard` section, and the `Schedule by hand` tag on an order whose `delivery.manualSchedule` is set.

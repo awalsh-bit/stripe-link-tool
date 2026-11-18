@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "note": "Manufacturer sell sheets and spec sheets the Express shop links from an open tile. Each file lives in the repo's \"spec sheets\" folder and is served only through /api/shop/spec-sheet/<id>; a file that is not listed here is never served. `models` are the model numbers printed on the sheet. To add one: drop the PDF in \"spec sheets\", add an entry, push.",
+    "note": "Manufacturer sell sheets and spec sheets the Express shop links from an open tile. Each file lives in the repo's \"spec sheets\" folder and is served only through /api/shop/spec-sheet/<id>; a file that is not listed here is never served. `models` are the model numbers printed on the sheet (for Miele, the number the shop lists the model under). `note` is optional: the small line under the button, when the standard one doesn't describe the document. To add one: drop the PDF in \"spec sheets\", add an entry, push.",
     "folder": "spec sheets",
     "added": "2026-11-12"
   },
@@ -39,6 +39,46 @@
       "brand": "Bosch",
       "label": "Bosch SHP78CM5N dishwasher — spec sheet",
       "models": ["SHP78CM5N"]
+    },
+    {
+      "id": "miele-11966820",
+      "file": "miele-11966820-g-5058-scvi-sfp-active-spec-sheet.pdf",
+      "brand": "Miele",
+      "label": "Miele G 5058 SCVi SFP Active dishwasher — spec sheet",
+      "note": "Features, dimensions and the installation drawing",
+      "models": ["11966820"]
+    },
+    {
+      "id": "miele-12496900",
+      "file": "miele-12496900-g-7766-scvi-autodos-spec-sheet.pdf",
+      "brand": "Miele",
+      "label": "Miele G 7766 SCVi AutoDos dishwasher — spec sheet",
+      "note": "Features, dimensions and the installation drawing",
+      "models": ["12496900"]
+    },
+    {
+      "id": "miele-12496980",
+      "file": "miele-12496980-g-7986-scvi-autodos-k2o-spec-sheet.pdf",
+      "brand": "Miele",
+      "label": "Miele G 7986 SCVi AutoDos K2O dishwasher — spec sheet",
+      "note": "Features, dimensions and the installation drawing",
+      "models": ["12496980"]
+    },
+    {
+      "id": "miele-12496990",
+      "file": "miele-12496990-g-7186-scvi-autodos-spec-sheet.pdf",
+      "brand": "Miele",
+      "label": "Miele G 7186 SCVi AutoDos dishwasher — spec sheet",
+      "note": "Features, dimensions and the installation drawing",
+      "models": ["12496990"]
+    },
+    {
+      "id": "miele-g-5051-g-5056-g-5058-operating-instructions",
+      "file": "miele-g-5051-g-5056-g-5058-operating-instructions.pdf",
+      "brand": "Miele",
+      "label": "Miele G 5051, G 5056 and G 5058 dishwashers — operating instructions",
+      "note": "Loading, programs, cleaning and care",
+      "models": ["11966820"]
     }
   ]
 }

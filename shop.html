@@ -1111,6 +1111,8 @@
   const TOKEN_KEY = "wilsonShopToken";
   const ZIP_KEY = "wilsonShopZip";
   const PROMO_KEY = "wilsonShopPromo";
+  const CART_KEY = "wilsonShopCart"; // the cart, kept in this tab (11/18) — see saveCart
+  const VIEW_KEY = "wilsonShopViews"; // where the shopper was on each visit, for Back (11/18) — see saveView
   const readPromo = () => { try { const p = JSON.parse(sessionStorage.getItem(PROMO_KEY) || "null"); return p && p.code ? p : null; } catch { return null; } };
 
   const state = {
@@ -1276,6 +1278,8 @@
     buildFilters();
     renderHeader();
     renderGrid();
+    if (!cartRestored) adoptSavedCart(); // once: the cart this tab was carrying (a product page visit, a reload, Back)
+    if (restoreView()) deepLinkApplied = true; // back where the shopper was; the link that first brought them is done
     applyDeepLink();
     // A reloaded catalog drops the prices we patched in — fetch them again.
     state.cartPrices = {};
@@ -1632,8 +1636,14 @@
   //   1022 Freestanding French Door · 1024 Freestanding Quad Door · 1026 Freestanding Side-by-side
   const LEAD_SUBCLASSES = new Set(["1022", "1024", "1026"]);
 
+  // Product pages (Andrew 11/18): a model with a page of its own
+  // (state.catalog.pages) links to it, in this tab — the cart rides along,
+  // see saveCart. A model without one still opens its wilsonappliance.com
+  // search in a new tab.
+  const pageKey = (model) => String(model || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  function hasProductPage(model) { const k = pageKey(model); return Boolean(k) && (state.catalog?.pages || []).includes(k); }
   function productPageUrl(model) {
-    return "https://www.wilsonappliance.com/search?search=" + encodeURIComponent(String(model || "").trim());
+    return hasProductPage(model) ? "/p/" + pageKey(model) : "https://www.wilsonappliance.com/search?search=" + encodeURIComponent(String(model || "").trim());
   }
 
   function renderGrid() {
@@ -1718,7 +1728,9 @@
         <div class="item-brand">${esc(group.brand)}</div>
         <div class="item-desc">${esc(det?.headline || group.description)}</div>
         ${canOpen ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
-        <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
+        <div class="item-model">${hasProductPage(group.model)
+          ? `<a href="${esc(productPageUrl(group.model))}" title="Photos, features and specs for ${esc(group.model)}">${esc(group.model)}</a>`
+          : `<a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a>`}</div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         ${group.onDisplay && !(group.condition === "open" && group.serialType === "DISPLAY") ? `<div class="item-display"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(state.catalog.onDisplayLabel || "On display in Dripping Springs")}</div>` : ""}
         <div class="item-foot">
@@ -1753,7 +1765,7 @@
             <dl class="idt-specs">${specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
             ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide or call <a href="tel:512-894-0907">512-894-0907</a>.</p>` : ""}
           </div>` : ""}
-          ${docs.length ? `<div class="idt-docs">${docs.map((d) => `<a class="idt-doc" href="${esc(d.url)}" target="_blank" rel="noopener"><span class="idt-doc-ic" aria-hidden="true">PDF</span><span class="idt-doc-tx">${esc(d.label)}<small>Exact dimensions, features and warranty by model</small></span></a>`).join("")}</div>` : ""}
+          ${docs.length ? `<div class="idt-docs">${docs.map((d) => `<a class="idt-doc" href="${esc(d.url)}" target="_blank" rel="noopener"><span class="idt-doc-ic" aria-hidden="true">PDF</span><span class="idt-doc-tx">${esc(d.label)}<small>${esc(d.note || "Exact dimensions, features and warranty by model")}</small></span></a>`).join("")}</div>` : ""}
         </div>` : ""}`;
       if (canOpen) { card.classList.add("has-details"); card.dataset.detailKey = dkey; if (open) card.classList.add("expanded"); }
       grid.appendChild(card);
@@ -2081,8 +2093,12 @@
     const p = new URLSearchParams(location.search);
     const low = (s) => String(s || "").trim().toLowerCase();
     const dept = low(p.get("dept")), sub = low(p.get("sub")), brand = low(p.get("brand")), q = String(p.get("q") || "").trim();
-    if (p.get("cart")) { addFromHandoff(p.get("cart")); return; }
+    // A website cart link the tab has already taken up (11/18: the cart now
+    // survives a reload, so the same link must not fill it a second time).
+    if (p.get("cart")) { if (state.handoffToken === p.get("cart") && !cartIsEmpty()) openCart(); else addFromHandoff(p.get("cart")); return; }
     if (p.get("add")) { addFromLink(p.get("add")); return; }
+    // ?show=cart (11/18): the cart icon on a product page — open the cart this tab is carrying.
+    if (p.get("show") === "cart") { if (!state.paused) openCart(); return; }
     let sel = null;
     if (p.get("outlet")) {
       sel = { label: "Outlet — Open Box & Display", condition: "open" };
@@ -2152,8 +2168,16 @@
       const key = norm(w.model);
       const units = items.filter((i) => norm(i.model) === key && !state.cart.itemIds.includes(i.id))
         .sort((a, b) => (a.condition === "open") - (b.condition === "open"));
-      for (const u of units.slice(0, w.qty)) addToCart(u.id);
-      const short = w.qty - Math.min(units.length, w.qty);
+      // A plain link (a product page's Add to cart, a text, an ad) asks for
+      // the model to be IN the cart: what the tab already carries of it
+      // counts (11/18), units and special-order lines alike, so a reload or a
+      // second press doesn't add another or turn into a special order. A
+      // website handoff is a fresh list as before.
+      const already = known.length ? 0 : items.filter((i) => norm(i.model) === key && state.cart.itemIds.includes(i.id)).length
+        + state.cart.special.filter((l) => norm(l.model) === key).reduce((sum, l) => sum + (Number(l.qty) || 0), 0);
+      const need = Math.max(0, w.qty - already);
+      for (const u of units.slice(0, need)) addToCart(u.id);
+      const short = need - Math.min(units.length, need);
       if (short > 0) special.push({ model: w.model, qty: short, known: info.get(key) || null });
     }
     // Lines we couldn't fill from stock: look up what the shop knows (a
@@ -2941,7 +2965,119 @@
     const count = state.cart.itemIds.length + state.cart.special.reduce((s, l) => s + l.qty, 0) + state.cart.addonLines.reduce((s, l) => s + l.qty, 0);
     $("cartCount").style.display = count ? "" : "none";
     $("cartCount").textContent = count;
+    saveCart();
   }
+
+  // ---- The cart rides along in this tab (Andrew 11/18) ----------------------
+  // Tiles now link to product pages, and Add to cart on a product page comes
+  // back here. The cart used to live only in this page's memory, so that trip
+  // (or a reload, or the Back button) emptied it. It is now also kept in the
+  // tab's session storage, beside the ZIP and the promo code: saved whenever
+  // it changes and as the page is left, put back after the first catalog
+  // load. A unit that is no longer in the catalog is dropped, and the shopper
+  // is told. `models` is for the product page, which shows "In your cart"
+  // where Add to cart would be. Nothing is kept once the cart is empty or the
+  // order is placed, and all of it goes when the tab closes.
+  let cartRestored = false;
+  const cartIsEmpty = () => !state.cart.itemIds.length && !state.cart.special.length && !state.cart.addonLines.length;
+  function saveCart() {
+    if (!cartRestored) return; // not until the saved cart has been put back
+    try {
+      const c = state.cart;
+      if (cartIsEmpty()) { sessionStorage.removeItem(CART_KEY); return; }
+      const byId = new Map((state.catalog?.items || []).map((i) => [i.id, i]));
+      const models = [...new Set([...c.itemIds.map((id) => byId.get(id)?.model), ...c.special.map((l) => l.model)].map(pageKey).filter(Boolean))];
+      sessionStorage.setItem(CART_KEY, JSON.stringify({ v: 1, at: Date.now(), itemIds: c.itemIds, addonLines: c.addonLines, special: c.special, models, handoff: state.handoffToken || "" }));
+    } catch {}
+  }
+  // Make this page's cart the saved one. After the first catalog load that
+  // fills an empty cart. When the browser brings an earlier copy of this page
+  // back whole (Back, out of its page cache), that copy still holds the cart
+  // as it was when the shopper left, and the saved cart is the newer one.
+  function adoptSavedCart() {
+    if (!state.catalog || state.paused) return;
+    cartRestored = true;
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(CART_KEY) || "null"); } catch {}
+    if (!saved || saved.v !== 1) saved = {};
+    const list = (v) => (Array.isArray(v) ? v : []);
+    const have = new Set((state.catalog.items || []).map((i) => i.id));
+    const wanted = [...new Set(list(saved.itemIds))];
+    const itemIds = wanted.filter((id) => have.has(id));
+    const special = list(saved.special).filter((l) => l && l.key && l.model && Number(l.qty) > 0);
+    const owners = new Set([...itemIds, ...special.map((l) => l.key)]);
+    const addonLines = list(saved.addonLines).filter((l) => l && l.id && owners.has(l.itemId) && Number(l.qty) > 0);
+    const next = { itemIds, addonLines, special };
+    const gone = wanted.length - itemIds.length;
+    if (JSON.stringify(next) !== JSON.stringify({ itemIds: state.cart.itemIds, addonLines: state.cart.addonLines, special: state.cart.special })) {
+      state.cart = next;
+      if (saved.handoff && !state.handoffToken) state.handoffToken = String(saved.handoff);
+      const drawer = $("cartDrawer").classList.contains("show");
+      if (drawer && (cartIsEmpty() || state.checkout.open)) closeCart();
+      renderGrid();
+      renderCartCount();
+      syncCartPrices().then(() => { if (state.cart.itemIds.length) renderCartCount(); if ($("cartDrawer").classList.contains("show") && !state.checkout.open) renderCart(); });
+    } else if (gone) saveCart();
+    if (gone) pageNotice(`${gone === 1 ? "One item from your cart is" : gone + " items from your cart are"} no longer available and ${gone === 1 ? "was" : "were"} taken out.`);
+  }
+  window.addEventListener("pagehide", () => { saveCart(); saveView(); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveCart(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted && cartRestored) adoptSavedCart(); });
+
+  // ---- Back from a product page lands where the shopper was (11/18) ---------
+  // A tile's model number now leaves this page for the product page. On the
+  // way Back a browser may rebuild the shop from scratch, which would mean
+  // the top of the page with no department, search or sort. Each visit to
+  // the shop in the tab's history gets a key; leaving saves that visit's view
+  // (filters, how many tiles were out, how far down the page) under it, and
+  // arriving by Back or Forward puts it back. A fresh visit, a link or a
+  // reload starts clean, as before.
+  let viewKey = "", viewChecked = false;
+  try {
+    viewKey = String(history.state?.shopView || "");
+    if (!viewKey) { viewKey = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); history.replaceState({ ...(history.state || {}), shopView: viewKey }, ""); }
+  } catch { viewKey = ""; }
+  function saveView() {
+    if (!viewKey || !state.catalog) return;
+    try {
+      const f = state.filter;
+      const all = JSON.parse(sessionStorage.getItem(VIEW_KEY) || "{}") || {};
+      all[viewKey] = { at: Date.now(), search: f.search, brand: f.brand, selection: f.selection, types: [...f.types], deal: f.deal, dealMax: f.dealMax, sort: f.sort, shown: state.shown, y: Math.round(window.scrollY) };
+      for (const k of Object.keys(all).sort((a, b) => (all[b].at || 0) - (all[a].at || 0)).slice(8)) delete all[k];
+      sessionStorage.setItem(VIEW_KEY, JSON.stringify(all));
+    } catch {}
+  }
+  function restoreView() {
+    if (viewChecked) return false;
+    viewChecked = true;
+    let v = null;
+    try {
+      const nav = performance.getEntriesByType("navigation")[0];
+      if (!viewKey || !nav || nav.type !== "back_forward") return false;
+      v = (JSON.parse(sessionStorage.getItem(VIEW_KEY) || "{}") || {})[viewKey];
+    } catch {}
+    if (!v || typeof v !== "object") return false;
+    const f = state.filter;
+    f.search = String(v.search || "");
+    f.selection = v.selection && typeof v.selection === "object" ? v.selection : null;
+    f.types = new Set((Array.isArray(v.types) ? v.types : []).map(String));
+    f.deal = f.selection ? "" : String(v.deal || "");
+    f.dealMax = Number(v.dealMax) > 0 ? Number(v.dealMax) : null;
+    f.sort = [...$("sortSelect").options].some((o) => o.value === v.sort) ? v.sort : "best";
+    f.brand = [...new Set(gridItems().map((i) => i.brand).filter(Boolean))].includes(v.brand) ? v.brand : "";
+    $("searchInput").value = f.search;
+    const ts = $("topSearch"); if (ts) ts.value = f.search;
+    $("sortSelect").value = f.sort;
+    buildFilters(); // also lets go of a deal tile that has nothing in it today
+    renderGrid();
+    renderCrumb();
+    const shown = Math.min(Number(v.shown) || 0, 400);
+    if (shown > state.shown) { state.shown = shown; renderGrid(); }
+    const y = Math.max(0, Number(v.y) || 0);
+    if (y) requestAnimationFrame(() => window.scrollTo(0, y));
+    return true;
+  }
+
 
   function addonInfo(id) {
     const pools = [...(state.addons?.connectors || []), ...(state.addons?.installs || [])];

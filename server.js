@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage } from "./lib/shop-product-page.js";
+import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys } from "./lib/shop-product-page.js";
 import {
   readLinks,
   writeLinks,
@@ -493,7 +493,7 @@ import {
 import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
 import { parseInvoiceMaintenanceWorkbook, splitInvoiceRows } from "./lib/epass-invoices.js";
 import {
-  buildSqBoard, getSqSettings, setSqSetting, upsertSqModel, setSqQoo, applyModelMaintenanceQoo,
+  buildSqBoard, getSqSettings, setSqSetting, upsertSqModel, setSqQoo, applyModelMaintenanceQoo, applySqFeedQoo,
   getCurrentSqOrder, setSqOrderLines, patchSqOrder, submitSqOrder, listSqOrders, getSqOrder, normModel as sqNormModel
 } from "./lib/speedqueen-truckload-postgres.js";
 import {
@@ -541,7 +541,7 @@ import {
 import { matchBoardToEpass, getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows, openBookRows, listEpassMiscCharges,
-  parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
+  parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService, openServiceTicketHolds
 } from "./lib/epass-open-orders-postgres.js";
 import {
   createSelfSchedule, getSelfScheduleByToken, buildClientOffer, pickSelfSchedule, preferSelfSchedule, releaseSelfSchedule,
@@ -3259,13 +3259,22 @@ app.post("/api/admin/users/:userId/permissions", requireExecutiveApi, async (req
 // Each person still gets their own permissions_updated audit row (same
 // writer as the per-person save), plus one bulk row naming the page.
 // Executives are skipped (they already see every page).
+// 11/17: an account's id is a UUID, not a number. This route read each userId
+// with Number(), which turned every one into NaN and dropped it, so Apply
+// answered "Nothing to change." for anyone (Andrew: one grant for Mileage
+// "didn't save"). Ids are now checked as the UUIDs they are; one entry per
+// person, the last one winning.
+const ACCOUNT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 app.post("/api/admin/permissions/by-page", requireExecutiveApi, async (req, res) => {
   try {
     const pagePath = String(req.body?.pagePath || "");
     if (!MANAGEABLE_PAGE_PATHS.includes(pagePath)) return res.status(400).json({ error: "Unknown page." });
-    const grants = (Array.isArray(req.body?.grants) ? req.body.grants : [])
-      .map((g) => ({ userId: Number(g?.userId), granted: Boolean(g?.granted) }))
-      .filter((g) => Number.isInteger(g.userId) && g.userId > 0);
+    const byUser = new Map();
+    for (const g of (Array.isArray(req.body?.grants) ? req.body.grants : []).slice(0, 1000)) {
+      const userId = String(g?.userId ?? "").trim().toLowerCase();
+      if (ACCOUNT_ID_RE.test(userId)) byUser.set(userId, Boolean(g?.granted));
+    }
+    const grants = [...byUser].map(([userId, granted]) => ({ userId, granted }));
     if (!grants.length) return res.status(400).json({ error: "Nothing to change." });
     const results = { granted: [], revoked: [], skipped: [] };
     for (const g of grants) {
@@ -7415,10 +7424,13 @@ async function loadShopDataFromDisk() {
       const stat = await fs.stat(path.join(SHOP_SPEC_SHEET_DIR, file)).catch(() => null);
       if (!stat?.isFile()) { console.warn(`Shop spec sheet "${file}" is listed but not in the "spec sheets" folder — not linked.`); continue; }
       const label = String(s.label || file).trim().slice(0, 140);
+      // `note` (11/18): the small line under the button, for a document the
+      // standard line doesn't describe (a manual, a sheet with no warranty terms).
+      const note = String(s.note || "").trim().slice(0, 120);
       specSheets.byId[id] = { id, file, label, bytes: stat.size };
       for (const m of Array.isArray(s.models) ? s.models : []) {
         const k = normalizeModelKey(m);
-        if (k) (specSheets.byModel[k] ||= []).push({ label, url: `/api/shop/spec-sheet/${id}.pdf` });
+        if (k) (specSheets.byModel[k] ||= []).push({ label, url: `/api/shop/spec-sheet/${id}.pdf`, ...(note ? { note } : {}) });
       }
     }
   } catch {}
@@ -9328,6 +9340,8 @@ app.get("/api/shop/catalog", async (req, res) => {
       taxRate: canBuild ? SHOP_TAX_RATE : null,
       dealGroups: SHOP_DEAL_GROUPS.map((d) => ({ key: d.key, label: d.label, max: d.max })), // max: where the slider starts
       dealStops: SHOP_DEAL_STOPS,
+      // Models with a product page (11/18): a tile's model number links to /p/<key> for these.
+      pages: await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => []),
       onDisplayLabel: (await loadShopData()).onDisplay?.label || SHOP_ON_DISPLAY_LABEL
     });
   } catch (err) {
@@ -12958,13 +12972,22 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
       // things the queue needs now and let the rest go — everything else it
       // reads comes from the tables replaceEpassOpenOrders just wrote.
       let wmParsed = null, wmError = null;
-      try { wmParsed = parseWrittenModelsFromEpass(bundle); } catch (err) { wmError = err; }
+      // Units on hand can be held for a service ticket, which this bundle
+      // doesn't carry (11/17) — the Ordering Report is told the open ones.
+      // If they can't be read the report treats such a hold as standing.
+      const serviceTickets = await openServiceTicketHolds().catch((err) => { console.warn("Ordering Report: open service tickets unavailable —", err.message); return []; });
+      try { wmParsed = parseWrittenModelsFromEpass(bundle, { serviceTickets }); } catch (err) { wmError = err; }
       const quoteRowsAll = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"] : [];
       const quoteLineRowsAll = Array.isArray(bundle.datasets?.["open-quote-lines"]) ? bundle.datasets["open-quote-lines"] : [];
       // Recently modified quotes with their lines (11/12) — small; kept for the queue below.
       const rqSets = Array.isArray(bundle.datasets?.["recent-quotes"])
         ? { quotes: bundle.datasets["recent-quotes"], models: bundle.datasets["recent-quote-lines"], items: bundle.datasets["recent-quote-items"], misc: bundle.datasets["recent-quote-misc"] }
         : null;
+      // Units on order per model, ePASS's own QOO (11/17) — small; the Speed
+      // Queen Truckload Builder's QOO. null when the pull didn't send the view
+      // (an older script, or the query failed): QOO is then left as it is.
+      const sqQooSet = bundle.datasets && Object.prototype.hasOwnProperty.call(bundle.datasets, "models-on-order") ? bundle.datasets["models-on-order"] : undefined;
+      const sqQooRows = sqQooSet === undefined ? null : Array.isArray(sqQooSet) ? sqQooSet : sqQooSet && typeof sqQooSet === "object" ? [sqQooSet] : [];
       bundle.datasets = null;
       epassSalesChain = epassSalesChain.catch(() => {}).then(async () => {
         try {
@@ -12972,6 +12995,11 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
         // shop pauses without it, so it never waits behind the slow steps.
         try { counts.inventory = await rebuildShopSnapshotFromFeed({ why: "bundle" }); }
         catch (err) { console.error("Serial inventory snapshot from ePASS feed failed:", err.message); counts.inventory = { error: err.message }; }
+        // Speed Queen Truckload Builder: QOO from ePASS (11/17) — a few dozen small updates.
+        if (sqQooRows) {
+          try { counts.sqQoo = await applySqFeedQoo(sqQooRows, { pulledAt }); }
+          catch (err) { console.error("Speed Queen QOO from ePASS feed failed:", err.message); counts.sqQoo = { error: err.message }; }
+        }
         // The Ordering Report reads this feed now — the OE-04 upload is optional.
         let orderingReport = null;
         try {

@@ -120,9 +120,9 @@ The open tile now has two sides. **Features** is the panel above, unchanged. **S
 Under either side of an open tile, a model can carry a link to the manufacturer's PDF — first used for Speed Queen's four sell sheets (top load washers, dryers, front load washers & matching dryers, stacked washer-dryers), which give the exact dimensions the nominal Specs do not.
 
 - **Files:** the PDFs live in the repo's `spec sheets` folder. That folder is tracked in git since 11/12 (it was ignored before, so nothing in it reached Render) and is still denied as a static folder.
-- **Mapping:** `data/shop-spec-sheets.json` — one entry per PDF: `id`, `file`, `label`, and `models`, the model numbers printed on the sheet. A model gets the link only when it is listed; the earlier Speed Queen generation (SF7007, FF7009 / FF7010, TR3003 / TR5003 / TR7003) is not on these sheets and has none. To add a sheet: drop the PDF in `spec sheets`, add an entry, push.
+- **Mapping:** `data/shop-spec-sheets.json` — one entry per PDF: `id`, `file`, `label`, and `models`, the model numbers printed on the sheet. An optional `note` (11/18) replaces the small line under the button when the standard one does not describe the document, such as a manual. A model gets the link only when it is listed; the earlier Speed Queen generation (SF7007, FF7009 / FF7010, TR3003 / TR5003 / TR7003) is not on these sheets and has none. To add a sheet: drop the PDF in `spec sheets`, add an entry, push.
 - **Serving:** `GET /api/shop/spec-sheet/<id>.pdf`, public on the shop host. Only an id from the mapping answers, the file name never comes from the request, and a listed file that is missing from the folder is left off the tiles rather than linked.
-- **Wire:** `/api/shop/catalog` sends `sheets` keyed by normalized model: `[{ label, url }]`. A tile opens when it has features, specs or a sheet.
+- **Wire:** `/api/shop/catalog` sends `sheets` keyed by normalized model: `[{ label, url, note? }]`. A tile opens when it has features, specs or a sheet.
 
 
 ## Guest checkout is the default (11/12)

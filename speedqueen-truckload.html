@@ -66,6 +66,7 @@
     table.tl input.qty { width: 66px; text-align: right; padding: 5px 7px; font-weight: 800; border-radius: 8px; }
     table.tl input.qty.has { border-color: var(--primary); background: rgba(var(--primary-rgb), 0.06); }
     table.tl input.qoo { width: 58px; text-align: right; padding: 4px 6px; border-radius: 8px; color: var(--muted); }
+    table.tl td.qoo-live { color: var(--muted); } /* QOO from the ePASS feed (11/17): a number, not a box */
     table.tl tr.inactive td { opacity: 0.45; }
     table.tl tfoot td { font-weight: 800; border-top: 2px solid var(--border); background: #fafbfc; }
     .hint { font-size: 11px; color: var(--muted); display: block; font-weight: 500; }
@@ -100,8 +101,8 @@
         The SQ truckload template, live. <strong>Trailing sales</strong> are delivered units per model from the Sales Order Detail
         warehouse — the same finished-invoice feed the commission statements use — over the trailing window (six months by
         default; predecessor model numbers folded in). <strong>Stock plan</strong> is trailing sales × stock-plan months ÷ window months, rounded up;
-        <strong>QOH</strong> is on-hand units from the serial inventory feed; <strong>QOO</strong> is units on order (the template's column L) — type it
-        in the grid, or upload the ePASS Model Maintenance export to fill it; <strong>Forecast</strong> is plan − QOH − QOO. Type order quantities (or press
+        <strong>QOH</strong> is on-hand units from the serial inventory feed; <strong>QOO</strong> is units on order (the template's column L), ePASS's own
+        count from the feed — if the feed hasn't sent it for a day, type it in the grid or upload the ePASS Model Maintenance export; <strong>Forecast</strong> is plan − QOH − QOO. Type order quantities (or press
         <em>Fill from forecast</em>) and the truck fills up below. Laundry centers count as two truck units; pedestals ride free. Accessories stay in the catalog for tracking but can't be added to a truckload.
       </p>
       <div id="status" class="status"></div>
@@ -249,7 +250,9 @@
             <td>${r.ttm}</td><td class="muted">${r.lastYear}</td>
             <td>${r.stockPlan}</td>
             <td>${r.qoh}${r.written ? `<span class="hint">${r.written} written</span>` : ""}</td>
-            <td><input class="qoo" type="number" min="0" step="1" value="${r.qoo}" data-qoo="${esc(r.model)}" title="${esc(r.qooNote || "On order")}"></td>
+            ${state.board.sources.qoo?.live
+              ? `<td class="qoo-live" title="On order in ePASS, from the feed">${r.qoo}</td>`
+              : `<td><input class="qoo" type="number" min="0" step="1" value="${r.qoo}" data-qoo="${esc(r.model)}" title="${esc(r.qooNote || "On order")}"></td>`}
             <td class="${fc}">${r.forecast}</td>
             <td>${r.kind === "accessory" ? `<span class="hint" title="Accessories can't be ordered on a truckload">not by truck</span>` : `<input class="qty${c.qty ? " has" : ""}" type="number" min="0" step="1" value="${c.qty || ""}" data-qty="${esc(r.model)}" ${r.active ? "" : "disabled"}>`}</td>
             <td class="muted" title="${r.regularDerived ? "Derived from TL cost and the discount setting" : "Explicit regular cost from the catalog"}">${money(r.regularCost)}</td>
@@ -279,7 +282,10 @@
         $("sources").innerHTML = `
           <span>Sales: <b>${s.sales.latestMonth ? `${s.sales.windowFrom} → ${s.sales.latestMonth}` : "no Sales Order Detail uploads yet"}</b>${s.sales.error ? " · " + esc(s.sales.error) : ""}</span>
           <span>Inventory: <b>${s.inventory.uploadedAt ? when(s.inventory.uploadedAt) : "no serial snapshot yet"}</b>${s.inventory.sourceFile ? " · " + esc(s.inventory.sourceFile) : ""}</span>
+          <span>On order: <b>${s.qoo?.live ? when(s.qoo.at) : "typed or uploaded"}</b>${s.qoo?.live ? " · ePASS feed" : s.qoo?.at ? " · ePASS last sent it " + when(s.qoo.at) : ""}</span>
           <span>Draft: <b>${esc(o.name)}</b>${o.updatedAt ? " · saved " + when(o.updatedAt) + (o.updatedBy ? " by " + esc(o.updatedBy) : "") : ""}</span>`;
+        // The upload is the manual way; it steps aside while ePASS is sending QOO.
+        $("qooBtn").style.display = s.qoo?.live ? "none" : "";
         $("thLastYear").textContent = s.sales.lastYear ? `${s.sales.lastYear} sales` : "Last yr";
         const w = Number(state.board.settings.ttm_months) || 6;
         $("thTtm").textContent = `T${w}M`;

@@ -25,6 +25,8 @@
 #                        upload (shop availability, cosmetic-damage form) since 9/24
 #   model-list-prices    ModelListPrice for every model in stock: L1 / RETAIL (MAP, PMAP) / brand UMRP codes
 #   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
+#   models-on-order      Model master, every model with units on order: Code, BrandCode, TotalQOO (ePASS's own
+#                        QOO) - fills QOO on the Speed Queen Truckload Builder (11/17)
 #   open-quotes          Invoice header, InvTypeCode Q, Status Open (Quote Follow-Up board)
 #   recent-quotes        Invoice header, InvTypeCode Q, created or modified since the day before the last
 #                        pull (any status) - the executive "Recently modified" review on Quote Follow-Up
@@ -576,6 +578,21 @@ WHERE (pm.Received IS NULL OR pm.Received = 0)
 ORDER BY pm.ModelCode, pm.POCode
 "@ (Join-Path $LatestDir "open-po-lines.csv") "open-po-lines"
   } catch { Log ("open-po-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
+  # Andrew 11/17: every model with units on order, with ePASS's own QOO (the
+  # QOO column of Model Maintenance). The Speed Queen Truckload Builder fills
+  # its QOO from this, where it used to be typed or uploaded. The Model master
+  # view above only covers models on an open sales line, so a model on a
+  # purchase order with no open sale was never in the bundle. A few hundred
+  # short rows; guarded like the others.
+  try {
+    $bundle.datasets["models-on-order"] = Export-Query $conn @"
+SELECT m.Code, m.BrandCode, m.TotalQOO
+FROM Model m
+WHERE m.TotalQOO > 0
+ORDER BY m.Code
+"@ (Join-Path $LatestDir "models-on-order.csv") "models-on-order"
+  } catch { Log ("models-on-order FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   # Open quotes (2026-09-22): what the Quote Follow-Up board used to get from
   # the Invoice Maintenance quote export. Header columns only; guarded.

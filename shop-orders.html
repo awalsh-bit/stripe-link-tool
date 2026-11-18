@@ -32,6 +32,15 @@
     .exp-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 14px; }
     .exp-row select { border: 1.5px solid var(--border, #dbe1ea); border-radius: 10px; padding: 7px 10px; font-size: 13px; background: #fff; font-family: inherit; }
     .zip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .dz-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .dz-table th { position: sticky; top: 0; background: #f9fafb; text-align: left; font-weight: 600; color: #374151; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+    .dz-table td { padding: 6px 10px; border-bottom: 1px solid #f1f1f1; }
+    .dz-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .dz-table .dz-fee { appearance: none; border: 1px dashed transparent; background: none; font: inherit; cursor: pointer; padding: 2px 6px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+    .dz-table .dz-fee:hover { border-color: #9ca3af; }
+    .dz-table .dz-fee.none { color: #9ca3af; }
+    .dz-table .dz-area { font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    .dz-table .dz-area.express { background: #dcfce7; color: #166534; } .dz-table .dz-area.extended { background: #e0e7ff; color: #3730a3; } .dz-table .dz-area.none { background: #f3f4f6; color: #6b7280; }
     .zip-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px; background: #fff; }
     .zip-chip b { font-variant-numeric: tabular-nums; }
     .zip-chip span { color: var(--muted); font-size: 12px; }
@@ -343,6 +352,44 @@
           <span class="ws-snap-meta" id="zipStatus"></span>
         </div>
         <div id="zipList" class="zip-list">Loading…</div>
+      </details>
+
+      <!-- The total delivery area and its fee per ZIP (Andrew 11/19). Storage and rules: lib/shop-delivery-zips.js. -->
+      <details class="surface" id="dzCard">
+        <summary class="exp-summary">
+          <strong>Delivery area and fees by ZIP</strong>
+          <span class="exp-sub" id="dzSummaryLine">Everywhere we can deliver, with the delivery fee for each ZIP.</span>
+        </summary>
+        <p class="section-note" style="margin-top:10px;">
+          The wider list: every ZIP we can deliver to at all, each with its own fee. <b>A ZIP with a fee is in the delivery area. A ZIP with no fee is only waiting for one, and is not offered delivery.</b>
+          The Delivery ZIP codes list above is still the express area, where a shopper orders online and picks a date.
+          Paste rows from the spreadsheet with its header row (ZIP, City, County, Miles, Fee: any of them, in any order). Pasting again never wipes a fee that is already set.
+          <br><b>The shop does not use these fees yet.</b> Taking orders from this wider area is the next step on the storefront; until then this is where the list and the fees are kept.
+        </p>
+        <div class="exp-row" style="align-items:flex-start;">
+          <textarea id="dzPaste" rows="3" placeholder="Paste from the spreadsheet, header row included: ZIP, City, County, Miles, Fee" style="flex:1; min-width:240px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px; font-family:inherit;"></textarea>
+          <button type="button" class="ws-btn" id="dzImportBtn">Add / update from paste</button>
+        </div>
+        <div class="exp-row" style="flex-wrap:wrap;">
+          <input type="search" id="dzFind" placeholder="Find ZIP, city or county" style="flex:1; min-width:170px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
+          <label class="ws-snap-meta">Miles <input type="number" id="dzMin" min="0" step="1" placeholder="from" style="width:74px; border:1px solid var(--border); border-radius:10px; padding:7px 8px; font-size:13px;"> to <input type="number" id="dzMax" min="0" step="1" placeholder="to" style="width:74px; border:1px solid var(--border); border-radius:10px; padding:7px 8px; font-size:13px;"></label>
+          <select id="dzShow" style="border:1px solid var(--border); border-radius:10px; padding:7px 8px; font-size:13px;">
+            <option value="">All ZIPs</option><option value="nofee">No fee yet</option><option value="fee">Has a fee</option><option value="express">In the express area</option><option value="notexpress">Outside the express area</option>
+          </select>
+          <span class="ws-snap-meta" id="dzCount"></span>
+        </div>
+        <div class="exp-row" style="flex-wrap:wrap;">
+          <span class="ws-snap-meta">For the <b id="dzShown">0</b> ZIPs shown: fee $</span>
+          <input type="text" id="dzFee" inputmode="decimal" placeholder="149" style="width:90px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
+          <button type="button" class="ws-btn" id="dzSetBtn">Set fee</button>
+          <button type="button" class="ws-btn" id="dzClearBtn" title="The ZIPs stay on the list; delivery is no longer offered there">Take the fee off</button>
+          <button type="button" class="ws-btn" id="dzRemoveBtn">Remove from the list</button>
+          <button type="button" class="ws-btn" id="dzCsvBtn">Export CSV</button>
+          <span class="ws-snap-meta" id="dzStatus"></span>
+        </div>
+        <div id="dzTableWrap" style="max-height:440px; overflow:auto; border:1px solid var(--border); border-radius:10px; margin-top:10px;">
+          <table class="dz-table"><thead><tr><th>ZIP</th><th>City</th><th>County</th><th class="num">Miles</th><th>Area</th><th class="num">Delivery fee</th></tr></thead><tbody id="dzBody"><tr><td colspan="6" class="ws-snap-meta">Open to load…</td></tr></tbody></table>
+        </div>
       </details>
       <div id="internal-shell-footer"></div>
     </div>
@@ -999,6 +1046,75 @@
           try { const out = await api("/api/shop/allowed-zips"); renderZips(out.zips || []); }
           catch (err) { document.getElementById("zipStatus").textContent = err.message; }
         }
+        // ---- Delivery area and fees by ZIP (11/19) ----
+        let dzLoaded = false, dzRows = [], dzExpress = new Set();
+        const dzEl = (id) => document.getElementById(id);
+        const dzMoney = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
+        const dzAreaOf = (r) => (dzExpress.has(r.zip) ? "express" : r.fee != null ? "extended" : "none");
+        const DZ_AREA = { express: "Express", extended: "Delivery", none: "Not offered" };
+        function dzFiltered() {
+          const q = dzEl("dzFind").value.trim().toLowerCase(), lo = parseFloat(dzEl("dzMin").value), hi = parseFloat(dzEl("dzMax").value), show = dzEl("dzShow").value;
+          return dzRows.filter((r) => (!q || `${r.zip} ${r.city} ${r.county}`.toLowerCase().includes(q))
+            && (Number.isNaN(lo) || (r.miles != null && r.miles >= lo)) && (Number.isNaN(hi) || (r.miles != null && r.miles <= hi))
+            && (!show || (show === "nofee" ? r.fee == null : show === "fee" ? r.fee != null : show === "express" ? dzExpress.has(r.zip) : !dzExpress.has(r.zip))));
+        }
+        function dzRender() {
+          const rows = dzFiltered(), withFee = dzRows.filter((r) => r.fee != null).length, LIMIT = 500;
+          dzEl("dzSummaryLine").textContent = dzRows.length ? `${dzRows.length} ZIP${dzRows.length === 1 ? "" : "s"} on the list, ${withFee} with a delivery fee.` : "No ZIPs yet. Paste the list to start.";
+          dzEl("dzShown").textContent = String(rows.length);
+          dzEl("dzCount").textContent = rows.length === dzRows.length ? `${rows.length} ZIPs` : `${rows.length} of ${dzRows.length} ZIPs`;
+          dzEl("dzBody").innerHTML = rows.length ? rows.slice(0, LIMIT).map((r) => { const a = dzAreaOf(r);
+            return `<tr><td><b>${escZ(r.zip)}</b></td><td>${escZ(r.city)}</td><td>${escZ(r.county)}</td><td class="num">${r.miles == null ? "" : escZ(r.miles)}</td><td><span class="dz-area ${a}">${DZ_AREA[a]}</span></td><td class="num"><button type="button" class="dz-fee${r.fee == null ? " none" : ""}" data-dz-fee="${escZ(r.zip)}" title="Click to change this ZIP's fee">${r.fee == null ? "set fee" : dzMoney(r.fee)}</button></td></tr>`; }).join("")
+            + (rows.length > LIMIT ? `<tr><td colspan="6" class="ws-snap-meta">Showing the first ${LIMIT} of ${rows.length}. Narrow the filter to see the rest; the buttons above still act on all ${rows.length}.</td></tr>` : "")
+            : `<tr><td colspan="6" class="ws-snap-meta">${dzRows.length ? "No ZIPs match." : "No ZIPs yet."}</td></tr>`;
+        }
+        function dzTake(out) { dzRows = out.zips || []; dzExpress = new Set(out.express || []); dzRender(); }
+        async function dzLoad() { try { dzTake(await api("/api/shop/delivery-zips")); } catch (err) { dzEl("dzStatus").textContent = err.message; } }
+        async function dzPost(path, body, done) {
+          const status = dzEl("dzStatus"); status.textContent = "Saving…";
+          try { const out = await api(path, { method: "POST", body: JSON.stringify(body) }); dzTake(out); status.textContent = done(out); return out; }
+          catch (err) { status.textContent = err.message; return null; }
+        }
+        dzEl("dzCard").addEventListener("toggle", (e) => { if (e.target.open && !dzLoaded) { dzLoaded = true; dzLoad(); } });
+        ["dzFind", "dzMin", "dzMax"].forEach((id) => dzEl(id).addEventListener("input", dzRender)); dzEl("dzShow").addEventListener("change", dzRender);
+        dzEl("dzImportBtn").addEventListener("click", async () => {
+          const text = dzEl("dzPaste").value; if (!text.trim()) { dzEl("dzStatus").textContent = "Paste the rows first."; return; }
+          const out = await dzPost("/api/shop/delivery-zips/import", { text }, (o) => `${o.added} added, ${o.updated} updated${o.skipped ? `, ${o.skipped} line${o.skipped === 1 ? "" : "s"} without a ZIP skipped` : ""}. Columns read: ${(o.columns || []).join(", ")}.`);
+          if (out) dzEl("dzPaste").value = "";
+        });
+        const dzShownZips = () => dzFiltered().map((r) => r.zip);
+        dzEl("dzSetBtn").addEventListener("click", () => {
+          const zips = dzShownZips(), raw = dzEl("dzFee").value.trim().replace(/[$,\s]/g, "");
+          if (!zips.length) { dzEl("dzStatus").textContent = "No ZIPs are shown."; return; }
+          if (!/^\d+(\.\d{1,2})?$/.test(raw)) { dzEl("dzStatus").textContent = "Enter the fee as a dollar amount, like 149."; return; }
+          if (!confirm(`Set the delivery fee to ${dzMoney(raw)} for ${zips.length} ZIP${zips.length === 1 ? "" : "s"}?`)) return;
+          dzPost("/api/shop/delivery-zips/fee", { zips, fee: Number(raw) }, (o) => `Fee ${dzMoney(o.fee)} set on ${o.changed} ZIP${o.changed === 1 ? "" : "s"}.`);
+        });
+        dzEl("dzClearBtn").addEventListener("click", () => {
+          const zips = dzShownZips(); if (!zips.length) { dzEl("dzStatus").textContent = "No ZIPs are shown."; return; }
+          if (!confirm(`Take the delivery fee off ${zips.length} ZIP${zips.length === 1 ? "" : "s"}? They stay on the list and stop being offered delivery.`)) return;
+          dzPost("/api/shop/delivery-zips/fee", { zips, fee: null }, (o) => `Fee taken off ${o.changed} ZIP${o.changed === 1 ? "" : "s"}.`);
+        });
+        dzEl("dzRemoveBtn").addEventListener("click", () => {
+          const zips = dzShownZips(); if (!zips.length) { dzEl("dzStatus").textContent = "No ZIPs are shown."; return; }
+          if (!confirm(`Remove ${zips.length} ZIP${zips.length === 1 ? "" : "s"} from the delivery area list?`)) return;
+          dzPost("/api/shop/delivery-zips/remove", { zips }, (o) => `${o.removed} removed.`);
+        });
+        dzEl("dzBody").addEventListener("click", (e) => {
+          const b = e.target.closest("[data-dz-fee]"); if (!b) return;
+          const zip = b.getAttribute("data-dz-fee"), row = dzRows.find((r) => r.zip === zip);
+          const next = prompt(`Delivery fee for ${zip}${row && row.city ? " (" + row.city + ")" : ""}, in dollars. Leave it empty to take the fee off.`, row && row.fee != null ? String(row.fee) : "");
+          if (next === null) return;
+          const raw = next.trim().replace(/[$,\s]/g, "");
+          if (raw && !/^\d+(\.\d{1,2})?$/.test(raw)) { dzEl("dzStatus").textContent = "Enter the fee as a dollar amount, like 149."; return; }
+          dzPost("/api/shop/delivery-zips/fee", { zips: [zip], fee: raw ? Number(raw) : null }, (o) => (o.fee == null ? `Fee taken off ${zip}.` : `${zip}: ${dzMoney(o.fee)}.`));
+        });
+        dzEl("dzCsvBtn").addEventListener("click", () => {
+          const cell = (v) => { const t = String(v ?? ""); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+          const csv = ["ZIP,City,County,Miles,Area,Fee", ...dzFiltered().map((r) => [r.zip, r.city, r.county, r.miles ?? "", DZ_AREA[dzAreaOf(r)], r.fee ?? ""].map(cell).join(","))].join("\r\n");
+          const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "delivery-area-fees.csv"; document.body.appendChild(a); a.click(); a.remove();
+        });
+
         document.getElementById("zipCard").addEventListener("toggle", (e) => { if (e.target.open && !zipLoaded) { zipLoaded = true; loadZips(); } });
         // ZIP list → CSV (marketing lists): zip, label, added by, added on.
         document.getElementById("zipCsvBtn").addEventListener("click", async () => {

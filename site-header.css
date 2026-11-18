@@ -17,6 +17,10 @@
    that text. Each shop page also turns that auto-linking off with a
    format-detection meta tag, and writes its phone numbers as real links. */
 a { color: inherit; }
+/* "Text Us" (Andrew 11/19): the link that opens a text to the shop carries a message icon and capitals,
+   so it reads as something to tap. The icon takes the link's own color and size. */
+a.text-us { white-space: nowrap; }
+a.text-us svg { width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin: 0 .28em 0 0; color: inherit; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-weight: inherit !important; }
 :root {
   --util-h: 46px;

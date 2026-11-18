@@ -895,7 +895,7 @@
 
   <main id="mainArea">
     <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
-      Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> or <a href="sms:+15128940907" style="color:inherit; font-weight:700;">text us</a> for availability, or check back shortly.
+      Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> or <a class="text-us" href="sms:+15128940907" style="color:inherit; font-weight:700;"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text Us</a> for availability, or check back shortly.
     </div>
     <!-- The headline that sat here ("Better choices, already made…") came off
          11/11 (Andrew): shoppers arriving from an ad go straight to the Top
@@ -1844,7 +1844,7 @@
           ${specs.length ? `<div class="idt-pane" data-pane="specs"${tab === "specs" ? "" : " hidden"}>
             ${both ? "" : `<p class="idt-sub">Specs</p>`}
             <dl class="idt-specs">${specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
-            ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide, or call <a href="tel:512-894-0907">512-894-0907</a> or <a href="sms:+15128940907">text us</a>.</p>` : ""}
+            ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide, or call <a href="tel:512-894-0907">512-894-0907</a> or <a class="text-us" href="sms:+15128940907"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text Us</a>.</p>` : ""}
           </div>` : ""}
           ${docs.length ? `<div class="idt-docs">${docs.map((d) => `<a class="idt-doc" href="${esc(d.url)}" target="_blank" rel="noopener"><span class="idt-doc-ic" aria-hidden="true">PDF</span><span class="idt-doc-tx">${esc(d.label)}<small>${esc(d.note || "Exact dimensions, features and warranty by model")}</small></span></a>`).join("")}</div>` : ""}
         </div>` : ""}`;
@@ -2249,6 +2249,8 @@
         for (let at = node.nodeValue.indexOf(words); at >= 0; at = node.nodeValue.indexOf(words)) {
           const hit = node.splitText(at); node = hit.splitText(words.length);
           const a = document.createElement("a"); a.href = href; a.className = "tel"; a.textContent = words; hit.replaceWith(a);
+          // "text us" in a message shows as "Text Us" with the message icon (a fixed string, nothing from the message)
+          if (href.startsWith("sms:")) { a.className = "tel text-us"; a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text Us'; }
         }
       }
     }
@@ -3392,7 +3394,7 @@
           <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? (item.serialType === "DISPLAY" ? "Floor Model · " : "Open Box · ") : ""}${esc(item.description)}</div>
           <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
         </div>
-        <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call</a> or <a href="sms:+15128940907">text us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
+        <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call</a> or <a class="text-us" href="sms:+15128940907"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text Us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
       body.appendChild(line);
       state.cart.addonLines.forEach((l, idx) => { if (l.itemId === item.id) { const el = addonLineEl(l, idx); if (el) body.appendChild(el); } });
       // No installation on this appliance -> the delivery team uncrates and

@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow } from "./lib/shop-product-page.js";
+import { parseDeliveryZipPaste, deliveryAreaFor, listShopDeliveryZips, importShopDeliveryZips, setShopDeliveryZipFees, removeShopDeliveryZips } from "./lib/shop-delivery-zips.js";
 import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
   readLinks,
@@ -7347,6 +7348,19 @@ setInterval(refreshShopZips, 5 * 60 * 1000).unref?.();
 function shopZipAllowed(zip) {
   return shopZipSet.has(String(zip || "").trim().slice(0, 5));
 }
+// The TOTAL delivery area, with a fee per ZIP (Andrew 11/19): everywhere
+// Wilson can deliver, edited on Shop Orders. The express list above is still
+// what lets a shopper order online today; this list is the wider one, and a
+// ZIP counts as in it once it has a fee. See lib/shop-delivery-zips.js.
+let shopDeliveryZipMap = new Map();
+async function refreshShopDeliveryZips() {
+  try { shopDeliveryZipMap = new Map((await listShopDeliveryZips()).map((r) => [r.zip, r])); }
+  catch (err) { console.error("Shop delivery ZIP list refresh failed:", err.message); }
+}
+setTimeout(refreshShopDeliveryZips, 6 * 1000).unref?.();
+setInterval(refreshShopDeliveryZips, 5 * 60 * 1000).unref?.();
+// { zip, area: "express" | "extended" | "none", fee, miles, city }
+const shopDeliveryArea = (zip) => deliveryAreaFor(zip, { expressSet: shopZipSet, deliveryMap: shopDeliveryZipMap });
 
 // The four data files only change on a deploy; read them once a minute at
 // most instead of on every catalog build.
@@ -8286,7 +8300,10 @@ app.post("/api/shop/zip-check", (req, res) => {
   if (!/^\d{5}/.test(zip)) {
     return res.status(400).json({ error: "Enter a 5-digit ZIP code." });
   }
-  return res.json({ allowed: shopZipAllowed(zip) });
+  // `allowed` is the express area, as it always was. `area` adds the wider answer (11/19):
+  // "extended" is a ZIP outside express that Wilson delivers to for the fee given.
+  const where = shopDeliveryArea(zip);
+  return res.json({ allowed: shopZipAllowed(zip), area: where.area, fee: where.area === "extended" ? where.fee : null });
 });
 
 // Shared shopper-field validation for registration and profile edits.
@@ -12461,6 +12478,42 @@ app.delete("/api/shop/allowed-zips/:zip", requirePagePermission("/shop-orders.ht
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_zip_removed", targetUserId: null, detail: { zip: String(req.params.zip).slice(0, 10), removed } }).catch(() => {});
     return res.json({ ok: true, removed, zips: await listShopAllowedZips() });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that ZIP." }); }
+});
+
+// The total delivery area and its fee per ZIP (Shop Orders, Andrew 11/19).
+// Pasted in from a spreadsheet; fees set for many ZIPs at once.
+const shopDeliveryZipPayload = async () => ({ zips: await listShopDeliveryZips(), express: [...shopZipSet].sort() });
+const shopDeliveryZipBy = (req) => req.authUser?.email || "";
+app.get("/api/shop/delivery-zips", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try { return res.json(await shopDeliveryZipPayload()); }
+  catch (err) { return res.status(500).json({ error: err.message || "Unable to load the delivery area." }); }
+});
+app.post("/api/shop/delivery-zips/import", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const parsed = parseDeliveryZipPaste(String(req.body?.text || "").slice(0, 600000));
+    const out = await importShopDeliveryZips({ rows: parsed.rows, by: shopDeliveryZipBy(req) });
+    await refreshShopDeliveryZips();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_delivery_zips_imported", targetUserId: null, detail: { ...out, skipped: parsed.skipped, columns: Object.keys(parsed.columns) } }).catch(() => {});
+    return res.json({ ok: true, ...out, skipped: parsed.skipped, columns: Object.keys(parsed.columns), ...(await shopDeliveryZipPayload()) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to read that list." }); }
+});
+app.post("/api/shop/delivery-zips/fee", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const zips = Array.isArray(req.body?.zips) ? req.body.zips.slice(0, 5000) : [];
+    const out = await setShopDeliveryZipFees({ zips, fee: req.body?.fee, by: shopDeliveryZipBy(req) });
+    await refreshShopDeliveryZips();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_delivery_zip_fee_set", targetUserId: null, detail: { fee: out.fee, changed: out.changed, asked: zips.length, sample: zips.slice(0, 12) } }).catch(() => {});
+    return res.json({ ok: true, ...out, ...(await shopDeliveryZipPayload()) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to set that fee." }); }
+});
+app.post("/api/shop/delivery-zips/remove", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const zips = Array.isArray(req.body?.zips) ? req.body.zips.slice(0, 5000) : [];
+    const out = await removeShopDeliveryZips({ zips });
+    await refreshShopDeliveryZips();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_delivery_zips_removed", targetUserId: null, detail: { removed: out.removed, sample: zips.slice(0, 12) } }).catch(() => {});
+    return res.json({ ok: true, ...out, ...(await shopDeliveryZipPayload()) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove those ZIPs." }); }
 });
 
 // Brands never sold online (Shop Orders -> Brands not sold online).

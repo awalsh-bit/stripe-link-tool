@@ -1,6 +1,6 @@
 # Express shop: product pages
 
-*Added 11/17 as one test item, the Bosch SHP78CM5N dishwasher. On 11/18 the four Miele dishwashers on the list got pages, and shop tiles began linking to them.*
+*Added 11/17 as one test item, the Bosch SHP78CM5N dishwasher. On 11/18 the four Miele dishwashers on the list got pages, shop tiles began linking to them, and five Bosch refrigerators followed.*
 
 A product page sells one model: its photos, a short lead, five features with a line each, specifications, the spec sheet, and the price with an Add to cart button.
 
@@ -15,6 +15,11 @@ A product page sells one model: its photos, a short lead, five features with a l
 | `/p/12496900` | Miele G 7766 SCVi AutoDos, panel ready |
 | `/p/12496980` | Miele G 7986 SCVi AutoDos K2O, panel ready, handleless |
 | `/p/12496990` | Miele G 7186 SCVi AutoDos, panel ready |
+| `/p/B36FD10ENS` | Bosch 100 Series French door refrigerator, standard depth, ice and water at the door |
+| `/p/B36CL80ENS` | Bosch 800 Series counter-depth 4-door refrigerator, water dispenser inside |
+| `/p/B36CD80SNS` | Bosch 800 Series counter-depth 3-door refrigerator, ice and water at the door |
+| `/p/B36CT80SNS` | Bosch 800 Series counter-depth 3-door refrigerator, bar handles, water dispenser inside |
+| `/p/B36CT81ENS` | Bosch 800 Series counter-depth 3-door refrigerator, recessed handles, water dispenser inside |
 
 Search engines are told not to list these pages yet.
 
@@ -70,7 +75,7 @@ The product page itself opens without the ZIP. It only shows prices the shop is 
 ## Adding another model
 
 1. Put the manufacturer's pictures and spec sheet in the model's folder under `supplier-digital-assets`.
-2. Ask Claude to make the page. That converts the pictures into `product-photos/<MODEL>/`, writes the record, copies the spec sheet into `spec sheets` and lists it.
+2. Ask Claude to make the page. That converts the pictures (working copies go in `supplier-digital-assets/web/<MODEL>/`, the published ones in `product-photos/<MODEL>/`), writes the record, copies the spec sheet into `spec sheets` and lists it.
 3. Push.
 
 ## The Miele pages: what is thin, and what was left out
@@ -82,6 +87,26 @@ The product page itself opens without the ZIP. It only shows prices the shop is 
 - **Miele's "99.9% of viruses" and "35% less electricity" claims** each depend on a footnote. They are left out.
 - **Warranty** is not stated on Miele's pages or sheets for these models.
 - **Wi-Fi** is the last line of "Also on this model", as on the Bosch page. Miele's page for the G 5058 lists none, so that page has no such line.
+
+## The Bosch refrigerator pages: sources, and where they disagree
+
+Each page was written from Bosch's product page and, for four of the five, the spec sheet from the model's folder in `supplier-digital-assets/bsh-portfolio` (all dated 9/26). The photos are the gallery pictures from the same folders.
+
+- **B36FD10ENS has no spec sheet on file.** Its page has no spec sheet button, and it gives only the size Bosch's product page gives. The storage layout (crisper and chiller drawers, gallon bins, the two-tier freezer drawer) comes from Bosch's sheet dated 6/24, found on a retailer's site. Drop the current sheet in the model's folder and ask Claude to add the button, the labelled depths, the weight, the sound level and the energy use.
+- **Depth.** Bosch's product page gives one depth, 27 13/16 in, for all four 800 Series models. The sheets label theirs: with doors and handles, without handles, without doors. They run larger. The pages use the sheets' labelled figures.
+- **Ice, B36CD80SNS.** Bosch's page says 13 lb a day and its sheet says 16. The page says 13, the lower figure.
+- **Freezer capacity, B36CL80ENS, B36CT80SNS and B36CT81ENS.** Bosch's page says 6.1 cu ft and the sheets say 6. The pages use 6, which adds up to the total.
+- **Ice storage** is left off where the two sources differ (B36FD10ENS, B36CD80SNS).
+
+Left out on purpose:
+
+- **"Fastest ice maker"** in its class or in the industry. Bosch makes the claim, and the footnote behind it was not shown.
+- **"99.9% of sediment"** for the water filter, and the gallery graphic that carries it.
+- **Warranty.** Only the B36CD80SNS sheet states one (1 year limited, parts and labor). No page shows warranty terms.
+
+Kept, with its condition: VitaFreshPro's "up to three times longer" is given as Bosch's figure, against a Bosch refrigerator without VitaFreshPro, with results varying by food.
+
+One to three of the gallery pictures on each page are Bosch's own graphics, with Bosch's words on them. The alt text says so.
 
 ## Not done yet
 

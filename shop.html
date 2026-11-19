@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Google Tag Manager (GTM-KCPSFXV7, Andrew 11/19 - advertising the shop). Google's install code, loaded only
+       on shop.wilsonappliance.com so local copies and test servers never report to it. See docs/shop/google-tag.md. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    if (location.hostname === "shop.wilsonappliance.com") {
+      (function (s) { s.async = true; s.src = "https://www.googletagmanager.com/gtm.js?id=GTM-KCPSFXV7"; document.head.appendChild(s); })(document.createElement("script"));
+    }
+  </script>
+  <!-- End Google Tag Manager -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
        phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
@@ -2946,9 +2957,38 @@
   // quiet (11/19): a model added on a product page is put in the cart when the
   // shop next opens in this tab, without popping anything up; its setup prompt
   // waits until the shopper opens the cart.
+  // ---- Google Tag (11/19): the standard ecommerce steps for Google Ads and
+  // Analytics. Model numbers, prices and the order's totals only - never a
+  // name, phone, email, address or client code. See docs/shop/google-tag.md.
+  const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+  function gaPush(event, ecommerce) {
+    try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ ecommerce: null }); window.dataLayer.push({ event, ecommerce }); } catch {}
+  }
+  function gaDept(i) { return (MENU_TREE.find((d) => (d.cats || []).includes(i.category)) || {}).label || i.category || ""; }
+  function gaItem(i) {
+    return {
+      item_id: String(i.model || ""), item_name: [i.brand, i.model].filter(Boolean).join(" "), item_brand: i.brand || "",
+      item_category: gaDept(i), item_variant: i.condition === "new" ? "New in Box" : i.condition === "open" ? (i.serialType === "DISPLAY" ? "Floor Model" : "Open Box") : "",
+      ...(Number(i.price) > 0 ? { price: r2(i.price) } : {}), quantity: 1
+    };
+  }
+  // the cart as items: appliances, then their installation and parts
+  function gaCartItems() {
+    const items = state.cart.itemIds.map((id) => (state.catalog.items || []).find((i) => i.id === id)).filter(Boolean).map(gaItem);
+    for (const l of state.cart.addonLines) {
+      const a = addonInfo(l.id);
+      if (!a || isSpecialKey(l.itemId) || !(a.price > 0)) continue;
+      items.push({ item_id: a.id, item_name: a.name, item_category: a.type === "install" ? "Installation" : "Parts", price: r2(a.price), quantity: l.qty });
+    }
+    return items;
+  }
+
   function addToCart(itemId, { quiet = false } = {}) {
     if (state.cart.itemIds.includes(itemId)) return;
     state.cart.itemIds.push(itemId);
+    // a quiet add is one a product page staged; that page already told the tag
+    const gi = !quiet && (state.catalog.items || []).find((i) => i.id === itemId);
+    if (gi) gaPush("add_to_cart", { currency: "USD", ...(Number(gi.price) > 0 ? { value: r2(gi.price) } : {}), items: [gaItem(gi)] });
     renderGrid();
     renderCartCount();
     syncCartPrices().then(() => { if ($("cartDrawer").classList.contains("show")) renderCart(); });
@@ -3356,6 +3396,7 @@
     const itemsTotal = items.reduce((s, i) => s + (i.price || 0), 0);
     let addonsTotal = 0;
     let taxableAddons = 0;
+    const installLines = []; // install labor, for installation promo codes (11/19)
     for (const l of state.cart.addonLines) {
       const a = addonInfo(l.id);
       if (!a || isSpecialKey(l.itemId)) continue; // special-order add-ons are quoted, not charged
@@ -3363,23 +3404,40 @@
       // Parts and freestanding-install labor are taxable; built-in install
       // labor is exempt (mirrors the server's math exactly).
       if (a.taxable !== false) taxableAddons += a.price * l.qty;
+      if (a.type === "install" && a.price > 0) installLines.push({ amount: a.price * l.qty, taxable: a.taxable !== false });
     }
+    const installTotal = Math.round(installLines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
     const pickup = state.fulfillment.method === "pickup";
     // no delivery fee until the ZIP is known (it sets the fee), and none where we can't deliver (11/19)
     const delivery = items.length && !pickup && zipKnown() && state.zipArea !== "none" ? (state.delivery?.price || 0) : 0;
-    // Promo: percent / dollars off the appliances, or the delivery fee
-    // waived. Mirrors the server; it re-prices at checkout anyway.
-    let discount = 0, promoNote = "";
+    // Promo: $ or % off the appliances, the delivery fee or the installation
+    // (older codes: delivery fee waived). Mirrors the server, which re-prices
+    // at checkout anyway.
+    let discount = 0, promoNote = "", taxableDiscount = 0;
     const p = state.promo;
     if (p && items.length) {
+      const target = promoTargetOf(p.kind);
+      const base = target === "delivery" ? delivery : target === "install" ? installTotal : itemsTotal;
       if (p.minSubtotal > 0 && itemsTotal < p.minSubtotal) promoNote = `needs $${Number(p.minSubtotal).toLocaleString("en-US", { minimumFractionDigits: 2 })} in appliances`;
-      else if (p.kind === "free_delivery" && pickup) promoNote = "applies to delivery orders";
-      else if (p.kind === "percent") discount = Math.min(itemsTotal, itemsTotal * p.value / 100);
-      else if (p.kind === "amount") discount = Math.min(itemsTotal, p.value);
+      else if (target === "delivery" && pickup) promoNote = "applies to delivery orders";
+      else if (target === "install" && !(installTotal > 0)) promoNote = "applies to installation — add installation to an appliance";
       else if (p.kind === "free_delivery") discount = delivery;
+      else if (p.kind === "percent" || /^percent_/.test(p.kind)) discount = Math.min(base, base * p.value / 100);
+      else discount = Math.min(base, p.value);
       discount = Math.round(discount * 100) / 100;
+      taxableDiscount = discount;
+      if (target === "install" && discount > 0) {
+        // only the share that came off taxable (freestanding) install lines,
+        // split by price the way the server does (last line takes the cent)
+        let left = discount; taxableDiscount = 0;
+        installLines.forEach((l, n) => {
+          const part = n === installLines.length - 1 ? Math.round(left * 100) / 100 : Math.round(discount * l.amount / installTotal * 100) / 100;
+          left = Math.round((left - part) * 100) / 100;
+          if (l.taxable) taxableDiscount += part;
+        });
+      }
     }
-    const taxableBase = itemsTotal + taxableAddons + delivery - discount;
+    const taxableBase = itemsTotal + taxableAddons + delivery - taxableDiscount;
     const tax = Math.round(taxableBase * state.taxRate * 100) / 100;
     return {
       items, itemsTotal, addonsTotal, delivery, discount, promoNote, tax,
@@ -3392,7 +3450,14 @@
     state.promo = p || null;
     try { if (p) sessionStorage.setItem(PROMO_KEY, JSON.stringify(p)); else sessionStorage.removeItem(PROMO_KEY); } catch {}
   }
-  function promoLabel(p) { return p.description || (p.kind === "percent" ? `${p.value}% off appliances` : p.kind === "amount" ? `${money(p.value)} off appliances` : "Free delivery"); }
+  // appliances / delivery / install, as the server reads the code's kind (11/19)
+  function promoTargetOf(kind) { return /delivery$/.test(kind || "") ? "delivery" : /_install$/.test(kind || "") ? "install" : "appliances"; }
+  function promoLabel(p) {
+    if (p.description) return p.description;
+    if (p.kind === "free_delivery") return "Free delivery";
+    const what = { appliances: "appliances", delivery: "delivery", install: "installation" }[promoTargetOf(p.kind)];
+    return p.kind === "percent" || /^percent_/.test(p.kind) ? `${p.value}% off ${what}` : `${money(p.value)} off ${what}`;
+  }
   async function applyPromo(code) {
     const res = await fetch("/api/shop/promo-check", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -3767,6 +3832,7 @@
     $("drawerTitle").textContent = "Secure checkout";
     const body = $("drawerBody");
     const t = cartTotals();
+    gaPush("begin_checkout", { currency: "USD", value: r2(t.itemsTotal + t.addonsTotal - t.discount), ...(state.promo?.code && t.discount ? { coupon: state.promo.code } : {}), items: gaCartItems() });
     const notice = state.promoNotice; state.promoNotice = "";
     body.innerHTML = `
       <div class="checkout-section">
@@ -3915,6 +3981,7 @@
       closeCart();
       $("mainArea").style.display = "none";
       $("doneCard").querySelector("h2").textContent = "Pricing request received!";
+      gaPush("generate_lead", { currency: "USD", lead_source: "special_order_quote" }); // a quote request, no price yet
       $("doneOrderNo").textContent = data.reference || "";
       $("doneOrderNo").previousSibling.textContent = "Your reference is ";
       $("doneFulfill").style.display = "none";
@@ -4002,6 +4069,14 @@
         return startCheckout();
       }
       if (!res.ok) throw new Error(data.error || "Unable to file your order.");
+      // Order placed (the card is saved, not charged): value is the merchandise
+      // after the promo, without tax or delivery, from the server's own totals.
+      const tt = data.totals || {};
+      gaPush("purchase", {
+        transaction_id: String(data.orderNumber || ""), currency: "USD",
+        value: r2((tt.items || 0) + (tt.addons || 0) - (tt.discount || 0)), tax: r2(tt.tax), shipping: r2(tt.delivery),
+        ...(tt.promo?.code ? { coupon: tt.promo.code } : {}), items: gaCartItems()
+      });
       setPromo(null);
 
       const fulfillLine = state.fulfillment.method === "pickup"

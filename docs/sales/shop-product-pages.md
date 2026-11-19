@@ -40,6 +40,35 @@ The product page's footer is now one line: the name, the address, the phone numb
 
 The phone number is a real link in the footer's white, underlined. Before, it was plain text that a phone turned into a link by itself, in the browser's blue. The shop page's footer got the same link treatment; its paragraph was left in place, because on that page nothing nearby repeats it.
 
+## Why Wilson cards
+
+*Andrew 11/19, on the "Express Assortment / Better choices, already made." panel: "this text at the bottom isn't a good enough story ... I think it needs to be something about Why Wilson. maybe something about our google reviews, the showroom, first party delivery, in-house install. Oh, maybe we do some cards that rotate for our top reasons to shop local? a random one appears in the same spot as this text?"*
+
+The panel above the footer now holds **Why Wilson** cards. Each visit shows one at random, never the same card twice in a row in a browser tab. **Another reason** steps to the next card and goes back to the first after the last. **Back to the shop** stays beside it.
+
+The eight cards are in `data/why-wilson.json`. The wording came from the *Why Wilson* flyer (WHY-WILSON_2_1.pdf), rewritten for homeowners rather than builders.
+
+| Card | Says | Link |
+|---|---|---|
+| Rated 4.9 on Google. | More than 1,200 reviews from the homeowners and builders we deliver to, install for and take care of. | Read the reviews (Google Maps) |
+| A showroom you can cook in. | Working kitchens, not boxes on shelves, in Dripping Springs. | Get directions (Google Maps) |
+| Delivered by our own team. | Wilson's own crew delivers, sets it in place and can haul away the one it replaces. | |
+| We install it ourselves. | Wilson installers, not subcontractors. | |
+| We service what we sell. | Our own factory-authorized technicians: you reach Wilson, not a call center. | service.wilsonappliance.com |
+| Consultants, not clerks. | Decades of appliance experience; they catch venting, power and clearance details early. | |
+| The whole kitchen, under one roof. | Appliances, cabinetry, countertops, installation and repair from one team. | |
+| Shop local. It shows. | A Dripping Springs company; your purchase keeps neighbors working. | |
+
+- **Editing.** Each card has a `title` and a `body` (plain text) and an optional `link` (`label` and an `https://`, `tel:`, `sms:` or `/page` address). Cards with no title or body are skipped, as are links to any other kind of address. The file is read at most once a minute, and there can be up to 12 cards.
+- **Keep the Google numbers current.** 4.9 and 1,200+ are from the flyer.
+- **Missing or broken file.** The panel shows one plain card ("One team, start to finish.") instead of going blank.
+- **No JavaScript.** The first card shows and **Another reason** stays hidden.
+- **Checked:**
+  - 15 visits in one tab never repeated a card back to back, and showed all eight.
+  - **Another reason** stepped through the cards and wrapped around.
+  - The page worked without JavaScript and with storage blocked.
+  - The phone layout had no sideways scroll.
+
 ## What the shop says about payment, delivery and getting in touch
 
 *Andrew 11/19.*
@@ -260,7 +289,8 @@ The cart prompt ("Installs & accessories by brand" in Online Shop Orders) still 
 
 - `photoKey` (optional, in a record): the folder under `product-photos/` that holds its pictures, when several models share one. Capital letters and digits only, 3 to 40 of them; anything else is ignored and the model's own folder is used.
 
-- `lib/shop-product-page.js`: `loadProductPage`, `loadProductPageTemplate`, `productOfferView` (the price and stock rules), `renderProductPage`, `productPhotoFile`, `listProductPageKeys` (the record file names, read at most once a minute).
+- `lib/shop-product-page.js`: `loadProductPage`, `loadProductPageTemplate`, `productOfferView` (the price and stock rules), `renderProductPage`, `productPhotoFile`, `listProductPageKeys` (the record file names, read at most once a minute), `loadWhyWilsonCards(dataDir)` (`data/why-wilson.json`, checked and read at most once a minute; the route passes it as `live.why`, and `renderProductPage` writes every card into `{{WHY}}`, the first one showing).
+- Why Wilson in the template: `#whyCards .why-card` (all but one `hidden`), `#whyNext` (hidden until the inline script runs). The script picks a card at random, skipping the index in `sessionStorage["wilsonWhyLast"]`, and stores the one it shows.
 - A record's `displayModel` is the name to show when it differs from `model`. `model` stays the key for the address, the photo folder and Add to cart.
 - `data/product-pages/template.html`: the page every model shares. The server fills its double-brace names. `data/` is never served as files.
 - `server.js`: `GET /p/:model` and `GET /product-photos/:model/:file`, registered before `express.static`; `/p/` and `/product-photos/` are on the shop host's public list. A model with no record redirects to the shop. The page is sent `no-store`; photos are cached for a week. The catalog response carries `pages`, the keys from `listProductPageKeys`.

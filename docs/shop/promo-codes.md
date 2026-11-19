@@ -2,7 +2,24 @@
 
 *Added 11/19. Andrew: "for promo codes, I need to apply a specific ePASS misc code, can you grab anything that looks like a discount or promo from the list - they are all netsuite service items for sale too"*
 
-Promo codes are managed on **Online Shop Orders → Promo codes**. A shopper types the code in the cart, and the discount shows on the order summary, the checkout and the filed order. Percent and dollar codes come off the appliances only. **Free delivery** waives the delivery fee.
+Promo codes are managed on **Online Shop Orders → Promo codes**. A shopper types the code in the cart, and the discount shows on the order summary, the checkout and the filed order.
+
+## What a code takes off
+
+*Changed 11/19. Andrew: "$ off appliance, % off appliance, $ off delivery, % off delivery, $ off installation, % off installation should cover it for the start"*
+
+| Type | Comes off |
+|---|---|
+| **$ off appliances**, **% off appliances** | The appliance subtotal. |
+| **$ off delivery**, **% off delivery** | The delivery fee. 100% off delivery is free delivery. |
+| **$ off installation**, **% off installation** | The installation labor in the cart, not parts such as cords or hoses. |
+
+- **Never more than its part of the order.** $500 off a $230 installation takes off $230.
+- **Delivery codes** don't apply to customer pickup. The cart says "applies to delivery orders".
+- **Installation codes** need installation in the cart. Until then the cart says "applies to installation — add installation to an appliance", and checkout refuses the code.
+- **Minimum appliance subtotal** still counts the appliances, whatever the type.
+- **Sales tax** is figured on the discounted amount. Delivery is taxed, so a delivery discount lowers the tax. Built-in installation is tax-exempt, so only the share of an installation discount that came off freestanding (taxable) install lines lowers the tax.
+- **Older "Free delivery" codes** keep working as before. New codes use 100% off delivery instead.
 
 ## The ePASS misc code
 
@@ -34,8 +51,9 @@ Each order that uses a code keeps the code's ePASS misc code and NetSuite item a
 > ePASS misc **DISCOUNT 4** (Discount): 10% off the appliances = −$179.80 · by line: SHP78CM5N −$139.90, JVM3160RFSS −$39.90 · NetSuite: Builder Discount
 
 - **Percent codes** show the percent and the total.
-- **Dollar codes** are split over the appliances by price. The last line takes the rounding cent, so the lines always add up to the discount.
-- **Free delivery** is one line against delivery.
+- **Appliance codes** are split over the appliances by price. The last line takes the rounding cent, so the lines always add up to the discount.
+- **Installation codes** are split the same way over the install lines, each named with its appliance, for example *Dishwasher - With Panel Install (SHP78CM5N) −$20.00*.
+- **Delivery codes** (and older free-delivery codes) are one line against delivery.
 - **Orders filed with a code that had no misc code yet** show the code's misc code as it is now, marked *set on the code after this order*. Until the code has one, the card says to set it under Promo codes.
 
 ## Checked before delivery
@@ -47,14 +65,24 @@ The real `server.js` was run on a local test database with made-up ePASS misc co
 - **Older codes:** a code from before this change could still be paused.
 - **Checkout:** two orders went through checkout. The misc code, NetSuite item and per-appliance split were stored on the order and never sent to the shopper. A later change to the code didn't touch the filed order.
 - **Audit:** creates, misc code changes and orders all name the misc code.
+- **The six types:**
+  - Each type took off the right part and was capped at it.
+  - A delivery code was refused for pickup, and an installation code was refused with no installation in the cart.
+  - 150% was refused.
+  - The database's kind check was widened on an existing table.
+  - In the cart, the discount and the tax matched the server's own pricing for all of them.
+  - An installation order filed with one ePASS line per install line, and the tax kept the built-in share exempt.
 - **Browser, desktop and phone:** the picker (suggestions, search, arrow keys and Enter), **Set ePASS code** on an older code, and the order card.
 
 ## For developers
 
-- `lib/shop-promos-postgres.js`: columns `epass_misc_code`, `epass_misc_desc` and `netsuite_item` on `shop_promo_codes`. `normalizeMiscCode` upper-cases and keeps single spaces. `promoDiscountLines` splits the discount by line, and `promoOrderRecord` is what an order keeps.
+- `lib/shop-promos-postgres.js`:
+  - Kinds `amount`, `percent` (appliances), `amount_delivery`, `percent_delivery`, `amount_install`, `percent_install`, and the older `free_delivery`. The `shop_promo_codes_kind_check` constraint is widened once by a `DO` block. `promoTarget`, `promoIsPercent` and `installTotalOf` go with them.
+  - Columns `epass_misc_code`, `epass_misc_desc` and `netsuite_item` on `shop_promo_codes`. `normalizeMiscCode` upper-cases and keeps single spaces. `promoDiscountLines` splits the discount by line, and `promoOrderRecord` is what an order keeps.
 - `server.js`:
   - `promoMiscGroup` (discount / promo / other) and `listPromoNetsuiteItems` (the data file merged with the `netsuite_items` table by name) feed `GET /api/shop/promo-codes/choices`.
   - `checkPromoMiscFields` checks a create or edit against `listEpassMiscCharges()` and sets the description.
+  - `priceShopCart` takes the discount off its part and lowers the taxed amount by the taxable install share (`promoDiscountLines` over the install add-ons). `shop.html` `cartTotals()` mirrors it, dividing by the same rounded install total.
   - `/api/shop/submit-order` stores `totals.promo` with `epassMiscCode`, `epassMiscDesc`, `netsuiteItem` and `lines`. The response to the shopper is still `priced.totals`, without them.
   - `GET /api/shop-orders` fills older orders from the code, with `fromCode: true`.
 - `shop-orders.html`: `miscPicker()` is used by the add form and by the row editor (**ePASS code** button). `promoEpassLine()` writes the order card line.

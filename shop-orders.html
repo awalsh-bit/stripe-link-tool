@@ -343,8 +343,9 @@
         </summary>
         <p class="section-note" style="margin-top:10px;">
           A shopper types the code in the cart ("Have a promo code?") and the discount shows on the order summary, the checkout
-          and the filed order below. Percent and dollar codes come off the <b>appliances only</b> (never parts, installation or delivery);
-          <b>Free delivery</b> waives the White Glove fee. Sales tax is figured on the discounted amount. The redemption limit counts
+          and the filed order below. Each code takes dollars or a percent off <b>one part</b> of the order: the <b>appliances</b>, the
+          <b>delivery</b> fee, or the <b>installation</b> (install labor, not parts). 100% off delivery is free delivery. A delivery code
+          doesn't apply to customer pickup, and an installation code needs installation in the cart. Sales tax is figured on the discounted amount. The redemption limit counts
           filed orders — canceling an order gives its redemption back. Leave the limit blank for unlimited; the per-customer limit
           defaults to once per shopper profile. Changes are live immediately.
         </p>
@@ -357,7 +358,7 @@
         <form class="promo-form" id="promoForm" autocomplete="off">
           <label>Code<input type="text" id="pfCode" class="code" placeholder="FALL50" maxlength="32" required></label>
           <label class="span2">Shown to shopper as<input type="text" id="pfDesc" placeholder="Fall Laundry Event — $50 off" maxlength="80"></label>
-          <label>Type<select id="pfKind"><option value="amount">$ off appliances</option><option value="percent">% off appliances</option><option value="free_delivery">Free delivery</option></select></label>
+          <label>Type<select id="pfKind"><option value="amount">$ off appliances</option><option value="percent">% off appliances</option><option value="amount_delivery">$ off delivery</option><option value="percent_delivery">% off delivery</option><option value="amount_install">$ off installation</option><option value="percent_install">% off installation</option></select></label>
           <label id="pfValueWrap">Amount<input type="number" id="pfValue" min="0" step="0.01" placeholder="50"></label>
           <div class="span2 pf-misc" id="pfMiscWrap"><label><span>ePASS misc code <span class="pf-misc-note" id="pfMiscNote" aria-live="polite"></span></span><input type="text" id="pfMisc" maxlength="30" placeholder="Search: discount, influencer, remodel…" required autocomplete="off" role="combobox" aria-expanded="false" aria-controls="pfMiscResults"></label><div class="pf-misc-results" id="pfMiscResults" role="listbox"></div></div>
           <label class="span2">NetSuite item (optional)<input type="text" id="pfNs" maxlength="100" list="pfNsList" placeholder="Pick or type the NetSuite discount item"></label>
@@ -592,8 +593,12 @@
         const p = order.totals?.promo || {};
         if (!p.epassMiscCode) return `<div class="ws-epass missing">No ePASS misc code on ${esc(p.code || "this promo")} yet. Set it under Promo codes, then key the discount by hand.</div>`;
         const lines = Array.isArray(p.lines) ? p.lines : [];
-        const how = p.kind === "percent" ? `${Number(p.value)}% off the appliances = −${money(order.totals.discount)}` : p.kind === "free_delivery" ? `−${money(order.totals.discount)} against delivery` : `−${money(order.totals.discount)} off the appliances`;
-        const split = lines.length > 1 && lines.every((l) => l.against === "item") ? ` · by line: ${lines.map((l) => `${esc(l.model)} −${money(l.amount)}`).join(", ")}` : lines.length === 1 && lines[0].against === "item" ? ` on ${esc(lines[0].model)}` : "";
+        const what = /delivery$/.test(p.kind || "") ? "delivery" : /_install$/.test(p.kind || "") ? "installation" : "appliances";
+        const pct = p.kind === "percent" || /^percent_/.test(p.kind || "");
+        const how = p.kind === "free_delivery" || (what === "delivery" && !pct) ? `−${money(order.totals.discount)} against delivery`
+          : pct ? `${Number(p.value)}% off the ${what} = −${money(order.totals.discount)}` : `−${money(order.totals.discount)} off the ${what}`;
+        const lineName = (l) => l.against === "install" ? `${esc(l.label)}${l.model ? ` (${esc(l.model)})` : ""}` : esc(l.model);
+        const split = lines.length > 1 && lines.every((l) => l.against !== "delivery") ? ` · by line: ${lines.map((l) => `${lineName(l)} −${money(l.amount)}`).join(", ")}` : lines.length === 1 && lines[0].against !== "delivery" ? ` on ${lineName(lines[0])}` : "";
         return `<div class="ws-epass">ePASS misc <b>${esc(p.epassMiscCode)}</b>${p.epassMiscDesc ? ` (${esc(p.epassMiscDesc)})` : ""}: ${how}${split}${p.netsuiteItem ? ` · NetSuite: ${esc(p.netsuiteItem)}` : ""}${p.fromCode ? ` · <i>set on the code after this order</i>` : ""}</div>`;
       }
 
@@ -988,7 +993,10 @@
         const escP = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
         const moneyP = (v) => "$" + (Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const dateP = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
-        const whatP = (p) => p.kind === "percent" ? `${Number(p.value)}% off appliances` : p.kind === "amount" ? `${moneyP(p.value)} off appliances` : "Free delivery";
+        // what the code comes off: appliances / delivery / installation (11/19)
+        const targetP = (kind) => /delivery$/.test(kind || "") ? "delivery" : /_install$/.test(kind || "") ? "installation" : "appliances";
+        const pctP = (kind) => kind === "percent" || /^percent_/.test(kind || "");
+        const whatP = (p) => p.kind === "free_delivery" ? "Free delivery" : pctP(p.kind) ? `${Number(p.value)}% off ${targetP(p.kind)}` : `${moneyP(p.value)} off ${targetP(p.kind)}`;
         const stateP = (p) => {
           const now = Date.now();
           if (!p.active) return ["Paused", "off"];
@@ -1106,8 +1114,8 @@
         document.getElementById("pfKind").addEventListener("change", () => {
           const k = document.getElementById("pfKind").value;
           document.getElementById("pfValueWrap").style.display = k === "free_delivery" ? "none" : "";
-          document.getElementById("pfValueWrap").firstChild.textContent = k === "percent" ? "Percent off" : "Amount";
-          document.getElementById("pfValue").placeholder = k === "percent" ? "10" : "50";
+          document.getElementById("pfValueWrap").firstChild.textContent = pctP(k) ? "Percent off" : "Amount";
+          document.getElementById("pfValue").placeholder = pctP(k) ? (k === "percent_delivery" ? "100" : "10") : "50";
         });
         document.getElementById("promoForm").addEventListener("submit", async (e) => {
           e.preventDefault();

@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow } from "./lib/shop-product-page.js";
+import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow, loadWhyWilsonCards } from "./lib/shop-product-page.js";
 import { parseDeliveryZipPaste, deliveryAreaFor, cleanZip as cleanShopZip, listShopDeliveryZips, importShopDeliveryZips, setShopDeliveryZipFees, removeShopDeliveryZips } from "./lib/shop-delivery-zips.js";
 import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
@@ -232,7 +232,10 @@ import {
   releaseShopPromoRedemptions,
   listShopPromoRedemptions,
   normalizeMiscCode,
-  promoOrderRecord
+  promoOrderRecord,
+  promoDiscountLines,
+  promoTarget,
+  installTotalOf
 } from "./lib/shop-promos-postgres.js";
 import {
   normalizeCreditAppToken,
@@ -6467,6 +6470,7 @@ app.get("/p/:model", async (req, res) => {
       console.error("Product page: catalog unavailable —", err.message);
       live = { paused: true, unit: null, sheets: [] };
     }
+    live.why = await loadWhyWilsonCards(path.join(__dirname, "data")).catch(() => null); // the Why Wilson cards (data/why-wilson.json)
     const html = renderProductPage(await loadProductPageTemplate(SHOP_PRODUCT_PAGE_DIR), rec, live);
     res.setHeader("Cache-Control", "no-store"); // price and stock are live
     res.setHeader("X-Robots-Tag", "noindex, nofollow");
@@ -8332,17 +8336,24 @@ function priceShopCart(catalog, cart, fulfillment, promo = null) {
     };
   }
 
-  // Promo code: percent / dollars come off the appliances, free delivery
-  // zeroes the delivery fee. A retailer's own discount reduces the taxable
-  // sales price in Texas, so tax is figured on the discounted base.
-  const discount = promo ? promoDiscount(promo, { itemsTotal, deliveryPrice: delivery.price }) : 0;
-  const discountOnDelivery = promo?.kind === "free_delivery" ? discount : 0;
-  const discountOnItems = discount - discountOnDelivery;
+  // Promo code: $ or % off the appliances, the delivery fee or the
+  // installation labor (Andrew 11/19; older free-delivery codes zero the
+  // fee). A retailer's own discount reduces the taxable sales price in
+  // Texas, so tax is figured on the discounted base - for installation only
+  // the share that came off taxable (freestanding) install lines.
+  const installTotal = installTotalOf(addons);
+  const discount = promo ? promoDiscount(promo, { itemsTotal, deliveryPrice: delivery.price, installTotal }) : 0;
+  const target = promo ? promoTarget(promo.kind) : "";
+  const discountOnDelivery = target === "delivery" ? discount : 0;
+  const discountOnInstall = target === "install" ? discount : 0;
+  const discountOnItems = discount - discountOnDelivery - discountOnInstall;
+  const discountOnTaxableInstall = discountOnInstall > 0
+    ? promoDiscountLines(promo, { addons, discount: discountOnInstall }).reduce((s, l) => s + (l.taxable ? l.amount : 0), 0) : 0;
 
   // Tax: items, parts, and delivery always; install labor only when the
   // addon is flagged taxable (freestanding product — built-ins are exempt).
   const taxableBase = itemsTotal - discountOnItems
-    + addons.reduce((s, a) => s + (a.taxable ? a.price * a.qty : 0), 0)
+    + addons.reduce((s, a) => s + (a.taxable ? a.price * a.qty : 0), 0) - discountOnTaxableInstall
     + delivery.price - discountOnDelivery;
   const tax = Math.round(taxableBase * SHOP_TAX_RATE * 100) / 100;
   const total = Math.round((itemsTotal + addonsTotal + delivery.price - discount + tax) * 100) / 100;
@@ -8380,7 +8391,8 @@ async function resolveShopPromo({ code, priced, shopper }) {
   const reason = promoBlockReason(promo, {
     subtotal: priced.totals.items,
     shopperUses,
-    pickup: priced.totals.fulfillment === "pickup"
+    pickup: priced.totals.fulfillment === "pickup",
+    installTotal: installTotalOf(priced.addons)
   });
   if (reason) return { error: reason };
   return { promo };
@@ -8410,7 +8422,7 @@ app.post("/api/shop/promo-check", rateLimit("shop-promo-check", 30, 15 * 60 * 10
     if (priced.unavailable) return res.status(409).json({ error: "An item in your cart is no longer available. Refresh to see what's still in stock." });
     const promoRes = await resolveShopPromo({ code, priced, shopper });
     if (promoRes.error) return res.status(400).json({ error: promoRes.error });
-    const discount = promoDiscount(promoRes.promo, { itemsTotal: priced.totals.items, deliveryPrice: priced.totals.delivery });
+    const discount = promoDiscount(promoRes.promo, { itemsTotal: priced.totals.items, deliveryPrice: priced.totals.delivery, installTotal: installTotalOf(priced.addons) });
     return res.json({ ok: true, promo: publicPromo(promoRes.promo), discount });
   } catch (err) {
     console.error("Promo check failed:", err.message);
@@ -12181,7 +12193,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
       delivery: priced.delivery,
       // The ePASS misc code / NetSuite item / per-line split ride on the
       // stored order only; the shopper's response below gets priced.totals.
-      totals: priced.promo ? { ...priced.totals, promo: { ...priced.totals.promo, ...promoOrderRecord(promoRes.promo, { items: priced.items, discount: priced.promo.discount, deliveryPrice: priced.delivery?.price }) } } : priced.totals,
+      totals: priced.promo ? { ...priced.totals, promo: { ...priced.totals.promo, ...promoOrderRecord(promoRes.promo, { items: priced.items, addons: priced.addons, discount: priced.promo.discount }) } } : priced.totals,
       lockConflicts: [],
       stripeCustomerId: String(setupIntent.customer || ""),
       setupIntentId,
@@ -12294,7 +12306,7 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
       for (const o of orders) {
         const pr = o.totals?.promo;
         const now = pr?.code && !pr.epassMiscCode ? byCode.get(pr.code) : null;
-        if (now?.epassMiscCode) o.totals.promo = { ...pr, ...promoOrderRecord(now, { items: o.items, discount: o.totals.discount, deliveryPrice: o.delivery?.price }), fromCode: true };
+        if (now?.epassMiscCode) o.totals.promo = { ...pr, ...promoOrderRecord({ ...now, kind: pr.kind || now.kind }, { items: o.items, addons: o.addons, discount: o.totals.discount }), fromCode: true };
       }
     }
     const snapshotAgeHours = snapshot?.uploadedAt

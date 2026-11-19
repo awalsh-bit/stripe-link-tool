@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Google Tag Manager (GTM-KCPSFXV7, Andrew 11/19 - advertising the shop). Google's install code, loaded only
+       on shop.wilsonappliance.com so local copies and test servers never report to it. See docs/shop/google-tag.md. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    if (location.hostname === "shop.wilsonappliance.com") {
+      (function (s) { s.async = true; s.src = "https://www.googletagmanager.com/gtm.js?id=GTM-KCPSFXV7"; document.head.appendChild(s); })(document.createElement("script"));
+    }
+  </script>
+  <!-- End Google Tag Manager -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
        phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
@@ -186,10 +197,21 @@
 
     /* Wilson's close */
     .wilson { margin-top: 56px; background: var(--accent-soft); border: 1px solid var(--line); border-radius: var(--r); padding: 30px 32px; display: flex; align-items: center; gap: 20px 40px; flex-wrap: wrap; }
-    .wilson > div { flex: 1 1 380px; min-width: 0; }
+    .wilson > .why-cards { flex: 1 1 380px; min-width: 0; }
     .wilson h2 { font-size: clamp(22px, 2.4vw, 28px); line-height: 1.15; margin: 6px 0 8px; }
     .wilson p:not(.kicker) { font-size: 15px; color: var(--ink-2); max-width: 60ch; }
     .wilson .btn { flex: 0 0 auto; }
+    /* Why Wilson cards (11/19) */
+    .why-card[hidden] { display: none; }
+    .why-card.in { animation: whyIn .35s ease; }
+    @keyframes whyIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .why-link { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .why-acts { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+    .why-next { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 2px; font: inherit; font-size: 14px; font-weight: 600; color: var(--accent); cursor: pointer; }
+    .why-next svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .why-next:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .why-next[hidden] { display: none; }
+    @media (prefers-reduced-motion: reduce) { .why-card.in { animation: none; } }
 
     footer { background: var(--ink); }
     .foot-inner { max-width: 1180px; margin: 0 auto; padding: 20px; font-size: 12.5px; color: rgba(255,255,255,.72); line-height: 1.6; text-align: center; }
@@ -212,6 +234,7 @@
       .g-thumb { flex: 0 0 60px; }
       .specs-card { padding: 20px 18px 18px; }
       .wilson { margin-top: 40px; padding: 24px 20px; }
+      .why-acts { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
       main.pdp { padding-bottom: 40px; }
       .foot-inner { padding-bottom: 96px; }
       .buy-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; display: flex; align-items: center; gap: 14px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(36,33,30,.10); transform: translateY(110%); transition: transform .2s ease; }
@@ -313,14 +336,34 @@
       </section>
     </div>
 
-    <section class="wilson" aria-labelledby="wilsonH">
-      <div>
-        <p class="kicker">Express Assortment</p>
-        <h2 id="wilsonH">Better choices, already made.</h2>
-        <p>Every model here is selected through decades of sales and service experience and kept in stock for quick delivery in the Wilson AC &amp; Appliance local area.</p>
+    <section class="wilson" id="whyWilson" aria-label="Why Wilson">
+      <div class="why-cards" id="whyCards" aria-live="polite">
+{{WHY}}
       </div>
-      <a class="btn ghost" href="/shop.html">Back to the shop</a>
+      <div class="why-acts">
+        <a class="btn ghost" href="/shop.html">Back to the shop</a>
+        <button type="button" class="why-next" id="whyNext" hidden>Another reason<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
     </section>
+    <script>
+      // Why Wilson (11/19): a random card on each visit, never the one this tab showed last; "Another reason" steps on.
+      (function () {
+        var cards = document.querySelectorAll("#whyCards .why-card"), n = cards.length, next = document.getElementById("whyNext");
+        if (n < 2 || !next) return;
+        var KEY = "wilsonWhyLast", last = -1;
+        try { var raw = sessionStorage.getItem(KEY); if (raw !== null && /^\d+$/.test(raw) && Number(raw) < n) last = Number(raw); } catch (e) {}
+        var i = Math.floor(Math.random() * (last >= 0 ? n - 1 : n));
+        if (last >= 0 && i >= last) i++;
+        function show(k, moved) {
+          for (var j = 0; j < n; j++) { cards[j].hidden = j !== k; cards[j].classList.toggle("in", moved && j === k); }
+          next.setAttribute("aria-label", "Another reason to shop Wilson (" + (k + 1) + " of " + n + ")");
+          try { sessionStorage.setItem(KEY, String(k)); } catch (e) {}
+        }
+        show(i, false);
+        next.hidden = false;
+        next.addEventListener("click", function () { i = (i + 1) % n; show(i, true); });
+      })();
+    </script>
 
   </main>
 
@@ -331,6 +374,7 @@
   </footer>
 
   <div class="buy-bar" id="buyBar" aria-hidden="true">{{BUYBAR}}</div>
+  <script type="application/json" id="gaItem">{{GA_ITEM}}</script>
 
   <script>
     // Gallery. The stage is a row of pictures you can swipe; the arrows,
@@ -446,6 +490,16 @@
         note.innerHTML = inCart ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' + (justAdded ? "Added to your cart" : "In your cart") : "";
       }
     }
+    // Google Tag (11/19): this model's view and its Add to cart, for ads. #gaItem is the model, brand,
+    // department and the price the page shows (none when it says "Price in cart"). A staged add is
+    // counted here; when storage is blocked the link goes to the shop, which counts it there instead.
+    let gaItem = null;
+    try { gaItem = JSON.parse(document.getElementById("gaItem").textContent); } catch (err) {}
+    const gaPush = (event) => {
+      if (!gaItem) return;
+      try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ ecommerce: null }); window.dataLayer.push({ event: event, ecommerce: Object.assign({ currency: "USD" }, gaItem.price ? { value: gaItem.price } : {}, { items: [gaItem] }) }); } catch (err) {}
+    };
+    gaPush("view_item");
     document.querySelectorAll("a[data-add]").forEach((a) => a.addEventListener("click", (e) => {
       if (a.dataset.inCart) return; // Go to Cart: follow the link
       const model = a.getAttribute("data-model");
@@ -458,6 +512,7 @@
       } catch (err) { return; }
       e.preventDefault();
       syncCart(true);
+      gaPush("add_to_cart");
     }));
     syncCart();
     window.addEventListener("pageshow", (e) => { if (e.persisted) syncCart(); });

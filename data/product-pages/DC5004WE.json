@@ -72,12 +72,39 @@
   ],
   "gallery": [
     {
-      "file": "dc5-w-front",
+      "file": "dc5w-front",
       "alt": "Speed Queen DC5 electric dryer in white, front view",
       "sizes": {
-        "400": [270, 400],
-        "800": [540, 800],
-        "1600": [782, 1158]
+        "400": [281, 400],
+        "800": [563, 800],
+        "1600": [1126, 1600]
+      }
+    },
+    {
+      "file": "dc5w-left",
+      "alt": "Speed Queen DC5 electric dryer in white, angled to show its left side",
+      "sizes": {
+        "400": [336, 400],
+        "800": [671, 800],
+        "1600": [1343, 1600]
+      }
+    },
+    {
+      "file": "dc5w-right",
+      "alt": "Speed Queen DC5 electric dryer in white, angled to show its right side",
+      "sizes": {
+        "400": [337, 400],
+        "800": [674, 800],
+        "1600": [1348, 1600]
+      }
+    },
+    {
+      "file": "dc5w-control",
+      "alt": "The DC5's control panel on the white dryer: dials for fabric, dryness and cycle, and a Steam Boost button",
+      "sizes": {
+        "400": [400, 89],
+        "800": [800, 178],
+        "1600": [1414, 314]
       }
     }
   ],
@@ -86,7 +113,7 @@
     "sheet": "spec sheets/sq_dryers_sell_sheet.pdf",
     "sheetDate": "2025",
     "read": "2026-11-18",
-    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). Speed Queen's drop has no picture of this dryer on its own, so the photo is the dryer cut from the front view of the pair (TC5-DC5_W_Pair_Front.jpg). Replace it when a single-unit photo is available.",
+    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). These are the dryer's own single-unit photos (DC5_W_Front, DC5_W_Left, DC5_W_Right and DC5_W_Control), added 11/18; they replaced the dryer cut from its pair.",
     "differences": [
       "Speed Queen's page for DC5004WE would not load on 2026-11-18. Its facts are from the pages for DC5004WG and DC5004BE, the same machine in its other color or fuel, and the sell sheet."
     ],

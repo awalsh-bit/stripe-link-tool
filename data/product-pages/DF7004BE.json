@@ -70,12 +70,39 @@
   ],
   "gallery": [
     {
-      "file": "df7-b-front",
+      "file": "df7b-front",
       "alt": "Speed Queen DF7 electric dryer in matte black, front view",
       "sizes": {
-        "400": [294, 400],
-        "800": [587, 800],
-        "1600": [857, 1167]
+        "400": [298, 400],
+        "800": [597, 800],
+        "1600": [1194, 1600]
+      }
+    },
+    {
+      "file": "df7b-left",
+      "alt": "Speed Queen DF7 electric dryer in matte black, angled to show its left side",
+      "sizes": {
+        "400": [361, 400],
+        "800": [723, 800],
+        "1600": [1446, 1600]
+      }
+    },
+    {
+      "file": "df7b-right",
+      "alt": "Speed Queen DF7 electric dryer in matte black, angled to show its right side",
+      "sizes": {
+        "400": [364, 400],
+        "800": [728, 800],
+        "1600": [1455, 1600]
+      }
+    },
+    {
+      "file": "df7-control",
+      "alt": "The DF7's control panel: cycle buttons around a digital display",
+      "sizes": {
+        "400": [400, 92],
+        "800": [800, 185],
+        "1600": [1600, 370]
       }
     }
   ],
@@ -84,7 +111,7 @@
     "sheet": "spec sheets/sq_fl_sell_sheet.pdf",
     "sheetDate": "2025",
     "read": "2026-11-18",
-    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). Speed Queen's drop has no picture of this dryer on its own, so the photo is the dryer cut from the front view of the pair (FF7-DF7_B_Pair_Front.jpg). Replace it when a single-unit photo is available.",
+    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). These are the dryer's own single-unit photos (DF7_B_Front, DF7_B_Left, DF7_B_Right and DF7_Control, shared by both colors), added 11/18; they replaced the dryer cut from its pair.",
     "differences": [
       "Speed Queen's page for DF7004BE itself was not read. Its facts are from the page for the same machine in its other color or fuel, and the sell sheet, which lists this model by number."
     ],

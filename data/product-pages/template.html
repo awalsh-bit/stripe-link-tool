@@ -127,6 +127,13 @@
     .b-cta { margin-top: 16px; }
     .b-cta .btn { width: 100%; min-height: 54px; font-size: 16.5px; }
     .btn.is-in-cart { border-color: var(--ok); background: var(--ok-bg); color: var(--ok-text); }
+    /* Added to the cart, still on the page (11/19) */
+    .b-added { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 9px 0 0; font-size: 14px; font-weight: 600; color: var(--ok-text); }
+    .b-added[hidden] { display: none; }
+    .b-added svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .b-added.just { animation: b-added-in .25s ease-out; }
+    @keyframes b-added-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .b-added.just { animation: none; } }
     /* Do we deliver to you? (11/19) */
     .b-zip { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
     .b-zip-q { display: block; font-family: var(--f-display); font-weight: 600; font-size: 15px; color: var(--ink); }
@@ -216,6 +223,7 @@
       .buy-bar .bb-price { font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
       .buy-bar .btn { flex: 0 0 auto; min-height: 46px; padding: 10px 20px; }
       .buy-bar .in-cart { flex: 0 0 auto; min-height: 46px; padding: 0 16px; font-size: 14.5px; }
+      .buy-bar.has-it .bb-name::before { content: "\2713  In your cart · "; color: var(--ok-text); font-weight: 600; white-space: pre; }
     }
     @media (max-width: 420px) {
       .b-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -396,13 +404,25 @@
     // it, offer the cart where Add to cart would be. Runs again when the
     // browser brings the page back whole (Back), since the cart may have
     // changed in between.
-    function syncCart() {
-      let saved = null;
-      try { saved = JSON.parse(sessionStorage.getItem("wilsonShopCart") || "null"); } catch {}
+    // Add to cart stays on this page (Andrew 11/19: "you may want to keep
+    // browsing that page for a second longer"). The model is staged in this
+    // tab ("wilsonShopStaged"), the cart icon counts it, and the same button
+    // becomes Go to Cart. The shop puts it in the cart the next time it opens
+    // here, the same way the old ?add= link did, and offers its setup when the
+    // cart opens. Without storage (some private windows) the button still
+    // goes to the shop with the model, as before.
+    const STAGED = "wilsonShopStaged", PAGE_KEY = "{{PAGE_KEY}}";
+    const listOf = (v) => (Array.isArray(v) ? v : []);
+    const pageKeyOf = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 40);
+    function readJson(key) { try { return JSON.parse(sessionStorage.getItem(key) || "null"); } catch { return null; } }
+    function stagedList() { const s = readJson(STAGED); return s && s.v === 1 ? listOf(s.models) : []; }
+    function syncCart(justAdded) {
+      let saved = readJson("wilsonShopCart");
       if (!saved || saved.v !== 1) saved = {};
-      const list = (v) => (Array.isArray(v) ? v : []);
-      const qty = (v) => list(v).reduce((a, l) => a + (Number(l && l.qty) || 0), 0);
-      const count = list(saved.itemIds).length + qty(saved.special) + qty(saved.addonLines);
+      const qty = (v) => listOf(v).reduce((a, l) => a + (Number(l && l.qty) || 0), 0);
+      const inSaved = listOf(saved.models);
+      const staged = stagedList().filter((m) => !inSaved.includes(pageKeyOf(m.model)));
+      const count = listOf(saved.itemIds).length + qty(saved.special) + qty(saved.addonLines) + staged.length;
       const icon = document.querySelector(".site-head a.cart-btn");
       if (icon) {
         let badge = icon.querySelector(".cart-count");
@@ -410,13 +430,35 @@
         if (badge) { badge.textContent = String(count); badge.style.display = count > 0 ? "" : "none"; }
         icon.setAttribute("aria-label", count > 0 ? "Cart, " + count + (count === 1 ? " item" : " items") : "Cart");
       }
-      const inCart = list(saved.models).includes("{{PAGE_KEY}}");
+      const inCart = inSaved.includes(PAGE_KEY) || staged.some((m) => pageKeyOf(m.model) === PAGE_KEY);
       document.querySelectorAll("a[data-add]").forEach((a) => {
-        a.textContent = !inCart ? "Add to cart" : a.closest(".buy-bar") ? "View cart" : "In your cart · View cart";
+        a.textContent = inCart ? "Go to Cart" : "Add to cart";
         a.setAttribute("href", inCart ? "/shop.html?show=cart" : a.getAttribute("data-add"));
-        a.classList.toggle("primary", !inCart); a.classList.toggle("ghost", inCart); a.classList.toggle("is-in-cart", inCart);
+        a.classList.add("primary"); a.classList.remove("ghost", "is-in-cart");
+        if (inCart) a.dataset.inCart = "1"; else delete a.dataset.inCart;
       });
+      const bar = document.getElementById("buyBar");
+      if (bar) bar.classList.toggle("has-it", inCart);
+      const note = document.getElementById("cartNote");
+      if (note) {
+        note.hidden = !inCart;
+        note.classList.toggle("just", Boolean(justAdded));
+        note.innerHTML = inCart ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' + (justAdded ? "Added to your cart" : "In your cart") : "";
+      }
     }
+    document.querySelectorAll("a[data-add]").forEach((a) => a.addEventListener("click", (e) => {
+      if (a.dataset.inCart) return; // Go to Cart: follow the link
+      const model = a.getAttribute("data-model");
+      if (!model) return;
+      try {
+        const models = stagedList().filter((m) => pageKeyOf(m.model) !== PAGE_KEY);
+        models.push({ model: model, at: Date.now() });
+        sessionStorage.setItem(STAGED, JSON.stringify({ v: 1, models: models }));
+        if (!stagedList().some((m) => pageKeyOf(m.model) === PAGE_KEY)) return; // storage didn't take: go to the shop with it, as before
+      } catch (err) { return; }
+      e.preventDefault();
+      syncCart(true);
+    }));
     syncCart();
     window.addEventListener("pageshow", (e) => { if (e.persisted) syncCart(); });
 

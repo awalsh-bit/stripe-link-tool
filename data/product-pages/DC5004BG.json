@@ -72,12 +72,39 @@
   ],
   "gallery": [
     {
-      "file": "dc5-b-front",
+      "file": "dc5b-front",
       "alt": "Speed Queen DC5 gas dryer in matte black, front view",
       "sizes": {
-        "400": [270, 400],
-        "800": [540, 800],
-        "1600": [783, 1160]
+        "400": [282, 400],
+        "800": [563, 800],
+        "1600": [1127, 1600]
+      }
+    },
+    {
+      "file": "dc5b-left",
+      "alt": "Speed Queen DC5 gas dryer in matte black, angled to show its left side",
+      "sizes": {
+        "400": [339, 400],
+        "800": [677, 800],
+        "1600": [1355, 1600]
+      }
+    },
+    {
+      "file": "dc5b-right",
+      "alt": "Speed Queen DC5 gas dryer in matte black, angled to show its right side",
+      "sizes": {
+        "400": [338, 400],
+        "800": [676, 800],
+        "1600": [1353, 1600]
+      }
+    },
+    {
+      "file": "dc5b-control",
+      "alt": "The DC5's control panel on the matte black dryer: dials for fabric, dryness and cycle, and a Steam Boost button",
+      "sizes": {
+        "400": [400, 89],
+        "800": [800, 178],
+        "1600": [1414, 314]
       }
     }
   ],
@@ -86,7 +113,7 @@
     "sheet": "spec sheets/sq_dryers_sell_sheet.pdf",
     "sheetDate": "2025",
     "read": "2026-11-18",
-    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). Speed Queen's drop has no picture of this dryer on its own, so the photo is the dryer cut from the front view of the pair (TC5-DC5_B_Pair_Front.jpg). Replace it when a single-unit photo is available.",
+    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). These are the dryer's own single-unit photos (DC5_B_Front, DC5_B_Left, DC5_B_Right and DC5_B_Control), added 11/18; they replaced the dryer cut from its pair.",
     "differences": [
       "Speed Queen's page for DC5004BG itself was not read. Its facts are from the page for the same machine in its other color or fuel, and the sell sheet, which lists this model by number."
     ],

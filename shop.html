@@ -1178,6 +1178,7 @@
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null,
+    setupDue: [], // units added but not yet offered their setup (see showCart)
     detailTab: "features" // which side of an open tile shows: "features" or "specs" (kept as the shopper moves between tiles)
   };
 
@@ -2230,7 +2231,7 @@
     if (p.get("cart")) { if (state.handoffToken === p.get("cart") && !cartIsEmpty()) openCart(); else addFromHandoff(p.get("cart")); return; }
     if (p.get("add")) { addFromLink(p.get("add")); return; }
     // ?show=cart (11/18): the cart icon on a product page — open the cart this tab is carrying.
-    if (p.get("show") === "cart") { if (!state.paused) openCart(); return; }
+    if (p.get("show") === "cart") { if (!state.paused) showCart(); return; }
     let sel = null;
     if (p.get("outlet")) {
       sel = { label: "Outlet — Open Box & Display", condition: "open" };
@@ -2310,7 +2311,7 @@
   // `known`: per-model details from the handoff token (brand, description,
   // product code, inquireOnly) so a line that isn't in stock can still be a
   // proper special-order line; a plain ?add= link looks them up instead.
-  async function addFromLink(spec, known = []) {
+  async function addFromLink(spec, known = [], { quiet = false } = {}) {
     const norm = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
     const wanted = String(spec).split(",").map((t) => t.trim()).filter(Boolean).map((t) => {
       const m = t.match(/^(.*?)(?:\*(\d{1,2}))?$/); return { model: m[1].trim(), qty: Math.max(1, Math.min(10, Number(m[2] || 1))) };
@@ -2331,7 +2332,7 @@
       const already = known.length ? 0 : items.filter((i) => norm(i.model) === key && state.cart.itemIds.includes(i.id)).length
         + state.cart.special.filter((l) => norm(l.model) === key).reduce((sum, l) => sum + (Number(l.qty) || 0), 0);
       const need = Math.max(0, w.qty - already);
-      for (const u of units.slice(0, need)) addToCart(u.id);
+      for (const u of units.slice(0, need)) addToCart(u.id, { quiet });
       const short = need - Math.min(units.length, need);
       if (short > 0) special.push({ model: w.model, qty: short, known: info.get(key) || null });
     }
@@ -2352,7 +2353,7 @@
       }
     }
     if (state.cart.itemIds.length || state.cart.special.length) {
-      openCart();
+      if (!quiet) showCart();
       if (special.length) alertLine(`${special.length === 1 ? "One item isn't" : `${special.length} items aren't`} on the floor today — ${special.map((sp) => sp.model).join(", ")} — so ${special.length === 1 ? "it's" : "they're"} in your cart as a special order. We'll price ${special.length === 1 ? "it" : "them"} and confirm with you.`, { sticky: true });
     }
   }
@@ -2942,13 +2943,28 @@
   });
 
   // ---------- Cart & add-ons ----------
-  function addToCart(itemId) {
+  // quiet (11/19): a model added on a product page is put in the cart when the
+  // shop next opens in this tab, without popping anything up; its setup prompt
+  // waits until the shopper opens the cart.
+  function addToCart(itemId, { quiet = false } = {}) {
     if (state.cart.itemIds.includes(itemId)) return;
     state.cart.itemIds.push(itemId);
     renderGrid();
     renderCartCount();
     syncCartPrices().then(() => { if ($("cartDrawer").classList.contains("show")) renderCart(); });
-    maybeOfferAddons(itemId);
+    state.setupDue.push(itemId);
+    if (!quiet) showCart();
+  }
+  // Open the cart, first offering the setup for each newly added unit, one
+  // prompt at a time (closing a prompt comes back here for the next). Several
+  // units added at once (a website list, three product pages) each get theirs.
+  function showCart() {
+    if ($("addonOverlay").classList.contains("show")) return;
+    while (state.setupDue.length) {
+      const id = state.setupDue.shift();
+      if (state.cart.itemIds.includes(id) && offerAddons(id)) return;
+    }
+    openCart();
   }
 
   // The in-cart price reveal: the listing never carries a price the MAP
@@ -2973,14 +2989,14 @@
     }
   }
 
-  function maybeOfferAddons(itemId) {
+  function maybeOfferAddons(itemId) { if (!offerAddons(itemId)) openCart(); }
+  // The "Complete the setup" prompt for one cart line: true when it is showing,
+  // false when the line has nothing to offer.
+  function offerAddons(itemId) {
     const item = (state.catalog.items || []).find((i) => i.id === itemId) || state.cart.special.find((l) => l.key === itemId);
     const map = addonMapFor(item);
     const accessories = item && !isSpecialKey(item.id) ? accessoryUnitsFor(map, item) : [];
-    if (!item || !map || (!map.connectors?.length && !map.installs?.length && !map.brandConnectors?.length && !accessories.length)) {
-      openCart();
-      return;
-    }
+    if (!item || !map || (!map.connectors?.length && !map.installs?.length && !map.brandConnectors?.length && !accessories.length)) return false;
     state.pendingAddonItem = item;
     $("addonLead").textContent = `Installation and required accessories for your ${item.brand} ${item.model}${item.panelReady ? " (panel-ready)" : ""}:`;
     const list = $("addonList");
@@ -3039,6 +3055,7 @@
     }
     syncAddonRequirements();
     $("addonOverlay").classList.add("show");
+    return true;
   }
 
   // Installs & connectors for a unit: by NetSuite subclass (11/10), with the
@@ -3112,7 +3129,7 @@
 
   $("addonSkip").addEventListener("click", () => {
     $("addonOverlay").classList.remove("show");
-    openCart();
+    showCart();
   });
   $("addonAdd").addEventListener("click", () => {
     const forItem = state.pendingAddonItem?.id || null;
@@ -3125,7 +3142,7 @@
     $("addonOverlay").classList.remove("show");
     renderCartCount();
     if (addedUnits) { renderGrid(); syncCartPrices().then(() => { if ($("cartDrawer").classList.contains("show")) renderCart(); }); }
-    openCart();
+    showCart();
   });
 
   function renderCartCount() {
@@ -3185,7 +3202,23 @@
       renderCartCount();
       syncCartPrices().then(() => { if (state.cart.itemIds.length) renderCartCount(); if ($("cartDrawer").classList.contains("show") && !state.checkout.open) renderCart(); });
     } else if (gone) saveCart();
+    takeStagedAdds();
     if (gone) pageNotice(`${gone === 1 ? "One item from your cart is" : gone + " items from your cart are"} no longer available and ${gone === 1 ? "was" : "were"} taken out.`);
+  }
+  // Add to cart on a product page (11/19) keeps the shopper on that page: it
+  // leaves the model here, under STAGED_KEY, and its button turns into Go to
+  // Cart. The next time the shop is open in this tab (Go to Cart, the cart
+  // icon, Back, any link) the models go into the cart the same way a
+  // ?add= link puts them there: new before open box, a model already in the
+  // cart is not added twice, one that sold in between becomes a special
+  // order. Quietly: the setup prompt waits until the cart is opened.
+  const STAGED_KEY = "wilsonShopStaged";
+  function takeStagedAdds() {
+    let staged = null;
+    try { staged = JSON.parse(sessionStorage.getItem(STAGED_KEY) || "null"); sessionStorage.removeItem(STAGED_KEY); } catch {}
+    const models = (staged && staged.v === 1 && Array.isArray(staged.models) ? staged.models : [])
+      .map((m) => String(m && m.model || "").trim()).filter((m) => /^[A-Za-z0-9][A-Za-z0-9 ./-]{0,39}$/.test(m)).slice(0, 20);
+    if (models.length) addFromLink([...new Set(models)].join(","), [], { quiet: true });
   }
   window.addEventListener("pagehide", () => { saveCart(); saveView(); });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveCart(); });
@@ -3386,7 +3419,7 @@
   }
   function closeCart() { $("cartDrawer").classList.remove("show"); lockPage(false); }
   $("cartBtn").addEventListener("click", () => {
-    openCart();
+    showCart();
   });
   $("drawerClose").addEventListener("click", closeCart);
 

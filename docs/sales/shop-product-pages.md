@@ -69,7 +69,7 @@ So a model with a page no longer depends on RetailDeck having a thumbnail for it
 A shopper can go from the shop to a product page and back without losing the cart.
 
 - The cart icon on a product page shows how many items the cart holds, and opens the cart.
-- When the model is already in the cart, the page's button reads "In your cart · View cart" in place of Add to cart.
+- When the model is already in the cart, the page's button reads **Go to Cart**, with "In your cart" under it.
 - Pressing Add to cart twice, or reloading, does not add a second unit.
 - The Back button returns the shopper to the same department, search, sort and place on the page.
 - If a unit sold while the shopper was away, it is taken out of the cart and the page says so.
@@ -104,7 +104,15 @@ The stock line reads In stock, Low stock, New in box, Open box or Floor model, a
 
 ## Add to cart
 
-The button opens the shop with the model in the cart (`shop.html?add=SHP78CM5N`), on top of whatever the cart already held. A shopper who came straight to the product page is asked for their ZIP first, as on the shop.
+*Changed 11/19. Andrew: "if you wanted to click add to cart, you may want to keep browsing that page for a second longer while you double check things."*
+
+**Add to cart keeps the shopper on the page.** The model goes into the cart, the cart icon's count goes up, and the same button becomes **Go to Cart**, with "Added to your cart" under it. On a phone, the bar at the bottom says "In your cart" and its button says Go to Cart too. The shopper can keep reading, check the specs, try their ZIP, or go on to other product pages and add those as well.
+
+**Go to Cart** opens the shop with the cart showing. Before the cart, each model added from a product page gets its own **Complete the setup** prompt (installation, connectors, required parts), one after another. Before this change, only the last model added at once got its prompt; that now holds everywhere, website lists included.
+
+Under the hood: the product page leaves the model in the tab (`wilsonShopStaged`), and the shop puts it in the cart the next time it opens in that tab. That happens the same way the old `shop.html?add=` link did it: new before open box, never a second unit of a model already in the cart, and a special order if the last unit sold in between. Going back to the shop any other way (Back, the cart icon, a department link) adds it quietly, and the setup prompt waits until the cart is opened. In the rare browser that refuses storage, Add to cart works as before and goes straight to the shop with the model.
+
+A shopper who arrives at the shop is asked for their ZIP in the cart, as before.
 
 The product page itself opens without the ZIP. It only shows prices the shop is already allowed to advertise.
 
@@ -193,7 +201,11 @@ Thirty pages, one for every model on Speed Queen's four sell sheets:
 
 **One folder of photos for the whole line.** A gas dryer and an electric one are the same cabinet, so the photos live once in `product-photos/SPEEDQUEEN/` and each record points there with `"photoKey": "SPEEDQUEEN"`. Sixty-seven pictures, 3.9 MB. They came from `supplier-digital-assets/speed-queen/Large` (the 2,048-pixel JPGs; the PSD originals were not needed).
 
-**Ten dryers have no photo of their own in the drop:** DR3004WG/WE, DC5004WG/WE/BG/BE and DF7004WG/WE/BG/BE. Each of those pages has one picture: the dryer cut out of the front view of its pair (`TR3-DR3_Pair_Front`, `TC5-DC5_W_Pair_Front`, `TC5-DC5_B_Pair_Front`, `FF7-DF7_W_Pair_Front`, `FF7-DF7_B_Pair_Front`). The record says so under `sources.photos`. When single-unit photos turn up, send them and the pages get the full set. The pair, lineup and room-with-a-pair photos are not used anywhere yet.
+**DR3, DC5 and DF7 photos (filled in 11/18).** The first drop had no single-unit pictures of these ten dryers, so each page had one picture: the dryer cut from the front view of its pair. Speed Queen's own single-unit photos have since arrived (`DR3_*`, `DC5_W_*`, `DC5_B_*`, `DF7_W_*`, `DF7_B_*` and `DF7_Control` in `Large`). Each of the ten pages now has the same set as the rest of the line: front, left, right and the control panel. The DF7's one control-panel picture serves both colors.
+
+The new files are `dr3w-*`, `dc5w-*`, `dc5b-*`, `df7w-*`, `df7b-*` and `df7-control` in `product-photos/SPEEDQUEEN`. They have new names, so no browser keeps showing an old cut-out from its cache. The five cut-outs were moved out of `product-photos` into `supplier-digital-assets/web/SPEEDQUEEN/retired-pair-cutouts/`, since nothing uses them any more.
+
+The pair, lineup and room-with-a-pair photos are not used anywhere yet.
 
 **Where the facts come from.** Speed Queen's product pages (read 11/18) and the four sell sheets in `spec sheets/`. Three pages would not load (DR7004WE, DC5004WE, FF7011WN); those models use the page for the same machine in its other color or fuel. Cycle names on the dial models are read from Speed Queen's own photo of the control panel.
 
@@ -254,4 +266,4 @@ The cart prompt ("Installs & accessories by brand" in Online Shop Orders) still 
 - `server.js`: `GET /p/:model` and `GET /product-photos/:model/:file`, registered before `express.static`; `/p/` and `/product-photos/` are on the shop host's public list. A model with no record redirects to the shop. The page is sent `no-store`; photos are cached for a week. The catalog response carries `pages`, the keys from `listProductPageKeys`.
 - `shop.html`: `hasProductPage` and `productPageUrl` choose the tile's link from `catalog.pages`. The cart is saved to `sessionStorage["wilsonShopCart"]` as `{ v, at, itemIds, addonLines, special, models, handoff }` by `saveCart` (called from `renderCartCount`, on `pagehide` and when the tab is hidden) and put back by `adoptSavedCart` after the first catalog load and on a `pageshow` from the page cache. `?show=cart` opens the cart. `addFromLink` counts what the cart already holds of a model for a plain `?add=` link, and a `?cart=` token already taken up is not fetched again.
 - Back and Forward: each shop visit gets a key in `history.state.shopView`; `saveView` stores the filters, the tile count and the scroll position under it in `sessionStorage["wilsonShopViews"]` (the last eight visits), and `restoreView` puts them back only when the navigation type is `back_forward`.
-- The product page template reads `wilsonShopCart` for the cart count and the "In your cart" state. It never writes it.
+- The product page template reads `wilsonShopCart` for the cart count and the "In your cart" state. It never writes it. Add to cart writes only `wilsonShopStaged` (`{ v: 1, models: [{ model, at }] }`); the button carries `data-add` (the old link, kept as its `href` for when there is no script or storage) and `data-model`. `shop.html` reads and clears `wilsonShopStaged` in `takeStagedAdds()` at the end of `adoptSavedCart` and passes the models to `addFromLink(..., { quiet: true })`. Setup prompts queue in `state.setupDue`; `showCart()` offers them one at a time (`offerAddons`) and then opens the cart. The cart icon, `?show=cart`, Add to cart on a tile, and the prompt's two buttons all go through `showCart()`.

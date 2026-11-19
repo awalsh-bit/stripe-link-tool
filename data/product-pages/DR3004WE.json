@@ -70,12 +70,39 @@
   ],
   "gallery": [
     {
-      "file": "dr3-front",
+      "file": "dr3w-front",
       "alt": "Speed Queen DR3 electric dryer in white, front view",
       "sizes": {
-        "400": [270, 400],
-        "800": [540, 800],
-        "1600": [783, 1160]
+        "400": [280, 400],
+        "800": [561, 800],
+        "1600": [1121, 1600]
+      }
+    },
+    {
+      "file": "dr3w-left",
+      "alt": "Speed Queen DR3 electric dryer in white, angled to show its left side",
+      "sizes": {
+        "400": [333, 400],
+        "800": [666, 800],
+        "1600": [1333, 1600]
+      }
+    },
+    {
+      "file": "dr3w-right",
+      "alt": "Speed Queen DR3 electric dryer in white, angled to show its right side",
+      "sizes": {
+        "400": [337, 400],
+        "800": [674, 800],
+        "1600": [1348, 1600]
+      }
+    },
+    {
+      "file": "dr3w-control",
+      "alt": "The DR3's control panel: dials for fabric, dryness and cycle",
+      "sizes": {
+        "400": [400, 89],
+        "800": [800, 178],
+        "1600": [1407, 313]
       }
     }
   ],
@@ -84,7 +111,7 @@
     "sheet": "spec sheets/sq_dryers_sell_sheet.pdf",
     "sheetDate": "2025",
     "read": "2026-11-18",
-    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). Speed Queen's drop has no picture of this dryer on its own, so the photo is the dryer cut from the front view of the pair (TR3-DR3_Pair_Front.jpg). Replace it when a single-unit photo is available.",
+    "photos": "Speed Queen's own product photos, from supplier-digital-assets/speed-queen/Large, converted to web sizes in product-photos/SPEEDQUEEN (shared by the whole line). These are the dryer's own single-unit photos (DR3_Front, DR3_Left, DR3_Right and DR3_Control), added 11/18; they replaced the dryer cut from its pair.",
     "differences": [
       "ENERGY STAR: the sell sheet and the specification table on Speed Queen's page both mark the DR3 certified; the page's headline does not mention it. This page says certified."
     ],

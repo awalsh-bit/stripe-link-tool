@@ -100,7 +100,9 @@
     .g-track::-webkit-scrollbar { display: none; }
     .g-track:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .g-slide { position: relative; flex: 0 0 100%; aspect-ratio: 1 / 1; scroll-snap-align: center; scroll-snap-stop: always; }
-    .g-slide img { position: absolute; inset: 6%; width: 88%; height: 88%; object-fit: contain; }
+    .g-slide img { position: absolute; inset: 6%; width: 88%; height: 88%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
+    /* Click-and-drag the photos with a mouse, like a swipe (Jeff, 11/20). Phones swipe the row natively. */
+    @media (hover: hover) and (pointer: fine) { .g-track.can-drag { cursor: grab; } .g-track.grabbing { cursor: grabbing; scroll-snap-type: none; } }
     .g-slide.fill img { inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .g-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); color: var(--ink); cursor: pointer; display: grid; place-items: center; transition: border-color .15s; }
     .g-nav:hover { border-color: var(--ink); }
@@ -424,6 +426,41 @@
         if (i !== at && i >= 0 && i < n) show(i);
       }, { passive: true });
       document.querySelectorAll(".g-nav").forEach((b) => b.addEventListener("click", () => go(at + (b.classList.contains("next") ? 1 : -1))));
+      // A mouse drags the row (Jeff via Andrew 11/20: "you need to be able to swipe through photos"). Touch
+      // swipes it natively, so only a mouse is handled here. The row follows the pointer with snapping off,
+      // then settles on the next picture (a drag of an eighth of the width or more) or back on this one.
+      // A drag never wraps around, and the click that ends it doesn't count as a click.
+      let drag = null;
+      track.classList.add("can-drag");
+      track.addEventListener("pointerdown", (e) => {
+        if (e.pointerType !== "mouse" || e.button !== 0) return;
+        drag = { id: e.pointerId, x: e.clientX, left: track.scrollLeft, moved: false };
+      });
+      track.addEventListener("pointermove", (e) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        const dx = e.clientX - drag.x;
+        if (!drag.moved) {
+          if (Math.abs(dx) < 5) return;
+          drag.moved = true; track.classList.add("grabbing");
+          try { track.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+        heading = -1; // the scroll handler leaves the count alone while dragging
+        track.scrollLeft = drag.left - dx;
+      });
+      function endDrag(e) {
+        if (!drag || e.pointerId !== drag.id) return;
+        const d = drag; drag = null;
+        if (!d.moved) return;
+        const dx = e.clientX - d.x, from = Math.round(d.left / track.clientWidth);
+        const to = Math.abs(dx) >= track.clientWidth / 8 ? from + (dx < 0 ? 1 : -1) : from;
+        track.classList.remove("grabbing");
+        go(Math.max(0, Math.min(n - 1, to)));
+        const stop = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+        track.addEventListener("click", stop, { capture: true, once: true });
+        setTimeout(() => track.removeEventListener("click", stop, { capture: true }), 300);
+      }
+      track.addEventListener("pointerup", endDrag);
+      track.addEventListener("pointercancel", endDrag);
       thumbs.forEach((t, k) => t.addEventListener("click", () => go(k)));
       track.addEventListener("keydown", (e) => {
         if (e.key === "ArrowRight") { e.preventDefault(); go(at + 1); }

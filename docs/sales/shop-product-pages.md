@@ -28,7 +28,11 @@ Search engines are told not to list these pages yet.
 
 ## The link on a shop tile
 
-A model that has a page links to it from its tile's model number, in the same tab (`shop.wilsonappliance.com/p/MODEL`).
+*Changed 11/20. Andrew, passing on Jeff's feedback: "both the description and the model number both need to go to PDP. There needs to be a hint (I'm thinking an arrow of some kind)".*
+
+On a model that has a page, the tile's description and model number are one link to the page, in the same tab (`shop.wilsonappliance.com/p/MODEL`). An arrow (→) follows the model number to show they lead somewhere. On hover the description underlines and the arrow nudges right.
+
+**Details ⌄** now sits under the link. It still opens features and specs right on the tile, and a tap elsewhere on the tile does the same. The category line and the price stay at the foot of every tile, so tiles in a row line up whatever the length of their descriptions.
 
 A model without a page shows its number as plain text. It used to open that model's search on wilsonappliance.com in a new tab; that link is gone (*Andrew 11/18: "removing the link to wilsonappliance.com is important for the model numbers"*), so a shopper looking at a model stays in the shop. Nothing in the grid links to wilsonappliance.com now. The site header's own links are unchanged.
 
@@ -77,6 +81,18 @@ The eight cards are in `data/why-wilson.json`. The wording came from the *Why Wi
 - **Delivery line under Add to cart** on a product page: "Express Delivery via online order is only available locally. Please call or text us to schedule in the greater Austin and San Antonio area."
 - **Call or text.** Wherever the shop gives the phone number for questions, it now also offers a text: "Call 512-894-0907 or Text Us", where "Text Us" opens a text to the same number. It is capitalized and carries a small message icon, so it reads as something to tap (the look is `a.text-us` in `site-header.css`). That covers the product page (questions line, the installation note, the out-of-stock line), and on the shop page the paused notice, the ZIP message, the sizing note, the brand and cart-link notices, and the cart's "price unavailable" line. The landing page's "call or text" line links both.
 - **The cart in the header** stays there on a phone once the page scrolls (it used to fold away with the top bar), and **no link is browser blue**: iPhone no longer links numbers and addresses by itself on the shop pages, and phone numbers are written as real links in the text's own color.
+
+## Swiping the pictures
+
+*Added 11/20. Andrew, passing on Jeff's feedback: "you need to be able to swipe through photos in both shop and pdp pages".*
+
+- **Shop tiles.** A sideways swipe on a phone, or a click-and-drag with a mouse, flips a tile with several pictures to the next or previous one. The picture follows the finger, and the neighboring pictures start loading as the swipe begins.
+  - An up-and-down move still scrolls the page.
+  - A move shorter than about 36 pixels doesn't flip.
+  - The tap that ends a swipe doesn't also open the tile's details.
+  - The ‹ › arrows still work.
+- **Product pages.** Phones already swiped the photos. Now a mouse can click-and-drag them too: the row follows the pointer, then settles on the next picture (a drag of an eighth of the width or more) or back on this one. A drag never wraps from the last picture to the first. The arrows, thumbnails and arrow keys work as before.
+- **Checked:** mouse drags and touch swipes on a tile (next, back, too short, up-and-down); drags on a product page (2 / 3, 3 / 3, no wrap, snap back, then the arrows); and links from the description and the model number. The earlier suites still pass.
 
 ## The page's pictures on the shop tile
 
@@ -294,6 +310,10 @@ The cart prompt ("Installs & accessories by brand" in Online Shop Orders) still 
 - A record's `displayModel` is the name to show when it differs from `model`. `model` stays the key for the address, the photo folder and Add to cart.
 - `data/product-pages/template.html`: the page every model shares. The server fills its double-brace names. `data/` is never served as files.
 - `server.js`: `GET /p/:model` and `GET /product-photos/:model/:file`, registered before `express.static`; `/p/` and `/product-photos/` are on the shop host's public list. A model with no record redirects to the shop. The page is sent `no-store`; photos are cached for a week. The catalog response carries `pages`, the keys from `listProductPageKeys`.
-- `shop.html`: `hasProductPage` and `productPageUrl` choose the tile's link from `catalog.pages`. The cart is saved to `sessionStorage["wilsonShopCart"]` as `{ v, at, itemIds, addonLines, special, models, handoff }` by `saveCart` (called from `renderCartCount`, on `pagehide` and when the tab is hidden) and put back by `adoptSavedCart` after the first catalog load and on a `pageshow` from the page cache. `?show=cart` opens the cart. `addFromLink` counts what the cart already holds of a model for a plain `?add=` link, and a `?cart=` token already taken up is not fetched again.
+- Swiping (11/20):
+  - `shop.html` handles tiles with document-level `pointerdown` / `pointermove` / `pointerup` / `pointercancel` on `.item-pic[data-pics]` (CSS `touch-action: pan-y`). A capture-phase click handler swallows the click that ends a swipe, and `flipPic` adds the `in-r` / `in-l` slide.
+  - The product page template handles mouse pointers only on `#gTrack`. Snapping is off while it has the `grabbing` class, it ends with `go(clamped index)`, and touch is left to native scrolling.
+  - Images carry `draggable="false"`.
+- `shop.html`: `hasProductPage` and `productPageUrl` choose the tile's link from `catalog.pages`. The tile's `a.item-link` wraps `.item-desc` and `.item-model` with `svg.item-go`. The cart is saved to `sessionStorage["wilsonShopCart"]` as `{ v, at, itemIds, addonLines, special, models, handoff }` by `saveCart` (called from `renderCartCount`, on `pagehide` and when the tab is hidden) and put back by `adoptSavedCart` after the first catalog load and on a `pageshow` from the page cache. `?show=cart` opens the cart. `addFromLink` counts what the cart already holds of a model for a plain `?add=` link, and a `?cart=` token already taken up is not fetched again.
 - Back and Forward: each shop visit gets a key in `history.state.shopView`; `saveView` stores the filters, the tile count and the scroll position under it in `sessionStorage["wilsonShopViews"]` (the last eight visits), and `restoreView` puts them back only when the navigation type is `back_forward`.
 - The product page template reads `wilsonShopCart` for the cart count and the "In your cart" state. It never writes it. Add to cart writes only `wilsonShopStaged` (`{ v: 1, models: [{ model, at }] }`); the button carries `data-add` (the old link, kept as its `href` for when there is no script or storage) and `data-model`. `shop.html` reads and clears `wilsonShopStaged` in `takeStagedAdds()` at the end of `adoptSavedCart` and passes the models to `addFromLink(..., { quiet: true })`. Setup prompts queue in `state.setupDue`; `showCart()` offers them one at a time (`offerAddons`) and then opens the cart. The cart icon, `?show=cart`, Add to cart on a tile, and the prompt's two buttons all go through `showCart()`.

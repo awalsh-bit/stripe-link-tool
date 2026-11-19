@@ -739,6 +739,28 @@
     .item-pic:hover .pic-nav, .pic-nav:focus-visible { opacity: 1; }
     @media (hover: none) { .pic-nav { opacity: 1; } }
     .pic-count { position: absolute; right: 8px; bottom: 8px; background: rgba(36,33,30,.72); color: #fff; border-radius: 3px; padding: 2px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; }
+    /* Swipe the pictures (Jeff, 11/20): sideways on a phone, click-and-drag with a mouse. Up and down still scrolls the page. */
+    .item-pic[data-pics] { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+    .item-pic[data-pics] .item-img { -webkit-user-drag: none; transition: transform .18s ease; }
+    @media (hover: hover) and (pointer: fine) { .item-pic[data-pics] { cursor: grab; } .item-pic[data-pics].dragging { cursor: grabbing; } }
+    .item-pic.dragging .item-img { transition: none; }
+    @keyframes picInR { from { transform: translateX(22px); opacity: .35; } to { transform: none; opacity: 1; } }
+    @keyframes picInL { from { transform: translateX(-22px); opacity: .35; } to { transform: none; opacity: 1; } }
+    .item-img.in-r { animation: picInR .2s ease; }
+    .item-img.in-l { animation: picInL .2s ease; }
+    @media (prefers-reduced-motion: reduce) { .item-img.in-r, .item-img.in-l { animation: none; } .item-pic[data-pics] .item-img { transition: none; } }
+    /* The description and model number open the product page (Jeff, 11/20); the arrow says so. */
+    .item-link { display: flex; flex-direction: column; gap: 6px; color: inherit; text-decoration: none; border-radius: 3px; }
+    .item-link .item-model { display: inline-flex; align-items: center; gap: 7px; }
+    .item-go { flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+    .item-link:hover .item-desc, .item-link:focus-visible .item-desc { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+    .item-link:hover .item-model, .item-link:focus-visible .item-model { color: var(--accent); }
+    .item-link:hover .item-go, .item-link:focus-visible .item-go { transform: translateX(3px); }
+    .item-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) { .item-go { transition: none; } }
+    /* Tiles line up however tall the description: model, Details, then the category line and price at the foot */
+    .item-card .item-model { flex: 0 0 auto; }
+    .item-card .item-cat { margin-top: auto; }
     .skel { border-radius: 3px; background: linear-gradient(90deg, #EDEAE4 25%, #F2F1EE 50%, #EDEAE4 75%); background-size: 200% 100%; }
     .cond-badge { left: 10px; right: auto; border-radius: 3px; box-shadow: none; font-weight: 700; letter-spacing: .02em; text-transform: none; font-size: 11px; padding: 4px 8px; }
     .cond-badge.new, .cond-badge.stock-in { background: var(--ok); color: #fff; }
@@ -1647,7 +1669,9 @@
     if (list.length < 2) return;
     const i = ((Number(pic.dataset.i) || 0) + step + list.length) % list.length;
     pic.dataset.i = i;
-    pic.querySelector(".item-img").src = list[i].url;
+    const img = pic.querySelector(".item-img");
+    img.src = list[i].url;
+    img.classList.remove("in-r", "in-l"); void img.offsetWidth; img.classList.add(step > 0 ? "in-r" : "in-l");
     pic.classList.toggle("actual", !!list[i].actual);
     const chip = pic.querySelector(".photo-chip"); if (chip) chip.hidden = !list[i].actual;
     const count = pic.querySelector(".pic-count"); if (count) count.textContent = `${i + 1} / ${list.length}`;
@@ -1658,6 +1682,49 @@
     e.preventDefault(); e.stopPropagation();
     flipPic(nav.closest(".item-pic"), nav.classList.contains("next") ? 1 : -1);
   });
+  // Swipe (Jeff via Andrew 11/20: "you need to be able to swipe through photos"): a sideways swipe on a phone,
+  // or a click-and-drag with a mouse, flips to the next or previous picture. The picture follows the finger;
+  // a short or mostly-vertical move does nothing (the page scrolls - touch-action: pan-y), and the tap that
+  // ends a swipe doesn't also open the tile's details.
+  let picSwipe = null, swallowPicClick = 0;
+  document.addEventListener("pointerdown", (e) => {
+    const pic = e.target.closest(".item-pic[data-pics]");
+    if (!pic || e.target.closest(".pic-nav") || (e.pointerType === "mouse" && e.button !== 0)) return;
+    picSwipe = { pic, id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, on: false };
+    try { // the next and previous pictures start loading now, so the flip is instant
+      const list = JSON.parse(pic.dataset.pics || "[]"), i = Number(pic.dataset.i) || 0;
+      [1, -1].forEach((s) => { const u = list[(i + s + list.length) % list.length]?.url; if (u) new Image().src = u; });
+    } catch {}
+  });
+  document.addEventListener("pointermove", (e) => {
+    const s = picSwipe;
+    if (!s || e.pointerId !== s.id) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (!s.on) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { picSwipe = null; return; } // scrolling the page
+      if (Math.abs(dx) < 8) return;
+      s.on = true; s.pic.classList.add("dragging");
+      try { s.pic.setPointerCapture(e.pointerId); } catch {}
+    }
+    s.dx = dx;
+    s.pic.querySelector(".item-img").style.transform = `translateX(${Math.max(-90, Math.min(90, dx * 0.6))}px)`;
+  });
+  function endPicSwipe(e) {
+    const s = picSwipe;
+    if (!s || e.pointerId !== s.id) return;
+    picSwipe = null;
+    if (!s.on) return;
+    s.pic.classList.remove("dragging");
+    s.pic.querySelector(".item-img").style.transform = "";
+    swallowPicClick = Date.now();
+    if (e.type === "pointerup" && Math.abs(s.dx) >= 36) flipPic(s.pic, s.dx < 0 ? 1 : -1);
+  }
+  document.addEventListener("pointerup", endPicSwipe);
+  document.addEventListener("pointercancel", endPicSwipe);
+  document.addEventListener("click", (e) => {
+    if (swallowPicClick && Date.now() - swallowPicClick < 400 && e.target.closest(".item-pic")) { e.preventDefault(); e.stopPropagation(); }
+    swallowPicClick = 0;
+  }, true);
 
   // Product details: one tile open at a time. A tap anywhere on the tile that
   // is not a button, link or field toggles it; the "Details" control does the
@@ -1876,13 +1943,12 @@
       card.innerHTML = `
         ${group.badge ? `<span class="eye-badge ${esc(group.badgeStyle || "red")}">${esc(group.badge)}</span>` : ""}
         ${conditionBadge(group)}
-        ${group.image ? `<div class="item-pic${group.photoActual ? " actual" : ""}"${morePics(group) ? ` data-pics="${esc(JSON.stringify(group.images))}" data-i="0"` : ""}><img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.parentElement.remove()">${group.photoActual || morePics(group) ? `<span class="photo-chip"${group.photoActual ? "" : " hidden"}>Actual product photo</span>` : ""}${morePics(group) ? `<button type="button" class="pic-nav prev" aria-label="Previous photo">‹</button><button type="button" class="pic-nav next" aria-label="Next photo">›</button><span class="pic-count">1 / ${group.images.length}</span>` : ""}</div>` : ""}
+        ${group.image ? `<div class="item-pic${group.photoActual ? " actual" : ""}"${morePics(group) ? ` data-pics="${esc(JSON.stringify(group.images))}" data-i="0"` : ""}><img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" draggable="false" onerror="this.parentElement.remove()">${group.photoActual || morePics(group) ? `<span class="photo-chip"${group.photoActual ? "" : " hidden"}>Actual product photo</span>` : ""}${morePics(group) ? `<button type="button" class="pic-nav prev" aria-label="Previous photo">‹</button><button type="button" class="pic-nav next" aria-label="Next photo">›</button><span class="pic-count">1 / ${group.images.length}</span>` : ""}</div>` : ""}
         <div class="item-brand">${esc(group.brand)}</div>
-        <div class="item-desc">${esc(det?.headline || group.description)}</div>
+        ${hasProductPage(group.model)
+          ? `<a class="item-link" href="${esc(productPageUrl(group.model))}" title="Photos, features and specs for ${esc(group.model)}"><span class="item-desc">${esc(det?.headline || group.description)}</span><span class="item-model">${esc(group.model)}<svg class="item-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>`
+          : `<div class="item-desc">${esc(det?.headline || group.description)}</div><div class="item-model">${esc(group.model)}</div>`}
         ${canOpen ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
-        <div class="item-model">${hasProductPage(group.model)
-          ? `<a href="${esc(productPageUrl(group.model))}" title="Photos, features and specs for ${esc(group.model)}">${esc(group.model)}</a>`
-          : esc(group.model)}</div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         ${group.onDisplay && !(group.condition === "open" && group.serialType === "DISPLAY") ? `<div class="item-display"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(state.catalog.onDisplayLabel || "On display in Dripping Springs")}</div>` : ""}
         <div class="item-foot">

@@ -68,7 +68,7 @@ So the feed, the page and checkout always agree, and the advertised-price rules 
 
 **While the shop is paused** (a stale ePASS feed), the file answers 503 with Retry-After. Google keeps what it has and tries again, instead of reading an empty list as every product gone.
 
-**No barcodes yet.** No UPC is on file, so items carry brand and model number. Merchant Center may ask for barcodes on some items; they can be added from the spec sheets.
+**Barcodes (11/20).** Items carry `g:gtin` from the page record's `"upc"` (44 of 45 pages; see *Barcodes (UPC)* in [shop product pages](../sales/shop-product-pages.md)), along with brand and `g:mpn`. The feed's first products were marked "Limited" for missing barcodes. The Bosch codes come from BSH's Canadian spec sheets. SHP65DP5N still has none, so it may stay Limited until its code is added.
 
 **Set in Merchant Center, not in the feed:**
 

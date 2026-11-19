@@ -145,6 +145,30 @@ The page's heading is the name. The line under it reads "Miele no. 12496900". Th
 - **Photos:** web-sized copies in `product-photos/<MODEL>/`, up to three sizes of each picture. The page sends each screen the size it needs.
 - **Price and stock:** the live shop catalog, at the moment the page opens. Neither is kept in the record.
 - **Spec sheet:** the shop's spec-sheet list (`data/shop-spec-sheets.json`). The button appears when a sheet is listed for the model and its PDF is in `spec sheets`.
+- **Barcode:** `"upc"` in the record, right after `"brand"`, from the manufacturer's spec sheet. Every new page gets one (see *Barcodes* below).
+
+## Barcodes (UPC)
+
+*Added 11/20. Andrew: "can you add them to all product detail pages that have already been built and we'll include it going forward?" Merchant Center had marked the products "Limited" because the feed had no barcodes.*
+
+Each record carries the model's barcode as `"upc"`, copied from the manufacturer's own spec sheet: the 12-digit UPC, or the 13-digit EAN for Miele. It goes to Google in two places: the Merchant Center feed (`g:gtin`) and the page's product data (`gtin`). Shoppers don't see it. A code is sent only when its length and check digit are right, so a typo is left out rather than sent wrong.
+
+**On the pages now: 44 of 45.**
+
+| Pages | Source |
+|---|---|
+| 32 Speed Queen: TR7, TR5, TR3, TC5, DR7, DR5, DR3, DC5, FF7, DF7, SF7 and both pedestals | Speed Queen's four sell sheets (`spec sheets/sq_*_sell_sheet.pdf`) |
+| SMD2470ASY, SMD2479JS | Sharp's spec sheets (the drawer's own UPC, not the pedestal's printed beside it) |
+| 11966820, 12496900, 12496980, 12496990 | Miele's spec sheets ("EAN number") |
+| B36CD80SNS, B36CL80ENS, B36CT80SNS, B36FD10ENS, SHP78CM5N | Bosch's Canadian French spec sheets on media3.bosch-home.com (`specsheet/fr-CA/<MODEL>.pdf`, "Code universel des produits") |
+| B36CT81ENS | Bosch's Canadian English spec sheet (`specsheet/en-CA/B36CT81ENS.pdf`, "UPC code") |
+
+- **Speed Queen lists its barcodes in the same order as its models.** For example, the FF7 sheet lists FF7011WN, FF7011BN, FF7012WN and FF7012BN, then four UPCs, and the codes were matched in that order. The internal model numbers between them (TW/TB for white/black) agree. The gas and electric twins also land on neighboring codes, as expected.
+  - **Worth checking against a carton:** the left-hinged FF7011 and right-hinged FF7012 pairs. Nothing on the sheet but the order tells them apart.
+- **PDR108MB** carries Speed Queen's part number, `"mpn": "PDR108B"`. Wilson's item number stays the page's model. The feed and the page's product data send PDR108B as the maker's part number, with its UPC.
+- **Bosch** (added later on 11/20, after Andrew pointed to BSH's own spec sheets). The US sheets (`specsheet/en-US/`) print no barcode, and the Bosch item import's UPC column is blank. The Canadian sheets for the same model numbers do print one. Each code was taken only where the exact model number heads the sheet. Worth checking one against a Bosch carton the next time one comes in.
+- **No barcode yet: SHP65DP5N.** Its Canadian sheets didn't load (it may not be sold in Canada), and its US sheet has none. ENERGY STAR lists UPCs for the SHP65DP family without saying which code is which model, so none was used. Add it as `"upc"` from a carton or ePASS's `UPCBarcode` field.
+- **Going forward:** every new product page takes its `"upc"` from the spec sheet when the record is written. For Bosch that's the Canadian sheet (`specsheet/fr-CA/` or `en-CA/`). The Speed Queen and Sharp page generators carry the codes now.
 
 ## Price and stock
 
@@ -326,6 +350,7 @@ The cart prompt ("Installs & accessories by brand" in Online Shop Orders) still 
   - `shop.html` handles tiles with document-level `pointerdown` / `pointermove` / `pointerup` / `pointercancel` on `.item-pic[data-pics]` (CSS `touch-action: pan-y`). A capture-phase click handler swallows the click that ends a swipe, and `flipPic` adds the `in-r` / `in-l` slide.
   - The product page template handles mouse pointers only on `#gTrack`. Snapping is off while it has the `grabbing` class, it ends with `go(clamped index)`, and touch is left to native scrolling.
   - Images carry `draggable="false"`.
+- Barcodes: `gtinOf(rec)` in `lib/shop-product-page.js` returns `rec.upc` (or `rec.gtin`) when it has 8, 12, 13 or 14 digits and a valid check digit, and an empty string otherwise. `mpnOf(rec)` is `rec.mpn` or `rec.model`. Both feed `productFeedItem` and the page's JSON-LD.
 - `shop.html`: `hasProductPage` and `productPageUrl` choose the tile's link from `catalog.pages`. The tile's `a.item-link` wraps `.item-desc` and `.item-model` with `svg.item-go`. The cart is saved to `sessionStorage["wilsonShopCart"]` as `{ v, at, itemIds, addonLines, special, models, handoff }` by `saveCart` (called from `renderCartCount`, on `pagehide` and when the tab is hidden) and put back by `adoptSavedCart` after the first catalog load and on a `pageshow` from the page cache. `?show=cart` opens the cart. `addFromLink` counts what the cart already holds of a model for a plain `?add=` link, and a `?cart=` token already taken up is not fetched again.
 - Back and Forward: each shop visit gets a key in `history.state.shopView`; `saveView` stores the filters, the tile count and the scroll position under it in `sessionStorage["wilsonShopViews"]` (the last eight visits), and `restoreView` puts them back only when the navigation type is `back_forward`.
 - The product page template reads `wilsonShopCart` for the cart count and the "In your cart" state. It never writes it. Add to cart writes only `wilsonShopStaged` (`{ v: 1, models: [{ model, at }] }`); the button carries `data-add` (the old link, kept as its `href` for when there is no script or storage) and `data-model`. `shop.html` reads and clears `wilsonShopStaged` in `takeStagedAdds()` at the end of `adoptSavedCart` and passes the models to `addFromLink(..., { quiet: true })`. Setup prompts queue in `state.setupDue`; `showCart()` offers them one at a time (`offerAddons`) and then opens the cart. The cart icon, `?show=cart`, Add to cart on a tile, and the prompt's two buttons all go through `showCart()`.

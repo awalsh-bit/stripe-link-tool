@@ -37,6 +37,10 @@
 
 The shop's grid of tiles is still drawn by the script from the catalog. Google renders scripts, and the catalog it reads is now open to it. The product pages are the ones that need their facts in the page as it arrives, and they now have them.
 
+## Google's ownership check
+
+*Added 11/20.* The Merchant Center and Search Console verification tag (`google-site-verification`, from Merchant Center's "verify your online store") is in the `<head>` of `shop-home.html`, which the shop address's home page serves, and of `shop.html`. Leave it in place, because Google checks it again from time to time. It gives Google no access to anything.
+
 ## What to do next (outside Agility)
 
 - **Google Search Console.** Add `shop.wilsonappliance.com` and submit `https://shop.wilsonappliance.com/sitemap.xml`. Indexing takes days to weeks.

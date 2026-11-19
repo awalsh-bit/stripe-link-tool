@@ -44,14 +44,16 @@ What the ZIP decides:
 | ZIP is | The shop says | The cart offers |
 | --- | --- | --- |
 | On the express list | "Yes, we deliver to 78620. White Glove Delivery + Haul Away is $49.95, and you choose your delivery day at checkout." | Delivery with a day to pick, or Customer Pickup, as before. |
-| On the total list with a fee, not express | "Yes, we deliver to 78205. White Glove Delivery + Haul Away is $189.00. Order online and we'll call you to schedule your delivery day." | Delivery at that ZIP's fee with **no day to pick** ("We'll call you to schedule your delivery day."), or Customer Pickup. |
+| On the total list with a fee, not express | "Yes, we deliver to 78205. White Glove Delivery + Haul Away is $189.00. Order online and we will follow up via your preferred communication method to schedule your delivery day." | Delivery at that ZIP's fee with **no day to pick** ("We will follow up via your preferred communication method to schedule your delivery day."), or Customer Pickup. |
 | Neither | "We can't take online orders for 10001. Call 512-894-0907 or Text Us and we'll help you from there." | No delivery, no pickup, no checkout. **Call** and **Text Us** buttons sit where checkout would be. A pricing request for special-order items is refused too. |
 
 - **The fee follows the ZIP.** A fee set here is what the shop charges for delivery to that ZIP, in the express area too. An express ZIP with no fee here pays the standard fee, $49.95 (`SHOP_DELIVERY_OFFER.price` in `server.js`). The struck-through $89.95 and the "special online offer" wording are gone; free-delivery promo codes still work, in either area.
 - **A delivery goes to the saved address**, and the server prices and judges it by that address's ZIP. If the cart's ZIP and the saved address's differ, checkout first asks for the delivery address in the cart's ZIP.
 - **A pickup is judged by the ZIP the shopper gave in the cart** (else the saved address's). Outside both areas, pickup is refused too.
 - **A delivery address can now be saved anywhere in the total area** (it used to be express only). An address outside both areas is refused with the call-or-text message.
-- **Wider-area orders on Online Shop Orders** carry a yellow **Schedule by hand** tag, and the delivery line says the ZIP is outside the express area and no day was picked: call the client to set the day. The new-order flag on the floor's dashboards says the same.
+- **Wider-area orders on Online Shop Orders** carry a yellow **Schedule by hand** tag, and the delivery line says the ZIP is outside the express area and no day was picked: reach the client by their preferred contact method to set the day. The new-order flag on the floor's dashboards says the same.
+
+*Changed 11/20. Andrew: "Instead of call - 'we will follow up via your preferred communication method'".* The shop no longer promises a phone call for wider-area deliveries. The ZIP answer (shop and product pages), the cart's delivery option, the checkout summary ("we'll follow up to schedule") and the order confirmation all say Wilson will follow up the way the shopper asked to be contacted. The order card and the new-order flag tell staff the same.
 - The server applies every one of these rules itself at checkout. The pages only keep in step with it.
 
 To change what express customers pay: filter "In the express area", then Set fee.

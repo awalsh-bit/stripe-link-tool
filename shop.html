@@ -1244,7 +1244,7 @@
     const name = esc(state.delivery?.name || "White Glove Delivery + Haul Away");
     const feeText = fee != null && Number.isFinite(Number(fee)) ? money(Number(fee)) : "";
     if (area === "express") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}, and you choose your delivery day at checkout.`;
-    if (area === "extended") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}. Order online and we'll call you to schedule your delivery day.`;
+    if (area === "extended") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}. Order online and we will follow up via your preferred communication method to schedule your delivery day.`;
     return `We can't take online orders for <b>${esc(z)}</b>. Call 512-894-0907 or text us and we'll help you from there.`;
   }
   // An answer (zip-check, or the catalog's deliveryArea) -> the page.
@@ -3732,7 +3732,7 @@
               <span class="fo-price">${Number(state.delivery.regularPrice) > Number(state.delivery.price) ? `<span class="compare">${money(state.delivery.regularPrice)}</span>` : ""}${money(state.delivery.price)}</span>
             </span>
             ${f.method === "delivery" && byCall ? `
-              <span class="fo-note" style="font-weight:600; color: var(--text, #1f2937); display:block; margin-top:6px;">${esc(opts.callToScheduleNote || "We'll call you to schedule your delivery day.")}</span>
+              <span class="fo-note" style="font-weight:600; color: var(--text, #1f2937); display:block; margin-top:6px;">${esc(opts.callToScheduleNote || "We will follow up via your preferred communication method to schedule your delivery day.")}</span>
             ` : f.method === "delivery" ? `
               <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:${state.needDay ? ` <span class="need-day-tag">Choose a day to continue</span>` : ""}</span>
               <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}${d.sameDay ? " sameday" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
@@ -3919,7 +3919,7 @@
           ].join("<br>")).join("<br>")}
           <br>${state.fulfillment.method === "pickup"
             ? `Customer Pickup (${state.fulfillment.date === "later" ? "scheduling later" : esc(fulfillDayLabel() || "day TBD")}) — FREE`
-            : `${esc(state.delivery?.name || "Delivery")} (${callsToSchedule() ? `to ${esc(state.zip)}, we'll call to schedule` : esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
+            : `${esc(state.delivery?.name || "Delivery")} (${callsToSchedule() ? `to ${esc(state.zip)}, we'll follow up to schedule` : esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
           ${t.discount ? `<br><span id="sumPromo">Promo ${esc(state.promo.code)} (${esc(promoLabel(state.promo))}) — −${money(t.discount)}</span>` : ""}
           <br>Sales tax — <span id="sumTax">${money(t.tax)}</span>
           <br><strong>Estimated total — <span id="sumTotal">${money(t.total)}</span></strong>
@@ -4158,7 +4158,7 @@
             ? "Customer pickup — we'll be in touch to schedule it."
             : `Customer pickup requested for ${fulfillDayLabel()}.`)
         : callsToSchedule()
-          ? `Delivery to ${state.zip}: we'll call you to schedule your delivery day.`
+          ? `Delivery to ${state.zip}: we will follow up via your preferred communication method to schedule your delivery day.`
           : `Delivery requested for ${fulfillDayLabel()}.`;
       const hadSpecial = state.cart.special.length;
       state.cart = { itemIds: [], addonLines: [], special: [] };

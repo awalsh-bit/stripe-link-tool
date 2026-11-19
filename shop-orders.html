@@ -405,7 +405,7 @@
           The Delivery ZIP codes list above is still the express area, where a shopper orders online and picks a date.
           Paste rows from the spreadsheet with its header row (ZIP, City, County, Miles, Fee: any of them, in any order). Pasting again never wipes a fee that is already set.
           <br><b>A fee set here is what the shop charges for delivery to that ZIP</b>, in the express area too; an express ZIP with no fee here pays the standard $49.95.
-          A ZIP outside the express area that has a fee here orders online at that fee with no date to pick; the order comes in tagged <b>Schedule by hand</b> for you to call and set the day.
+          A ZIP outside the express area that has a fee here orders online at that fee with no date to pick; the order comes in tagged <b>Schedule by hand</b> for you to reach the client by their preferred contact method and set the day.
           A ZIP on neither list is told to call or text: it cannot check out, not even for pickup.
         </p>
         <div class="exp-row" style="align-items:flex-start;">
@@ -622,7 +622,7 @@
                 ? "client will schedule later (30-day pickup window on clearance/outlet units)"
                 : `requested <u>${esc(order.delivery?.dateLabel || order.delivery?.date || "")}</u>`}. Confirm via the client's preferred contact method when it's ready.</div>`
             : order.delivery?.manualSchedule
-              ? `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)} · <strong style="color:#92400e;">SCHEDULE BY HAND</strong> — ZIP ${esc(order.delivery?.zip || addr.zip || "")} is outside the express area, so no day was picked. Call the client to set the delivery day.</div>`
+              ? `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)} · <strong style="color:#92400e;">SCHEDULE BY HAND</strong> — ZIP ${esc(order.delivery?.zip || addr.zip || "")} is outside the express area, so no day was picked. Reach the client by their preferred contact method to set the delivery day.</div>`
               : `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}${order.delivery?.date ? ` · <strong>Requested day: ${esc(order.delivery.dateLabel || order.delivery.date)}</strong> — call with the 4-hour window 2 business days prior` : ""}</div>`,
           ...(order.totals?.discount ? [`<div style="color:#86198f; font-weight:600;">Promo ${esc(order.totals.promo?.code || "")}${order.totals.promo?.description ? ` (${esc(order.totals.promo.description)})` : ""} — −${money(order.totals.discount)}</div>`, promoEpassLine(order)] : []),
           ...(order.totals?.tax != null ? [`<div>Sales tax — ${money(order.totals.tax)}</div>`] : []),

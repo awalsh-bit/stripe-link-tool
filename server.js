@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow, loadWhyWilsonCards } from "./lib/shop-product-page.js";
+import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow, loadWhyWilsonCards, productFeedItem, merchantFeedXml } from "./lib/shop-product-page.js";
 import { parseDeliveryZipPaste, deliveryAreaFor, cleanZip as cleanShopZip, listShopDeliveryZips, importShopDeliveryZips, setShopDeliveryZipFees, removeShopDeliveryZips } from "./lib/shop-delivery-zips.js";
 import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
@@ -847,6 +847,7 @@ const SHOP_PUBLIC_PATHS = new Set([
   "/favicon.svg",
   "/robots.txt",
   "/sitemap.xml", // the shop's pages for search engines (11/20)
+  "/merchant-feed.xml", // the product feed Google Merchant Center fetches daily (11/20)
   "/favicon.ico"
 ]);
 
@@ -6494,6 +6495,45 @@ app.get("/sitemap.xml", async (req, res) => {
   }
 });
 
+// The unit a product page offers (the one "?add=" would put in the cart: new before open box), from the shop
+// catalog. The page and the Merchant Center feed both read it, so they always show the same price.
+function shopPageUnit(catalog, key) {
+  const u = catalog.items
+    .filter((i) => normalizeModelKey(i.model) === key && !i.gridHidden)
+    .sort((a, b) => (a.condition === "open") - (b.condition === "open"))[0];
+  return u
+    ? { price: u.price, noPrice: !!u.noPrice, mapPublic: !!u.mapPublic, mapFloor: u.mapFloor ?? null, mapRegular: u.mapRegular ?? null, source: u.source || "clearance", stockLevel: u.stockLevel || "", condition: u.condition || "", serialType: u.serialType || "", hideStockBadge: !!u.hideStockBadge }
+    : null;
+}
+
+// Google Merchant Center's product feed (Andrew 11/20; set up in Merchant Center as a scheduled fetch of
+// https://shop.wilsonappliance.com/merchant-feed.xml, every 24 hours). Built fresh on each fetch from the
+// product pages and the live catalog - see productFeedItem for what goes in. While the shop is paused (a
+// stale feed) it answers 503, so Google keeps what it has and tries again, rather than reading an empty
+// list as every product gone.
+app.get("/merchant-feed.xml", async (req, res) => {
+  if (getRequestHost(req) !== SHOP_PUBLIC_HOST) return res.status(404).send("Not found.");
+  res.setHeader("X-Robots-Tag", "noindex"); // a file for Merchant Center, not a page for search results
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
+    if (catalog.paused) { res.setHeader("Retry-After", "3600"); return res.status(503).type("text/plain").send("The shop is refreshing its inventory. Try again shortly."); }
+    const origin = `https://${SHOP_PUBLIC_HOST}`;
+    const items = [];
+    for (const k of await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR)) {
+      const rec = await loadProductPage(SHOP_PRODUCT_PAGE_DIR, k).catch(() => null);
+      if (!rec) continue;
+      const item = productFeedItem(rec, { paused: false, unit: shopPageUnit(catalog, normalizeModelKey(rec.model)) }, { origin });
+      if (item) items.push(item);
+    }
+    return res.type("application/xml").send(merchantFeedXml(items, { origin }));
+  } catch (err) {
+    console.error("Merchant feed failed:", err.message);
+    res.setHeader("Retry-After", "3600");
+    return res.status(503).type("text/plain").send("Unavailable. Try again shortly.");
+  }
+});
+
 app.get("/p/:model", async (req, res) => {
   try {
     const rec = await loadProductPage(SHOP_PRODUCT_PAGE_DIR, req.params.model);
@@ -6502,13 +6542,8 @@ app.get("/p/:model", async (req, res) => {
     let live = { paused: false, unit: null, sheets: [] };
     try {
       const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
-      const u = catalog.items
-        .filter((i) => normalizeModelKey(i.model) === key && !i.gridHidden)
-        .sort((a, b) => (a.condition === "open") - (b.condition === "open"))[0];
       live.paused = !!catalog.paused;
-      live.unit = u
-        ? { price: u.price, noPrice: !!u.noPrice, mapPublic: !!u.mapPublic, mapFloor: u.mapFloor ?? null, mapRegular: u.mapRegular ?? null, source: u.source || "clearance", stockLevel: u.stockLevel || "", condition: u.condition || "", serialType: u.serialType || "", hideStockBadge: !!u.hideStockBadge }
-        : null;
+      live.unit = shopPageUnit(catalog, key);
       live.onDisplay = catalog.items.some((i) => i.onDisplay && normalizeModelKey(i.model) === key);
       live.sheets = (await loadShopData()).specSheets?.byModel?.[key] || [];
     } catch (err) {
@@ -7304,7 +7339,8 @@ const SHOP_DELIVERY_OFFER = {
 // scheduling entirely.
 const SHOP_SCHEDULE_NOTE = "You'll receive a 4-hour arrival window two business days before your selected day.";
 // Delivery outside the express area (Andrew 11/19): no day to pick at checkout; Wilson calls to set one.
-const SHOP_CALL_TO_SCHEDULE_NOTE = "We'll call you to schedule your delivery day.";
+// Andrew 11/20: "Instead of call - we will follow up via your preferred communication method"
+const SHOP_CALL_TO_SCHEDULE_NOTE = "We will follow up via your preferred communication method to schedule your delivery day.";
 const SHOP_PICKUP_OFFER = {
   id: "customer-pickup",
   method: "pickup",
@@ -12308,7 +12344,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
         : (priced.delivery.sameDay
             ? `SAME-DAY DELIVERY & INSTALL requested — TODAY (${priced.delivery.date})`
             : priced.delivery.manualSchedule
-              ? `Delivery to ${priced.delivery.zip} (outside the express area) — call the client to schedule the day`
+              ? `Delivery to ${priced.delivery.zip} (outside the express area) — reach the client by their preferred contact method to schedule the day`
               : `Delivery requested ${priced.delivery.dateLabel}`)
     }).catch((err) => console.error("Web order notification push failed:", err.message));
 

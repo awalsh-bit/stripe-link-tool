@@ -82,6 +82,18 @@ The eight cards are in `data/why-wilson.json`. The wording came from the *Why Wi
 - **Call or text.** Wherever the shop gives the phone number for questions, it now also offers a text: "Call 512-894-0907 or Text Us", where "Text Us" opens a text to the same number. It is capitalized and carries a small message icon, so it reads as something to tap (the look is `a.text-us` in `site-header.css`). That covers the product page (questions line, the installation note, the out-of-stock line), and on the shop page the paused notice, the ZIP message, the sizing note, the brand and cart-link notices, and the cart's "price unavailable" line. The landing page's "call or text" line links both.
 - **The cart in the header** stays there on a phone once the page scrolls (it used to fold away with the top bar), and **no link is browser blue**: iPhone no longer links numbers and addresses by itself on the shop pages, and phone numbers are written as real links in the text's own color.
 
+## On a phone: no zoom, and Outlet first
+
+*Changed 11/20. Andrew, on an iPhone Pro Max: "it still is a touch too wide for mobile screens ... I'd really like the outlet link on the far left to be the banner they see and the cart icon shouldn't be half visible".*
+
+- **No zoom.** An iPhone zooms the page in when a text box smaller than 16px gets the cursor (the ZIP box, search, the checkout fields) and leaves it zoomed. The page then reads a touch too wide, with the cart half off the right edge. Every text box on the shop, the landing page and the product pages is now 16px on touch screens, so nothing zooms. The rule is in `site-header.css` (`@media (pointer: coarse)`). Computers keep the smaller boxes.
+- **Outlet first.** The department ribbon on a product page used to scroll itself to that model's department (Laundry, say), which pushed Outlet off the left edge. It now starts at its left end, Outlet first, as the shop does.
+- **Checked** at Pro Max width (430):
+  - Every text box was 16px on the product pages, the shop with its checkout fields, and the landing page.
+  - Each page was exactly as wide as the screen.
+  - The ribbon started at Outlet on a Laundry product page.
+  - The cart icon sat inside the right edge.
+
 ## Swiping the pictures
 
 *Added 11/20. Andrew, passing on Jeff's feedback: "you need to be able to swipe through photos in both shop and pdp pages".*

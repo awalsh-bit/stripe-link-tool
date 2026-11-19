@@ -22,6 +22,12 @@ a { color: inherit; }
 a.text-us { white-space: nowrap; }
 a.text-us svg { width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin: 0 .28em 0 0; color: inherit; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-weight: inherit !important; }
+/* An iPhone zooms the page in when a text box smaller than 16px gets the cursor (the ZIP box, search, the
+   checkout fields) and leaves it zoomed, so the page reads "a touch too wide" with the cart half off the right
+   edge (Andrew 11/20, iPhone Pro Max). On touch screens every box is 16px, so nothing zooms. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), select, textarea { font-size: 16px !important; }
+}
 :root {
   --util-h: 46px;
   --band-h: 118px;

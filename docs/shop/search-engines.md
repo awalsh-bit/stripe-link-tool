@@ -41,6 +41,41 @@ The shop's grid of tiles is still drawn by the script from the catalog. Google r
 
 *Added 11/20.* The Merchant Center and Search Console verification tag (`google-site-verification`, from Merchant Center's "verify your online store") is in the `<head>` of `shop-home.html`, which the shop address's home page serves, and of `shop.html`. Leave it in place, because Google checks it again from time to time. It gives Google no access to anything.
 
+## The Merchant Center product feed
+
+*Added 11/20.* In Merchant Center, Andrew added a product source as a link to a file, `https://shop.wilsonappliance.com/merchant-feed.xml`, which Google fetches every 24 hours (12:00 AM). Agility builds the file fresh on each fetch, from the product pages and the live catalog. Nothing is uploaded and no password is involved.
+
+**What goes in.** One item per product page whose model can be ordered online today:
+
+- **Condition:** new, not open box.
+- **Price:** the price the page shows and the cart charges.
+- **Each item carries:**
+  - its id (the model key, as in `/p/<MODEL>`)
+  - the title, as the page title has it
+  - a description: the page's subtitle, lead and features, all Wilson's own copy
+  - the page link
+  - the first photo, plus up to 10 more
+  - in stock, the price, brand, model number (`mpn`) and condition new
+  - the department and category as the product type
+
+**What stays out:**
+
+- **"Price in cart" models.** The page shows no price.
+- **Below-floor models.** The page shows the advertised floor, and the cart charges less. Their pages no longer carry a schema.org Offer either, for the same reason.
+- **Open box, call for price, out of stock** and pages without a photo.
+
+So the feed, the page and checkout always agree, and the advertised-price rules hold. Today that's the models whose shop price may be advertised. More product pages mean more products in Google.
+
+**While the shop is paused** (a stale ePASS feed), the file answers 503 with Retry-After. Google keeps what it has and tries again, instead of reading an empty list as every product gone.
+
+**No barcodes yet.** No UPC is on file, so items carry brand and model number. Merchant Center may ask for barcodes on some items; they can be added from the spec sheets.
+
+**Set in Merchant Center, not in the feed:**
+
+- **Shipping.** Local delivery by ZIP, with its fees.
+- **Sales tax.** Texas.
+- **Return policy.**
+
 ## What to do next (outside Agility)
 
 - **Google Search Console.** Add `shop.wilsonappliance.com` and submit `https://shop.wilsonappliance.com/sitemap.xml`. Indexing takes days to weeks.
@@ -72,5 +107,9 @@ On the real `server.js` with a local test database, asked both as shop.wilsonapp
   - **`GET /robots.txt`:** sends `SHOP_ROBOTS_TXT` on the shop host. Other hosts fall through to the file on disk.
   - **`GET /sitemap.xml`:** shop host only, built from `listProductPageKeys`. It's on `SHOP_PUBLIC_PATHS`.
   - **`/p/:model`:** passes `live.origin` and sends `noindex` only off the shop host.
-- **`lib/shop-product-page.js`:** `renderProductPage` fills `{{CANONICAL}}`, `{{META_DESC}}` and `{{JSON_LD}}` (with `<` escaped). The Offer follows the same "shown dollar price" rule as `{{GA_ITEM}}`.
+- **`lib/shop-product-page.js`:**
+  - `renderProductPage` fills `{{CANONICAL}}`, `{{META_DESC}}` and `{{JSON_LD}}` (with `<` escaped).
+  - The Offer appears only when `productOfferView(...).exact`, meaning the shown price is the price paid (`mapPublic`).
+  - `productFeedItem(rec, live, { origin })` and `merchantFeedXml(items, { origin })` build the feed (RSS 2.0 with the `g:` namespace).
+- **`server.js`:** `shopPageUnit(catalog, key)` picks the unit for both `/p/:model` and `GET /merchant-feed.xml`. The feed is shop host only, on `SHOP_PUBLIC_PATHS`, and sent with `X-Robots-Tag: noindex` and `no-store`.
 - **`shop.html`:** `PAUSED_NOTE_HTML` is written into `#pausedNote` while `state.paused`, and `#emptyNote` gets its text only when no tiles match.

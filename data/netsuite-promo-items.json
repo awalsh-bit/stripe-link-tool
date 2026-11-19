@@ -1,0 +1,189 @@
+{
+  "_about": "NetSuite discount items, for the promo code form on Online Shop Orders (NetSuite item, optional). Built 11/19 from items/Items10.csv (NetSuite items export, 11/17): every item of type Discount, plus service / other-charge / non-inventory items that read like a discount; vendor rebates and test items left out. If a newer NetSuite items export is uploaded on Written Models, its discount items are listed too.",
+  "source": "items/Items10.csv",
+  "exported": "2026-11-17",
+  "items": [
+    {
+      "name": "Black November Buy More Save More",
+      "item": "Black November Buy More Save More",
+      "type": "Discount",
+      "rate": "",
+      "description": "Black November \"Buy More, Save More\" Promotional Discount"
+    },
+    {
+      "name": "Builder Discount",
+      "item": "Builder Discount",
+      "type": "Discount",
+      "rate": "",
+      "description": "Builder Program Discount"
+    },
+    {
+      "name": "Courtesy Appliance Discount",
+      "item": "Courtesy Appliance",
+      "type": "Discount",
+      "rate": "",
+      "description": "Courtesy Appliance Discount"
+    },
+    {
+      "name": "Courtesy Part Discount",
+      "item": "Courtesy Part",
+      "type": "Discount",
+      "rate": "",
+      "description": "Courtesy Part Discount"
+    },
+    {
+      "name": "Customer Damage Allowance",
+      "item": "Damage Allowance",
+      "type": "Discount",
+      "rate": "",
+      "description": "Customer Damage Allowance"
+    },
+    {
+      "name": "Customer Pickup Promo",
+      "item": "Customer Pickup",
+      "type": "Discount",
+      "rate": "",
+      "description": "Customer Pickup Promotional Discount"
+    },
+    {
+      "name": "Discount Card $100",
+      "item": "Discount Card $100",
+      "type": "Discount",
+      "rate": "-100.00",
+      "description": "$100 Discount Card"
+    },
+    {
+      "name": "Discount Card $50",
+      "item": "Discount Card $50",
+      "type": "Discount",
+      "rate": "-50.00",
+      "description": "$50 Discount Card"
+    },
+    {
+      "name": "Extended Warranty Discount",
+      "item": "Protection Plan Discount",
+      "type": "Discount",
+      "rate": "",
+      "description": "Extended Warranty Discount"
+    },
+    {
+      "name": "HVAC Discount",
+      "item": "HVAC Discount",
+      "type": "Discount",
+      "rate": "",
+      "description": "HVAC Discount"
+    },
+    {
+      "name": "HVAC Save $1,000 18+ SEER",
+      "item": "HVAC $1000 18+ SEER",
+      "type": "Discount",
+      "rate": "-1000.00",
+      "description": "HVAC Save $1,000 18+ SEER Systems"
+    },
+    {
+      "name": "HVAC Save $500 15-17 SEER",
+      "item": "HVAC $500 15-17 SEER",
+      "type": "Discount",
+      "rate": "-500.00",
+      "description": "HVAC Save $500 15-17 SEER Systems"
+    },
+    {
+      "name": "In-Kind Donation - Service",
+      "item": "In-Kind Donation",
+      "type": "Discount",
+      "rate": "",
+      "description": "In-Kind Product Service or Labor"
+    },
+    {
+      "name": "Jenn-Air Curate Save 10%",
+      "item": "Jenn-Air Curate 10%",
+      "type": "Discount",
+      "rate": "-10.00%",
+      "description": "Jenn-Air Retail Curate Discount - Save 10%"
+    },
+    {
+      "name": "Jenn-Air Curate Save 15%",
+      "item": "Jenn-Air Curate 15%",
+      "type": "Discount",
+      "rate": "-15.00%",
+      "description": "Jenn-Air Retail Curate Discount - Save 15%"
+    },
+    {
+      "name": "Jenn-Air Curate Save 5%",
+      "item": "Jenn-Air Curate 5%",
+      "type": "Discount",
+      "rate": "-5.00%",
+      "description": "Jenn-Air Retail Curate Discount - Save 5%"
+    },
+    {
+      "name": "Manager Override",
+      "item": "Manager Override",
+      "type": "Discount",
+      "rate": "",
+      "description": "Manager Override Discount"
+    },
+    {
+      "name": "Model Home Discount",
+      "item": "Model Home Discount",
+      "type": "Discount",
+      "rate": "",
+      "description": "Model Home Discount"
+    },
+    {
+      "name": "Premier Influencer Save 20%",
+      "item": "Premier Influencer",
+      "type": "Discount",
+      "rate": "-20.00%",
+      "description": "Jenn-Air Premier Influencer Discount - Save 20%"
+    },
+    {
+      "name": "Save 10% Same Day Pickup",
+      "item": "Same Day Pickup 10%",
+      "type": "Discount",
+      "rate": "-10.00%",
+      "description": "Warehouse Save 10% Same Day Pickup"
+    },
+    {
+      "name": "Scratch and Save $100",
+      "item": "Mailer $100",
+      "type": "Discount",
+      "rate": "-100.00",
+      "description": "Scratch and Save Mailer - $100"
+    },
+    {
+      "name": "Scratch and Save $50",
+      "item": "Mailer $50",
+      "type": "Discount",
+      "rate": "-50.00",
+      "description": "Scratch and Save Mailer - $50"
+    },
+    {
+      "name": "Scratch and Save $75",
+      "item": "Mailer $75",
+      "type": "Discount",
+      "rate": "-75.00",
+      "description": "Scratch and Save Mailer - $75"
+    },
+    {
+      "name": "Sub-Zero Remodel Program Save 5%",
+      "item": "Sub-Zero Remodel",
+      "type": "Discount",
+      "rate": "-5.00%",
+      "description": "Sub-Zero South Central Remodel Program - Save 5%"
+    },
+    {
+      "name": "Trane Rebate",
+      "item": "Trane Rebate",
+      "type": "Discount",
+      "rate": "",
+      "description": "Trane Rebate"
+    },
+    {
+      "name": "WACA Warranty Labor Discount",
+      "item": "WACA Warranty Labor",
+      "type": "Discount",
+      "rate": "",
+      "description": "WACA Warranty Labor Discount"
+    }
+  ]
+}

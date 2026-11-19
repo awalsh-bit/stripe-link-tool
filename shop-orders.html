@@ -164,6 +164,35 @@
     .promo-bar.full i { background: #b45309; }
     .promo-red { font-size: 12px; color: var(--muted); padding: 4px 8px 10px; }
     .ws-tag.promo { background: #fdf4ff; color: #86198f; }
+    /* ePASS misc code picker (11/19) */
+    .pf-misc { position: relative; }
+    .pf-misc > label { display: grid; gap: 4px; }
+    .pf-misc-results { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid var(--border); border-radius: 10px; max-height: 300px; overflow: auto; box-shadow: 0 10px 28px rgba(15,23,42,0.14); display: none; }
+    .pf-misc-results.show { display: block; }
+    .pf-misc-group { position: sticky; top: 0; background: #f8fafc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; padding: 7px 10px 5px; border-bottom: 1px solid #eef1f6; }
+    .pf-misc-opt { display: flex; gap: 10px; align-items: baseline; padding: 7px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid #eef1f6; }
+    .pf-misc-opt:hover, .pf-misc-opt.on { background: #f1f5f9; }
+    .pf-misc-opt .c { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; white-space: nowrap; }
+    .pf-misc-opt .d { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .pf-misc-opt .x { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .pf-misc-empty { padding: 9px 10px; font-size: 12.5px; color: var(--muted); }
+    .pf-misc-note { font-size: 11.5px; color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .pf-misc-note.warn { color: #b45309; font-weight: 600; }
+    .promo-form .pf-misc input { text-transform: uppercase; }
+    .pf-misc input::placeholder { text-transform: none; letter-spacing: 0; }
+    .promo-table .sub.epass { color: #86198f; }
+    .promo-table .sub.epass b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .promo-table .sub.warn { color: #b45309; font-weight: 600; }
+    .promo-misc-row td { background: #fafafa; padding: 10px 8px 12px; }
+    .promo-misc-edit { display: grid; grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.4fr) auto; gap: 10px 12px; align-items: start; }
+    .promo-misc-edit label { display: grid; gap: 4px; font-size: 11.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+    .promo-misc-edit input { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13px; font-family: inherit; background: #fff; width: 100%; box-sizing: border-box; font-weight: 400; letter-spacing: 0; color: var(--text); }
+    .promo-misc-edit .pf-misc input { text-transform: uppercase; }
+    .promo-misc-edit .btns { display: flex; gap: 8px; align-items: center; padding-top: 20px; }
+    .ws-epass { padding-left: 14px; color: #86198f; font-size: 12px; }
+    .ws-epass b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .ws-epass.missing { color: #b45309; font-weight: 600; }
+    @media (max-width: 760px) { .promo-misc-edit { grid-template-columns: 1fr; } .promo-misc-edit .btns { padding-top: 0; } }
     @media (max-width: 760px) { .promo-table thead { display: none; } .promo-table td { display: block; border: none; padding: 2px 8px; } .promo-table tr { display: block; border-bottom: 1px solid #eef2f7; padding: 8px 0; } .promo-table .num, .promo-table .acts { text-align: left; } }
   </style>
 </head>
@@ -319,11 +348,20 @@
           filed orders — canceling an order gives its redemption back. Leave the limit blank for unlimited; the per-customer limit
           defaults to once per shopper profile. Changes are live immediately.
         </p>
+        <p class="section-note">
+          <b>ePASS misc code.</b> Every code names the ePASS misc code the office keys on the ticket for the discount. The list
+          suggests the discount and promo codes in ePASS's misc list (from the feed); type to search every misc code. The
+          <b>NetSuite item</b> is optional, for when NetSuite takes over. Neither is shown to shoppers. Each order that uses the
+          code shows the misc code and the discount by appliance.
+        </p>
         <form class="promo-form" id="promoForm" autocomplete="off">
           <label>Code<input type="text" id="pfCode" class="code" placeholder="FALL50" maxlength="32" required></label>
           <label class="span2">Shown to shopper as<input type="text" id="pfDesc" placeholder="Fall Laundry Event — $50 off" maxlength="80"></label>
           <label>Type<select id="pfKind"><option value="amount">$ off appliances</option><option value="percent">% off appliances</option><option value="free_delivery">Free delivery</option></select></label>
           <label id="pfValueWrap">Amount<input type="number" id="pfValue" min="0" step="0.01" placeholder="50"></label>
+          <div class="span2 pf-misc" id="pfMiscWrap"><label><span>ePASS misc code <span class="pf-misc-note" id="pfMiscNote" aria-live="polite"></span></span><input type="text" id="pfMisc" maxlength="30" placeholder="Search: discount, influencer, remodel…" required autocomplete="off" role="combobox" aria-expanded="false" aria-controls="pfMiscResults"></label><div class="pf-misc-results" id="pfMiscResults" role="listbox"></div></div>
+          <label class="span2">NetSuite item (optional)<input type="text" id="pfNs" maxlength="100" list="pfNsList" placeholder="Pick or type the NetSuite discount item"></label>
+          <datalist id="pfNsList"></datalist>
           <label>Min. appliance subtotal<input type="number" id="pfMin" min="0" step="0.01" placeholder="0"></label>
           <label>Redemption limit<input type="number" id="pfMax" min="1" step="1" placeholder="unlimited"></label>
           <label>Per customer<input type="number" id="pfPer" min="0" step="1" value="1" placeholder="1"></label>
@@ -547,6 +585,18 @@
         for (const order of orders) list.appendChild(renderOrder(order));
       }
 
+      // What the office keys in ePASS for the promo (11/19): the misc code, the
+      // amount (and percent), and the split by appliance ePASS's Invoice
+      // Discount should come to.
+      function promoEpassLine(order) {
+        const p = order.totals?.promo || {};
+        if (!p.epassMiscCode) return `<div class="ws-epass missing">No ePASS misc code on ${esc(p.code || "this promo")} yet. Set it under Promo codes, then key the discount by hand.</div>`;
+        const lines = Array.isArray(p.lines) ? p.lines : [];
+        const how = p.kind === "percent" ? `${Number(p.value)}% off the appliances = −${money(order.totals.discount)}` : p.kind === "free_delivery" ? `−${money(order.totals.discount)} against delivery` : `−${money(order.totals.discount)} off the appliances`;
+        const split = lines.length > 1 && lines.every((l) => l.against === "item") ? ` · by line: ${lines.map((l) => `${esc(l.model)} −${money(l.amount)}`).join(", ")}` : lines.length === 1 && lines[0].against === "item" ? ` on ${esc(lines[0].model)}` : "";
+        return `<div class="ws-epass">ePASS misc <b>${esc(p.epassMiscCode)}</b>${p.epassMiscDesc ? ` (${esc(p.epassMiscDesc)})` : ""}: ${how}${split}${p.netsuiteItem ? ` · NetSuite: ${esc(p.netsuiteItem)}` : ""}${p.fromCode ? ` · <i>set on the code after this order</i>` : ""}</div>`;
+      }
+
       function renderOrder(order) {
         const c = order.customer || {};
         const addr = c.address || {};
@@ -569,7 +619,7 @@
             : order.delivery?.manualSchedule
               ? `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)} · <strong style="color:#92400e;">SCHEDULE BY HAND</strong> — ZIP ${esc(order.delivery?.zip || addr.zip || "")} is outside the express area, so no day was picked. Call the client to set the delivery day.</div>`
               : `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}${order.delivery?.date ? ` · <strong>Requested day: ${esc(order.delivery.dateLabel || order.delivery.date)}</strong> — call with the 4-hour window 2 business days prior` : ""}</div>`,
-          ...(order.totals?.discount ? [`<div style="color:#86198f; font-weight:600;">Promo ${esc(order.totals.promo?.code || "")}${order.totals.promo?.description ? ` (${esc(order.totals.promo.description)})` : ""} — −${money(order.totals.discount)}</div>`] : []),
+          ...(order.totals?.discount ? [`<div style="color:#86198f; font-weight:600;">Promo ${esc(order.totals.promo?.code || "")}${order.totals.promo?.description ? ` (${esc(order.totals.promo.description)})` : ""} — −${money(order.totals.discount)}</div>`, promoEpassLine(order)] : []),
           ...(order.totals?.tax != null ? [`<div>Sales tax — ${money(order.totals.tax)}</div>`] : []),
           `<div class="ws-total">Estimated total — ${money(order.totals?.total)}</div>`
         ].join("");
@@ -959,26 +1009,100 @@
             const pct = p.maxRedemptions ? Math.min(100, Math.round(100 * p.used / p.maxRedemptions)) : 0;
             const rules = [p.minSubtotal ? `min ${moneyP(p.minSubtotal)} appliances` : "", p.perShopper ? `${p.perShopper}× per customer` : "unlimited per customer"].filter(Boolean).join(" · ");
             const win = p.startsAt || p.endsAt ? `${p.startsAt ? dateP(p.startsAt) : "now"} → ${p.endsAt ? dateP(p.endsAt) : "no end"}` : "always";
+            const misc = p.epassMiscCode
+              ? `<span class="sub epass">ePASS <b>${escP(p.epassMiscCode)}</b>${p.epassMiscDesc ? ` · ${escP(p.epassMiscDesc)}` : ""}</span>`
+              : `<span class="sub warn">No ePASS misc code</span>`;
             return `<tr class="${cls === "off" ? "off" : ""}" data-promo="${escP(p.id)}">
               <td><span class="code">${escP(p.code)}</span>${p.description ? `<span class="sub">${escP(p.description)}</span>` : ""}${p.notes ? `<span class="sub" title="internal note">✎ ${escP(p.notes)}</span>` : ""}</td>
-              <td>${escP(whatP(p))}</td>
+              <td>${escP(whatP(p))}${misc}${p.netsuiteItem ? `<span class="sub">NetSuite: ${escP(p.netsuiteItem)}</span>` : ""}</td>
               <td>${escP(rules)}</td>
               <td>${escP(win)}</td>
               <td class="num">${p.used}${p.maxRedemptions != null ? ` / ${p.maxRedemptions}` : ""}${p.maxRedemptions ? `<div class="promo-bar${pct >= 100 ? " full" : ""}"><i style="width:${pct}%"></i></div>` : ""}</td>
               <td><span class="ws-pill ${cls === "live" ? "completed" : cls === "sched" ? "new" : "canceled"}" style="border-width:1px;">${label}</span></td>
               <td class="acts">
                 ${p.used ? `<button type="button" class="ws-btn" data-promo-red="${escP(p.id)}" title="Which orders used it">Orders</button>` : ""}
+                <button type="button" class="ws-btn${p.epassMiscCode ? "" : " primary"}" data-promo-misc="${escP(p.id)}" title="The ePASS misc code and NetSuite item">${p.epassMiscCode ? "ePASS code" : "Set ePASS code"}</button>
                 <button type="button" class="ws-btn" data-promo-toggle="${escP(p.id)}" data-active="${p.active ? 1 : 0}">${p.active ? "Pause" : "Resume"}</button>
                 <button type="button" class="ws-btn" data-promo-limit="${escP(p.id)}" title="Change the redemption limit">Limit</button>
                 ${p.used ? "" : `<button type="button" class="ws-btn danger" data-promo-rm="${escP(p.id)}">Delete</button>`}
               </td></tr>`;
           }).join("")}</tbody></table>`;
         }
+        let promoRows = [];
         async function loadPromos() {
-          try { const out = await api("/api/shop/promo-codes"); if (out.kinds) promoKinds = out.kinds; renderPromos(out.promos || []); }
+          try { const out = await api("/api/shop/promo-codes"); if (out.kinds) promoKinds = out.kinds; promoRows = out.promos || []; renderPromos(promoRows); }
           catch (err) { document.getElementById("promoList").textContent = err.message; }
         }
-        document.getElementById("promoCard").addEventListener("toggle", (e) => { if (e.target.open && !promoLoaded) { promoLoaded = true; loadPromos(); } });
+
+        // ePASS misc codes for the picker: discount / promo ones suggested,
+        // every current code searchable. NetSuite discount items for the datalist.
+        let promoChoices = { misc: [], netsuite: [], loaded: false };
+        async function loadPromoChoices() {
+          try {
+            const out = await api("/api/shop/promo-codes/choices");
+            promoChoices = { misc: out.misc || [], netsuite: out.netsuite || [], pulledAt: out.pulledAt || "", loaded: true };
+          } catch (err) { promoChoices = { misc: [], netsuite: [], loaded: false, error: err.message }; }
+          document.getElementById("pfNsList").innerHTML = promoChoices.netsuite.map((n) => `<option value="${escP(n.name)}">${escP([n.rate && Number.parseFloat(n.rate) !== 0 ? n.rate : "", n.item ? `item ${n.item}` : "", n.description && n.description !== n.name ? n.description : ""].filter(Boolean).join(" · ") || n.type)}</option>`).join("");
+          document.getElementById("pfNs").placeholder = promoChoices.netsuite.length ? `Pick or type: ${promoChoices.netsuite.length} NetSuite discount items` : "Type the NetSuite item name";
+          pfPicker.describe();
+        }
+        const miscMoney = (m) => m.pctOfLine ? "% of line" : m.list != null && Number(m.list) !== 0 ? (Number(m.list) < 0 ? "−" : "") + moneyP(Math.abs(Number(m.list))) : "";
+        const miscFind = (code) => { const c = String(code || "").toUpperCase().replace(/\s+/g, " ").trim(); return promoChoices.misc.find((m) => String(m.code).toUpperCase().replace(/\s+/g, " ").trim() === c) || null; };
+        function miscPicker(input, box, note) {
+          let hits = [], on = -1;
+          const optHtml = (m, i) => `<div class="pf-misc-opt${i === on ? " on" : ""}" role="option" data-misc-pick="${escP(m.code)}"><span class="c">${escP(m.code)}</span><span class="d">${escP(m.description || "")}</span><span class="x">${escP([m.typeName, miscMoney(m)].filter(Boolean).join(" · "))}</span></div>`;
+          function render() {
+            const typed = input.value.trim().toUpperCase();
+            const q = miscFind(typed) && !box.dataset.typing ? "" : typed; // a picked code: show every suggestion to switch
+            delete box.dataset.typing;
+            const all = promoChoices.misc;
+            if (!all.length) {
+              hits = [];
+              box.innerHTML = `<div class="pf-misc-empty">${promoChoices.loaded ? "The ePASS misc list hasn't come through the feed yet. Type the code exactly as ePASS has it." : escP(promoChoices.error || "Loading the ePASS misc list…")}</div>`;
+            } else {
+              const match = (m) => !q || `${m.code} ${m.description} ${m.typeName}`.toUpperCase().includes(q);
+              const disc = all.filter((m) => m.group === "discount" && match(m));
+              const promo = all.filter((m) => m.group === "promo" && match(m));
+              const other = q ? all.filter((m) => !m.group && match(m)).slice(0, 60) : [];
+              hits = [...disc, ...promo, ...other];
+              let i = 0; const sect = (title, list) => list.length ? `<div class="pf-misc-group">${title} (${list.length})</div>` + list.map((m) => optHtml(m, i++)).join("") : "";
+              box.innerHTML = sect("Discounts &amp; credits", disc) + sect("Promo packages", promo) + sect("Other ePASS misc codes", other)
+                || `<div class="pf-misc-empty">No ePASS misc code matches “${escP(input.value.trim())}”.</div>`;
+            }
+            box.classList.add("show"); input.setAttribute("aria-expanded", "true");
+          }
+          function close() { box.classList.remove("show"); input.setAttribute("aria-expanded", "false"); on = -1; }
+          function describe() {
+            const v = input.value.trim();
+            const m = v ? miscFind(v) : null;
+            note.className = "pf-misc-note";
+            if (!v) { note.textContent = ""; return; }
+            if (m) { note.textContent = "— " + [m.description, m.typeName, miscMoney(m) ? `list ${miscMoney(m)}` : ""].filter(Boolean).join(" · "); return; }
+            if (promoChoices.misc.length) { note.className = "pf-misc-note warn"; note.textContent = "— isn't in the ePASS misc list"; }
+            else note.textContent = "";
+          }
+          function pick(code) { input.value = code; close(); describe(); }
+          input.addEventListener("focus", render);
+          input.addEventListener("input", () => { on = -1; box.dataset.typing = "1"; render(); describe(); });
+          input.addEventListener("blur", () => setTimeout(() => { close(); describe(); }, 150));
+          input.addEventListener("keydown", (e) => {
+            if (!box.classList.contains("show")) { if (e.key === "ArrowDown") { render(); e.preventDefault(); } return; }
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault(); if (!hits.length) return;
+              on = e.key === "ArrowDown" ? Math.min(hits.length - 1, on + 1) : Math.max(0, on - 1);
+              box.querySelectorAll(".pf-misc-opt").forEach((el, i) => el.classList.toggle("on", i === on));
+              box.querySelectorAll(".pf-misc-opt")[on]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "Enter") {
+              if (on >= 0 && hits[on]) { e.preventDefault(); pick(hits[on].code); }
+              else if (hits.length === 1) { e.preventDefault(); pick(hits[0].code); }
+              else close();
+            } else if (e.key === "Escape") close();
+          });
+          box.addEventListener("mousedown", (e) => { const o = e.target.closest("[data-misc-pick]"); e.preventDefault(); if (o) pick(o.dataset.miscPick); });
+          return { describe, close };
+        }
+        const pfPicker = miscPicker(document.getElementById("pfMisc"), document.getElementById("pfMiscResults"), document.getElementById("pfMiscNote"));
+        document.getElementById("promoCard").addEventListener("toggle", (e) => { if (e.target.open && !promoLoaded) { promoLoaded = true; loadPromos(); loadPromoChoices(); } });
         document.getElementById("pfKind").addEventListener("change", () => {
           const k = document.getElementById("pfKind").value;
           document.getElementById("pfValueWrap").style.display = k === "free_delivery" ? "none" : "";
@@ -995,14 +1119,17 @@
           const body = {
             code: g("pfCode"), description: g("pfDesc"), kind: g("pfKind"), value: g("pfKind") === "free_delivery" ? 0 : g("pfValue"),
             minSubtotal: g("pfMin") || 0, maxRedemptions: g("pfMax") || null, perShopper: g("pfPer") === "" ? 1 : g("pfPer"),
-            startsAt: g("pfStart") ? new Date(g("pfStart") + "T00:00:00").toISOString() : "", endsAt: g("pfEnd") ? new Date(g("pfEnd") + "T23:59:59").toISOString() : "", notes: g("pfNotes")
+            startsAt: g("pfStart") ? new Date(g("pfStart") + "T00:00:00").toISOString() : "", endsAt: g("pfEnd") ? new Date(g("pfEnd") + "T23:59:59").toISOString() : "", notes: g("pfNotes"),
+            epassMiscCode: g("pfMisc"), netsuiteItem: g("pfNs")
           };
+          if (!body.epassMiscCode) { status.textContent = "Pick the ePASS misc code the office keys for this discount."; document.getElementById("pfMisc").focus(); return; }
           btn.disabled = true; status.textContent = "Saving…";
           try {
             const out = await api("/api/shop/promo-codes", { method: "POST", body: JSON.stringify(body) });
             status.textContent = `${out.promo.code} added.`;
-            ["pfCode", "pfDesc", "pfValue", "pfMin", "pfMax", "pfStart", "pfEnd", "pfNotes"].forEach((id) => { document.getElementById(id).value = ""; });
+            ["pfCode", "pfDesc", "pfValue", "pfMin", "pfMax", "pfStart", "pfEnd", "pfNotes", "pfMisc", "pfNs"].forEach((id) => { document.getElementById(id).value = ""; });
             document.getElementById("pfPer").value = "1";
+            pfPicker.describe();
             await loadPromos();
           } catch (err) { status.textContent = err.message; }
           finally { btn.disabled = false; }
@@ -1022,6 +1149,36 @@
               const code = t.closest("tr").querySelector(".code").textContent;
               if (!confirm(`Delete ${code}? It has never been used.`)) return;
               await api(`/api/shop/promo-codes/${t.dataset.promoRm}`, { method: "DELETE" });
+            } else if (t.dataset.promoMisc) {
+              const row = t.closest("tr");
+              const next = row.nextElementSibling;
+              if (next && next.classList.contains("promo-misc-row")) { next.remove(); return; }
+              document.querySelectorAll(".promo-misc-row").forEach((r) => r.remove());
+              const p = promoRows.find((x) => x.id === t.dataset.promoMisc) || {};
+              const tr = document.createElement("tr"); tr.className = "promo-misc-row";
+              tr.innerHTML = `<td colspan="7"><div class="promo-misc-edit">
+                  <div class="pf-misc"><label><span>ePASS misc code for ${escP(p.code || "")} <span class="pf-misc-note" aria-live="polite"></span></span><input type="text" data-f="misc" maxlength="30" value="${escP(p.epassMiscCode || "")}" placeholder="Search: discount, influencer, remodel…" autocomplete="off" role="combobox" aria-expanded="false"></label><div class="pf-misc-results" role="listbox"></div></div>
+                  <label>NetSuite item (optional)<input type="text" data-f="ns" maxlength="100" list="pfNsList" value="${escP(p.netsuiteItem || "")}" placeholder="Pick or type the NetSuite item"></label>
+                  <div class="btns"><button type="button" class="ws-btn primary" data-misc-save="${escP(p.id || "")}">Save</button><button type="button" class="ws-btn" data-misc-cancel="1">Cancel</button></div>
+                </div>${p.used ? `<div style="margin-top:6px; font-size:11.5px; color:var(--muted);">Orders already filed keep the misc code they were filed with.</div>` : ""}</td>`;
+              row.after(tr);
+              const inp = tr.querySelector('[data-f="misc"]');
+              const pk = miscPicker(inp, tr.querySelector(".pf-misc-results"), tr.querySelector(".pf-misc label .pf-misc-note"));
+              pk.describe();
+              return;
+            } else if (t.dataset.miscCancel) {
+              t.closest("tr").remove(); return;
+            } else if (t.dataset.miscSave) {
+              const tr = t.closest("tr");
+              const misc = tr.querySelector('[data-f="misc"]').value.trim();
+              if (!misc) { status.textContent = "Pick the ePASS misc code the office keys for this discount."; return; }
+              t.disabled = true;
+              try {
+                const out = await api(`/api/shop/promo-codes/${t.dataset.miscSave}`, { method: "PATCH", body: JSON.stringify({ epassMiscCode: misc, netsuiteItem: tr.querySelector('[data-f="ns"]').value.trim() }) });
+                status.textContent = `${out.promo.code}: ePASS ${out.promo.epassMiscCode} saved.`;
+              } finally { t.disabled = false; }
+              await loadPromos();
+              return;
             } else if (t.dataset.promoRed) {
               const row = t.closest("tr");
               const next = row.nextElementSibling;

@@ -230,7 +230,9 @@ import {
   promoDiscount,
   recordShopPromoRedemption,
   releaseShopPromoRedemptions,
-  listShopPromoRedemptions
+  listShopPromoRedemptions,
+  normalizeMiscCode,
+  promoOrderRecord
 } from "./lib/shop-promos-postgres.js";
 import {
   normalizeCreditAppToken,
@@ -12177,7 +12179,9 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
       items: priced.items,
       addons: priced.addons,
       delivery: priced.delivery,
-      totals: priced.totals,
+      // The ePASS misc code / NetSuite item / per-line split ride on the
+      // stored order only; the shopper's response below gets priced.totals.
+      totals: priced.promo ? { ...priced.totals, promo: { ...priced.totals.promo, ...promoOrderRecord(promoRes.promo, { items: priced.items, discount: priced.promo.discount, deliveryPrice: priced.delivery?.price }) } } : priced.totals,
       lockConflicts: [],
       stripeCustomerId: String(setupIntent.customer || ""),
       setupIntentId,
@@ -12225,7 +12229,7 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
         orderNumber: order.orderNumber,
         items: priced.items.length,
         total: priced.totals.total,
-        ...(priced.promo ? { promo: priced.promo.code, discount: priced.promo.discount } : {}),
+        ...(priced.promo ? { promo: priced.promo.code, discount: priced.promo.discount, epassMiscCode: promoRes.promo?.epassMiscCode || "" } : {}),
         fulfillment: priced.totals.fulfillment,
         deliveryDate: priced.totals.deliveryDate,
         ...(priced.delivery.manualSchedule ? { scheduleByHand: true, zip: priced.delivery.zip } : {}),
@@ -12283,6 +12287,16 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
       getShopInventorySnapshot().catch(() => null),
       getShopMapPrices().catch(() => null)
     ]);
+    // A promo order filed before its code carried an ePASS misc code (11/19)
+    // shows the code's misc code as it is now, marked "fromCode".
+    if (orders.some((o) => o.totals?.promo?.code && !o.totals.promo.epassMiscCode)) {
+      const byCode = new Map((await listShopPromoCodes().catch(() => [])).map((p) => [p.code, p]));
+      for (const o of orders) {
+        const pr = o.totals?.promo;
+        const now = pr?.code && !pr.epassMiscCode ? byCode.get(pr.code) : null;
+        if (now?.epassMiscCode) o.totals.promo = { ...pr, ...promoOrderRecord(now, { items: o.items, discount: o.totals.discount, deliveryPrice: o.delivery?.price }), fromCode: true };
+      }
+    }
     const snapshotAgeHours = snapshot?.uploadedAt
       ? (Date.now() - Date.parse(snapshot.uploadedAt)) / 3600000
       : null;
@@ -12390,6 +12404,78 @@ app.post("/api/shop/express-settings", requirePagePermission("/shop-orders.html"
 });
 
 // ---- Promo codes (Online Shop Orders → Promo codes) ----
+// Which ePASS misc codes read like a discount or a promo (Andrew 11/19: "grab
+// anything that looks like a discount or promo"). ePASS's own Line Discount /
+// Rebate flags or a negative list price count first; otherwise the code, the
+// description and the misc type are read for the usual words. "Promo" is the
+// priced promo packages (DW-BSH-PROMO: deliver, install, recycle). Anything
+// else in the master can still be typed; it just isn't suggested.
+const PROMO_MISC_DISCOUNT_RE = /discount|\bdisc\b|% ?off|\$?\d[\d,]* ?off\b|\bsave\b|savings|rebate|credit|coupon|influenc|remodel|mailer|scratch|courtesy|allowance|price ?adj|markdown|override|model home|price ?match|employee|loyalty|reward/i;
+const PROMO_MISC_PROMO_RE = /promo|program|bundle|black ?(friday|november)|holiday|instant/i;
+function promoMiscGroup(m) {
+  const text = `${m.code} ${m.description} ${m.typeName}`;
+  if (m.lineDiscount || m.rebate || (m.list != null && m.list < 0) || PROMO_MISC_DISCOUNT_RE.test(text)) return "discount";
+  if (PROMO_MISC_PROMO_RE.test(text)) return "promo";
+  return "";
+}
+// NetSuite's side: Discount items, plus service / other-charge items that
+// read like one (not vendor or volume rebates, not test items). Two sources,
+// merged by name: data/netsuite-promo-items.json (built 11/19 from the 11/17
+// NetSuite items export in items/Items10.csv) and the netsuite_items table
+// (the export uploaded on Written Models), so a newer upload adds to the list.
+const PROMO_NS_RE = /discount|promo|\bsave\b|savings|% ?off|coupon|mailer|influenc|remodel|courtesy|credit|rebate|override|model home/i;
+const PROMO_NS_SKIP_RE = /vendor|volume rebate|^(test|tesr)\b/i;
+async function listPromoNetsuiteItems() {
+  const out = [], seen = new Set();
+  const add = (name, item, type, rate, description) => {
+    name = String(name || item || "").trim(); item = String(item || "").trim();
+    const text = `${name} ${item} ${description || ""}`;
+    if (!name || seen.has(name.toUpperCase()) || PROMO_NS_SKIP_RE.test(name) || PROMO_NS_SKIP_RE.test(text)) return;
+    if (!/^discount$/i.test(type || "") && !PROMO_NS_RE.test(text)) return;
+    seen.add(name.toUpperCase());
+    out.push({ name, item: item && item !== name ? item : "", type: String(type || ""), rate: String(rate ?? ""), description: String(description || "") });
+  };
+  try {
+    const file = JSON.parse(await fs.promises.readFile(path.join(__dirname, "data", "netsuite-promo-items.json"), "utf8"));
+    for (const i of file.items || []) add(i.name, i.item, i.type, i.rate, i.description);
+  } catch (err) { if (err.code !== "ENOENT") console.error("netsuite-promo-items.json unreadable:", err.message); }
+  const pool = await getPostgresPool();
+  if (pool) {
+    const rows = (await pool.query(`SELECT model_number, display_name, item_type, base_price, short_description FROM netsuite_items WHERE item_type ILIKE 'discount' OR item_type ~* '^(service|other charge|non-inventory item)$' ORDER BY display_name, model_number`).catch(() => ({ rows: [] }))).rows;
+    for (const r of rows) add(r.display_name, r.model_number, r.item_type, r.base_price == null ? "" : String(r.base_price), r.short_description);
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+// Check the misc code a create/edit sends against the ePASS Misc master and
+// copy its description from there (never from the page). With no master
+// loaded (feed not in yet) the code is taken as typed.
+async function checkPromoMiscFields(body) {
+  const b = { ...(body || {}) };
+  delete b.epassMiscDesc;
+  if (b.epassMiscCode === undefined) return b;
+  const code = normalizeMiscCode(b.epassMiscCode);
+  b.epassMiscCode = code;
+  if (!code) return b;
+  const master = await listEpassMiscCharges().catch(() => []);
+  if (!master.length) return b;
+  const hit = master.find((m) => normalizeMiscCode(m.code) === code);
+  if (!hit) throw new Error(`${code} isn't in the ePASS misc list. If it was just added in ePASS, it shows up after the next feed (every 15 minutes).`);
+  if (hit.obsolete) throw new Error(`${code} is marked obsolete in ePASS. Pick a current misc code.`);
+  b.epassMiscCode = hit.code;
+  b.epassMiscDesc = hit.description || "";
+  return b;
+}
+app.get("/api/shop/promo-codes/choices", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const [master, meta, netsuite] = await Promise.all([listEpassMiscCharges().catch(() => []), getEpassOpenOrdersMeta().catch(() => null), listPromoNetsuiteItems()]);
+    const misc = master.filter((m) => !m.obsolete).map((m) => ({ code: m.code, description: m.description, list: m.list, typeName: m.typeName || m.type || "", pctOfLine: m.pctOfLine, lineDiscount: m.lineDiscount, rebate: m.rebate, group: promoMiscGroup(m) }));
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ misc, suggested: misc.filter((m) => m.group).length, netsuite, pulledAt: meta?.meta?.pulled_at || "" });
+  } catch (err) {
+    console.error("Promo choices failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the ePASS misc codes." });
+  }
+});
 app.get("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     return res.json({ promos: await listShopPromoCodes(), kinds: PROMO_KIND_LABELS });
@@ -12408,9 +12494,9 @@ app.get("/api/shop/promo-codes/:id/redemptions", requirePagePermission("/shop-or
 });
 app.post("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
-    const promo = await createShopPromoCode(req.body || {}, req.authUser?.email || "");
+    const promo = await createShopPromoCode(await checkPromoMiscFields(req.body), req.authUser?.email || "");
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_created", targetUserId: null,
-      detail: { code: promo.code, kind: promo.kind, value: promo.value, maxRedemptions: promo.maxRedemptions, perShopper: promo.perShopper, minSubtotal: promo.minSubtotal, startsAt: promo.startsAt, endsAt: promo.endsAt } }).catch(() => {});
+      detail: { code: promo.code, kind: promo.kind, value: promo.value, maxRedemptions: promo.maxRedemptions, perShopper: promo.perShopper, minSubtotal: promo.minSubtotal, startsAt: promo.startsAt, endsAt: promo.endsAt, epassMiscCode: promo.epassMiscCode, netsuiteItem: promo.netsuiteItem } }).catch(() => {});
     return res.json({ ok: true, promo });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to create the promo code." });
@@ -12419,9 +12505,9 @@ app.post("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), as
 app.patch("/api/shop/promo-codes/:id", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad id." });
-    const promo = await updateShopPromoCode(req.params.id, req.body || {}, req.authUser?.email || "");
+    const promo = await updateShopPromoCode(req.params.id, await checkPromoMiscFields(req.body), req.authUser?.email || "");
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_updated", targetUserId: null,
-      detail: { code: promo.code, changes: Object.keys(req.body || {}) } }).catch(() => {});
+      detail: { code: promo.code, changes: Object.keys(req.body || {}).filter((k) => k !== "epassMiscDesc"), ...(req.body?.epassMiscCode !== undefined ? { epassMiscCode: promo.epassMiscCode } : {}), ...(req.body?.netsuiteItem !== undefined ? { netsuiteItem: promo.netsuiteItem } : {}) } }).catch(() => {});
     return res.json({ ok: true, promo });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to update the promo code." });

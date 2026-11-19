@@ -593,9 +593,9 @@
                 <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span>${brandChips(r.brands)}</td>
                 ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
                 <td class="qf-amt">${money(r.total)}</td>
-                <td class="qf-qnum">${r.how === "flagged" ? "<span class='qf-cust'>—</span>" : esc(r.orderNumber)}${r.how === "auto" && r.orderDate ? `<span class="qf-cust"> · ${day(r.orderDate)}</span>` : ""}</td>
+                <td class="qf-qnum">${r.how === "flagged" ? "<span class='qf-cust'>—</span>" : esc(r.orderNumber)}${r.how === "auto" && r.orderDate ? `<span class="qf-cust"> · ${r.orderOpen ? "written " : ""}${day(r.orderDate)}</span>` : ""}</td>
                 <td>${r.how === "auto"
-                  ? `<span class="qf-how auto">AUTO-MATCHED</span>`
+                  ? `<span class="qf-how auto">AUTO-MATCHED</span>${r.orderOpen ? `<span class="qf-cust" title="Matched on a sales order still open in ePASS (not delivered yet)."> · open order</span>` : ""}`
                   : r.how === "flagged"
                     ? `<span class="qf-how manual">PURCHASED — NO FOLLOW-UP${r.by ? " · " + esc(r.by).toUpperCase() : ""}</span>`
                     : `<span class="qf-how manual">ENTERED${r.by ? " · " + esc(r.by).toUpperCase() : ""}</span>`}</td>

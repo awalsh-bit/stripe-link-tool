@@ -4,7 +4,11 @@
 
 ## Where
 
-Express Assortment Catalog (`shop-catalog.html`) → **Outlet units** tab. One card per open-box / floor-model / unique-priced serial that is on the store, with its current picture, serial, unit price and whether the price shows on the card. **Take photo** opens the phone camera (`<input type="file" accept="image/*" capture="environment">`); the page shrinks the picture to 1600 px JPEG in the browser (a 6 MB phone shot becomes ~100–300 KB) and posts it. **Retake** replaces it, **Remove photo** goes back to the catalog render. Filter: needs a photo / has a photo / open box / floor models. **Model pictures…** on a card sets pictures for the whole model instead (see `model-photos.md`); a unit's own photo still leads on that unit's card, with the model's pictures after it.
+Express Assortment Catalog (`shop-catalog.html`) → **Outlet units** tab. One card per open-box / floor-model / unique-priced serial that is on the store, with its current picture, serial, unit price and whether the price shows on the card. Filter: needs a photo / has a photo / open box / floor models.
+
+**Take photos (changed 11/20).** Andrew: "The take photo button here is out of date, it should just prompt the model photos button for up to 12." The card's **Take photos** button now opens the model's pictures (the same panel as **Model pictures…**) and, in the same tap, its *Add actual photos* picker. On a phone that offers the camera or the photo library, several pictures at once. They are saved as **actual photos of the model**, up to 12 a model (see `model-photos.md`). They show on every shop card of that model, new units included, so photograph what any of them would show. A model already at 12 opens its pictures with a note to remove one first.
+
+The old button took one photo of the one serial (`<input capture="environment">`, below). It is gone. A unit that still has such a photo keeps it first on its own card, with the model's pictures after it, until **Remove unit photo** on that card. The routes and table below still serve and remove those photos; nothing on the page creates new ones.
 
 ## What the shop does with it
 

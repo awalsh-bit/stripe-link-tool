@@ -281,6 +281,7 @@ import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
 import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/tax-report-postgres.js";
 import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRows, listSupplierTerms, saveSupplierTerms, deleteSupplierTerms } from "./lib/epass-finance-postgres.js";
+import { ingestCustomerBundle, customerMasterMeta, listCustomerMaster, exportCustomerMaster, customerMasterCsv, addCustomersToEvent, cleanFilters as cleanCustomerMasterFilters, ADD_TO_EVENT_MAX } from "./lib/customer-master-postgres.js";
 import { computeCashProjection } from "./lib/cash-projection.js";
 import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
@@ -913,6 +914,7 @@ const PUBLIC_AUTH_PATHS = new Set([
 
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
+  "/customer-master.html",
   "/salesdashboard.html",
   "/secret-menu.html",
   "/promo-builder.html",
@@ -1206,6 +1208,7 @@ const PAGE_LABELS = {
   "/secret-menu.html": "Secret Menu",
   "/promo-builder.html": "Promo Item Builder",
   "/event-rsvps.html": "Events & RSVPs",
+  "/customer-master.html": "Customer Master",
   "/spec-packages.html": "Spec Packages",
   "/commissions.html": "Sales Commissions",
   "/user-admin.html": "User Admin",
@@ -1442,6 +1445,7 @@ const PAGE_CATEGORIES = [
       "/secret-menu.html",
       "/spec-packages.html",
       "/event-rsvps.html",
+      "/customer-master.html",
       "/dashboard.html",
       "/index.html",
       "/terminal.html",
@@ -9482,20 +9486,51 @@ async function buildShopHomeStats(catalog) {
     if (i.condition !== "new") continue;
     const k = normalizeModelKey(i.model); if (!k) continue;
     if (i.gridHidden) { offGrid.add(String(i.model || "").trim()); continue; }
-    const m = models.get(k) || { model: i.model, brand: i.brand, description: i.description, category: i.category, image: i.image || "", units: 0, price: null, sold: rank.byModel[k] || 0 };
+    const m = models.get(k) || { model: i.model, brand: i.brand, description: i.description, category: i.category, image: i.image || "", units: 0, price: null, prices: new Set(), unit: null, onDisplay: false, sold: rank.byModel[k] || 0 };
     m.units += 1;
-    if (i.mapPublic && !catalog.paused && Number.isFinite(i.price)) m.price = m.price == null ? i.price : Math.min(m.price, i.price);
+    if (i.onDisplay) m.onDisplay = true;
+    if (i.mapPublic && !catalog.paused && Number.isFinite(i.price)) {
+      m.prices.add(i.price);
+      if (m.price == null || i.price < m.price) { m.price = i.price; m.unit = i; } // the tile is drawn from the unit at the price it shows
+    }
     models.set(k, m);
   }
   const byCategory = {};
   for (const m of models.values()) byCategory[m.category] = (byCategory[m.category] || 0) + 1;
-  const featured = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4)
-    .map((m) => ({ model: m.model, brand: m.brand, description: m.description, image: m.image, price: m.price, units: m.units }));
+  // The four best sellers are drawn on the landing page as the shop's own
+  // tiles (Andrew 11/20: "copy the shop tiles here with the detail expansion
+  // logic and link to the PDP"), so each carries what a shop tile shows: its
+  // pictures, the badge, the product page, and the Details panel's features,
+  // specs and sell sheets. Only a price that may be advertised is sent, as
+  // before; `priceFrom` says some units of the model are priced higher.
+  const top = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4);
+  const { productDetails = {}, specSheets = { byModel: {} }, onDisplay: onDisplayCfg } = top.length ? await loadShopData().catch(() => ({})) : {};
+  const pageKeys = new Set(top.length ? await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => []) : []);
+  const catLabel = (key) => (catalog.categories || []).find((c) => c.key === key)?.label || key || "";
+  const featured = top.map((m) => {
+    const k = normalizeModelKey(m.model), u = m.unit || {}, d = productDetails[k];
+    const { was } = shopWirePrice(u, { paused: catalog.paused });
+    return {
+      model: m.model, brand: m.brand, description: m.description, image: u.image || m.image, price: m.price, units: m.units,
+      ...(m.prices.size > 1 ? { priceFrom: true } : {}),
+      ...(was ? { was } : {}),
+      category: m.category, categoryLabel: catLabel(m.category),
+      condition: "new", serialType: u.serialType || "", source: u.source || "clearance", stockLevel: u.stockLevel || null, hideStockBadge: !!u.hideStockBadge,
+      photoActual: !!u.photoActual,
+      ...(Array.isArray(u.images) && u.images.length > 1 ? { images: u.images } : {}),
+      badge: u.badge || "", badgeStyle: u.badgeStyle || "red",
+      ...(m.onDisplay ? { onDisplay: true } : {}),
+      page: pageKeys.has(k) ? "/p/" + k : "",
+      details: d && (d.description || (d.features || []).length) ? { headline: d.headline || "", description: d.description || "", features: (d.features || []).slice(0, 3) } : null,
+      specs: shopSpecsFor(u),
+      sheets: specSheets.byModel?.[k] || []
+    };
+  });
   const units = [...models.values()].reduce((n, m) => n + m.units, 0);
   // Every sealed-stock model number the website may sell (blocked brands
   // never reach the catalog, so this is already "sellable online").
   const inStockModels = [...new Set([...[...models.values()].map((m) => String(m.model || "").trim()), ...offGrid])].filter(Boolean).sort();
-  return { models: models.size, units, byCategory, featured, inStockModels, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null, computedAt: new Date().toISOString() };
+  return { models: models.size, units, byCategory, featured, onDisplayLabel: onDisplayCfg?.label || SHOP_ON_DISPLAY_LABEL, inStockModels, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null, computedAt: new Date().toISOString() };
 }
 function rememberShopHomeStats(catalog) {
   if (!catalog) return;
@@ -13461,7 +13496,14 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
           // Quotes barely move between pulls — skip the rewrite when the set
           // is identical to the last one processed (a restart reprocesses once).
           const qsig = qrows.length ? crypto.createHash("sha1").update(JSON.stringify(qrows)).digest("hex") : "";
-          if (qrows.length && qsig === lastQuotesSig) counts.quotes = { rows: qrows.length, unchanged: true };
+          if (qrows.length && qsig === lastQuotesSig) {
+            counts.quotes = { rows: qrows.length, unchanged: true };
+            // Open sales orders count as conversions (11/20) and this bundle
+            // just replaced them, so re-match the board even when the quotes
+            // themselves didn't change (replaceOpenQuotes does it otherwise).
+            try { counts.quotes.conversions = await refreshQuoteConversions("open"); }
+            catch (err) { console.error("Quote conversion refresh failed:", err.message); }
+          }
           else if (qrows.length) {
             lastQuotesSig = qsig;
             const cal = await calibrateQuoteCustomerField(qrows);
@@ -13596,6 +13638,16 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
       return res.json({ ok: true, kind, rows, since: bundle.taxSince || "", until: bundle.taxUntil || "", postProcessing: "running", pulledAt });
     }
 
+    // Seventh bundle (11/20): the Customer Master — the Customer master, its
+    // extra columns, lifetime sales / service totals and brands bought, sent
+    // as three files a day (part master / totals / brands).
+    if (kind === "epass-customers") {
+      const bundle = parseFinanceBundle(req.body);
+      const counts = await ingestCustomerBundle(bundle, { filename: sourceFile });
+      recordAudit({ ip: req.ip, actorUserId: null, action: "epass_customers_received", targetUserId: null, detail: { ...counts, part: String(bundle.part || ""), pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, part: String(bundle.part || ""), ...counts, pulledAt: bundle.pulledAt || "" });
+    }
+
     // Sixth bundle: open AR / AP, payments, supplier terms, open POs (Cash Ops Projection).
     if (kind === "epass-finance") {
       const bundle = parseFinanceBundle(req.body);
@@ -13643,7 +13695,7 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
       return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, epass-tax, or epass-finance.` });
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, epass-tax, epass-finance, or epass-customers.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -15082,6 +15134,72 @@ app.post("/api/shop-shoppers/:id/epass-link", requirePagePermission("/shopper-pr
     return res.status(400).json({ error: err.message });
   }
 });
+// ---- Customer Master (customer-master.html, 11/20) ---------------------------
+// Every ePASS customer with contact details and lifetime purchases, filtered
+// to build event guest lists. Its own page grant; adding to an event also
+// needs Events & RSVPs. Exports and adds are written to the audit log.
+const customerMasterPage = requirePagePermission("/customer-master.html");
+const canUseEvents = (user) => isExecutiveUser(user) || canAccessPathForUser(user, "/event-rsvps.html");
+const customerMasterFilters = (src) => cleanCustomerMasterFilters({
+  q: src.q, zip: src.zip, city: src.city, brands: src.brands, salesperson: src.salesperson, accountType: src.accountType, bought: src.bought,
+  lastFrom: src.lastFrom, lastTo: src.lastTo, minRevenue: src.minRevenue, maxRevenue: src.maxRevenue, emailable: src.emailable, sort: src.sort
+});
+app.get("/api/customer-master/meta", customerMasterPage, async (req, res) => {
+  try {
+    const meta = await customerMasterMeta();
+    const eventsOk = canUseEvents(req.authUser);
+    const events = eventsOk ? (await listEvents({ status: "all" })).filter((e) => e.status !== "archived")
+      .map((e) => ({ id: e.id, name: e.name, startsAt: e.startsAt, status: e.status, guestTypes: (e.guestTypes || []).map((t) => t.name).filter(Boolean), onList: e.summary?.total ?? null })) : [];
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ...meta, canAddToEvent: eventsOk, addMax: ADD_TO_EVENT_MAX, events });
+  } catch (err) { console.error("Customer Master meta failed:", err.message); return res.status(500).json({ error: "Unable to load the Customer Master." }); }
+});
+// Filters travel in the request body, not the address: a search can be a
+// phone number or an email, and addresses end up in logs.
+app.post("/api/customer-master/list", customerMasterPage, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const out = await listCustomerMaster(customerMasterFilters(body.filters || {}), { limit: body.limit, offset: body.offset });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(out);
+  } catch (err) { console.error("Customer Master list failed:", err.message); return res.status(500).json({ error: "Unable to load customers." }); }
+});
+app.post("/api/customer-master/export.csv", customerMasterPage, async (req, res) => {
+  try {
+    const filters = customerMasterFilters((req.body || {}).filters || {});
+    const out = await exportCustomerMaster(filters);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "customer_master_export", targetUserId: null, detail: { rows: out.rows.length, filters, by: req.authUser?.email || "" } }).catch(() => {});
+    const stamp = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="customer-master-${stamp}.csv"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(customerMasterCsv(out.rows));
+  } catch (err) { console.error("Customer Master export failed:", err.message); return res.status(500).json({ error: "Unable to export customers." }); }
+});
+app.get("/api/customer-master/:code/history", customerMasterPage, async (req, res) => {
+  try {
+    const history = await epassCustomerHistory(req.params.code);
+    if (!history) return res.status(400).json({ error: "Customer code is required." });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(history);
+  } catch (err) { console.error("Customer Master history failed:", err.message); return res.status(500).json({ error: "Unable to load that customer's history." }); }
+});
+app.post("/api/customer-master/add-to-event", customerMasterPage, async (req, res) => {
+  try {
+    if (!canUseEvents(req.authUser)) return res.status(403).json({ error: "Adding to an event needs Events & RSVPs." });
+    const body = req.body || {};
+    const codes = Array.isArray(body.codes) ? body.codes.slice(0, 5000) : null;
+    const filters = codes && codes.length ? null : customerMasterFilters(body.filters || {});
+    const out = await addCustomersToEvent({ eventId: String(body.eventId || ""), guestType: String(body.guestType || ""), codes, filters, by: req.authUser?.email || "" });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "customer_master_add_to_event", targetUserId: null, detail: { eventId: out.eventId, event: out.eventName, added: out.added, matched: out.matched, skipped: out.skipped, ticked: codes ? codes.length : 0, filters, by: req.authUser?.email || "" } }).catch(() => {});
+    return res.json(out);
+  } catch (err) {
+    if (err.status === 400 || /Event not found/.test(err.message)) return res.status(err.status || 404).json({ error: err.message });
+    console.error("Customer Master add to event failed:", err.message);
+    return res.status(500).json({ error: "Unable to add those customers to the event." });
+  }
+});
+
 // Manual pick: search the ePASS customer master.
 app.get("/api/epass-customers", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {

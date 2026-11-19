@@ -256,8 +256,8 @@
           The store posts in-stock models automatically: <b>2–3 units</b> show <b>Low Stock</b>, <b>4 or more</b> show <b>In Stock</b>,
           a <b>single</b> unit stays off until you turn on <i>Show when only one</i>. Price defaults to the model's <b>RETAIL</b> price in ePASS.
           Pictures you add replace the catalog thumbnail — <b>Actual photos</b> (ours; the shop marks them <i>Actual product photo</i>)
-          and <b>Supplier assets</b> (the maker's own images), as many of either as you like; the first is the card picture. <b>Outlet units</b> are the open-box serials and any sealed unit with its own
-          Unique Sell Price in ePASS; a phone picture of one becomes that unit's card, and <i>Needs a price</i> lists the ones ePASS hasn't priced yet. Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
+          and <b>Supplier assets</b> (the maker's own images), up to 12 a model of either kind; the first is the card picture. <b>Outlet units</b> are the open-box serials and any sealed unit with its own
+          Unique Sell Price in ePASS; <b>Take photos</b> on one adds actual photos to its model's pictures, and <i>Needs a price</i> lists the ones ePASS hasn't priced yet. Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
         </p>
       </div>
       <div class="counts" id="counts"></div>
@@ -500,8 +500,8 @@
             <div class="when">${own ? `This unit's own photo, taken ${esc(whenText(u.photoTakenAt))}` : u.photoSource === "actual" ? "Showing the model's actual photo" : u.photoSource === "supplier" ? "Showing the model's supplier asset" : u.image ? "Showing the catalog thumbnail" : ""}</div>
             <div class="actions">
               <button type="button" class="ws-btn quiet up-model" title="Set the pictures for every card of this model — actual photos and supplier assets">Model pictures…</button>
-              ${own ? `<button type="button" class="ws-btn danger up-remove">Remove photo</button>` : ""}
-              <span class="ws-btn primary shoot">${own ? "Retake photo" : "Take photo"}<input type="file" accept="image/*" capture="environment" class="up-file" aria-label="Take a photo of this unit"></span>
+              ${own ? `<button type="button" class="ws-btn danger up-remove" title="This unit's own photo from the older one-photo button">Remove unit photo</button>` : ""}
+              <button type="button" class="ws-btn primary up-shoot" title="Take or add up to ${data.modelPhotoMax || 12} actual photos of this model">Take photos</button>
             </div>
           </div>`; }).join("") || '<p class="meta">No outlet units on the store right now.</p>';
       }
@@ -763,7 +763,7 @@
             <span class="ws-btn ${photos.length ? "quiet" : "primary"} shoot${full ? " disabled" : ""}">Add supplier assets<input type="file" accept="image/*" multiple class="mp-file" data-kind="supplier" ${full ? "disabled" : ""} aria-label="Add supplier assets for this model"></span>
             <span class="ws-btn ${photos.length ? "quiet" : "primary"} shoot${full ? " disabled" : ""}">Add actual photos<input type="file" accept="image/*" multiple class="mp-file" data-kind="actual" ${full ? "disabled" : ""} aria-label="Add or take actual photos of this model"></span>
           </div>
-          <p class="d-hint">${full ? `This model has the most pictures it can carry (${max}) — remove one to add another. ` : `Pick several files at once if you like — up to ${max} pictures per model, of either kind. `}<b>Actual photos</b> are ours: the card fills the frame and says <i>Actual product photo</i>. <b>Supplier assets</b> are the maker's images, shown like any catalog picture. JPG or PNG; sized down for the web automatically.${photos.length ? ` Remove them all to go back to ${r.catalogImage ? "the catalog thumbnail" : "no picture"}.` : ""}${r.stock ? "" : " A photo taken of one specific outlet unit still leads on that unit's card."}</p>`;
+          <p class="d-hint">${full ? `This model has the most pictures it can carry (${max}) — remove one to add another. ` : `Pick several files at once if you like — up to ${max} pictures per model, of either kind. `}<b>Actual photos</b> are ours: the card fills the frame and says <i>Actual product photo</i>. <b>Supplier assets</b> are the maker's images, shown like any catalog picture. JPG or PNG; sized down for the web automatically.${photos.length ? ` Remove them all to go back to ${r.catalogImage ? "the catalog thumbnail" : "no picture"}.` : ""}${r.stock ? "" : " An older photo of one specific outlet unit (from the one-photo button) still leads on that unit's card until it's removed there."}</p>`;
       }
       function renderDrawerSettings(r) {
         if (!r.stock) { $("dSettings").innerHTML = ""; $("dSettings").style.display = "none"; $("dGrid").classList.add("photo-only"); return; }
@@ -923,24 +923,18 @@
       });
 
       // ---- Outlet unit photos ----
-      async function uploadUnitPhoto(card, file) {
-        const status = $("stockStatus");
-        card.classList.add("busy"); status.textContent = "Saving photo…";
-        try {
-          const blob = await shrinkImage(file);
-          const fd = new FormData(); fd.append("photo", blob, "unit.jpg");
-          const res = await fetch(`/api/shop/unit-photo/${encodeURIComponent(card.dataset.model)}/${encodeURIComponent(card.dataset.serial)}`, { method: "POST", credentials: "same-origin", body: fd });
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(body.error || "Upload failed.");
-          await load();
-          flash("Photo saved — it's the card picture on the shop now.");
-        } catch (err) { status.textContent = err.message; } finally { card.classList.remove("busy"); }
+      // Take photos (Andrew 11/20: "it should just prompt the model photos
+      // button for up to 12"): opens this model's pictures and, in the same
+      // tap, its Add actual photos picker (the phone offers the camera or the
+      // library, several at once), up to the model's limit. The old button
+      // took one photo of the one serial; a unit that still has such a photo
+      // keeps it, first on its own card, until Remove unit photo.
+      function shootModel(card) {
+        openDrawer(card.dataset.key);
+        const pick = document.querySelector('#dPhoto .mp-file[data-kind="actual"]:not([disabled])');
+        if (pick) pick.click(); // still inside the tap, so the browser lets the picker open
+        else if (open) flash(`This model already has ${data.modelPhotoMax || 12} pictures — remove one to add another.`, 7000);
       }
-      $("outletCards").addEventListener("change", (e) => {
-        const input = e.target.closest(".up-file");
-        if (!input || !input.files || !input.files[0]) return;
-        uploadUnitPhoto(input.closest(".ucard"), input.files[0]);
-      });
       $("outletCards").addEventListener("click", async (e) => {
         const rel = e.target.closest(".off-release");
         if (rel) {
@@ -958,8 +952,9 @@
         const card = e.target.closest(".ucard");
         if (!card) return;
         if (e.target.closest(".up-model")) { openDrawer(card.dataset.key); return; }
+        if (e.target.closest(".up-shoot")) { shootModel(card); return; }
         if (!e.target.closest(".up-remove")) return;
-        if (!confirm(`Remove the photo of ${card.dataset.model} S/N ${card.dataset.serial}? The card goes back to the model's picture.`)) return;
+        if (!confirm(`Remove the unit photo of ${card.dataset.model} S/N ${card.dataset.serial}? The card goes back to the model's pictures.`)) return;
         const status = $("stockStatus");
         card.classList.add("busy"); status.textContent = "Removing…";
         try {

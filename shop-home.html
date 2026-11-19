@@ -137,22 +137,117 @@
     .dept:hover .cap .arrow { background: rgba(255,255,255,.18); }
     .dept.tall { grid-row: span 2; aspect-ratio: auto; }
 
-    /* ---------- featured ---------- */
-    .featured { background: var(--paper); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .fgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-    .fcard { min-width: 0; } .fcard .foot { flex-wrap: wrap; }
-    .fcard { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 18px 18px 20px; display: flex; flex-direction: column; min-height: 360px; transition: box-shadow .2s ease; }
-    .fcard:hover { box-shadow: 0 10px 28px rgba(36,33,30,.10); }
-    .fcard .img { height: 190px; display: grid; place-items: center; margin-bottom: 14px; }
-    .fcard .img img { max-height: 100%; max-width: 100%; object-fit: contain; mix-blend-mode: multiply; }
-    .fcard .brand { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-    .fcard .desc { font-family: var(--serif); font-weight: 600; font-size: 15px; color: var(--ink); margin-top: 4px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .fcard .model { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; font-size: 13px; margin-top: 6px; color: var(--ink); }
-    .fcard .foot { margin-top: auto; padding-top: 14px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-    .fcard .price { font-size: 18px; font-weight: 600; }
-    .fcard .price small { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
-    .fcard .stock { font-size: 11px; font-weight: 700; color: #fff; background: var(--green); border-radius: 3px; padding: 3px 7px; }
+    /* ---------- featured: the shop's own product tiles ----------
+       Andrew 11/20: "copy the shop tiles here with the detail expansion logic
+       and link to the PDP". These rules are shop.html's tile rules (its base
+       rules with the site-theme overrides applied), so a best seller looks and
+       behaves here the way it does in the shop: swipe or ‹ › through the
+       pictures, the description and model number open the product page, and
+       Details (or a tap on the tile) opens it to double width with Features |
+       Specs and the sell sheet. A change to the shop's tile belongs in both. */
+    .featured { background: var(--paper); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+      --surface: #FFFFFF; --sunk: #EDEAE4; --copper: #BE7D3C; --copper-soft: #F6EBDD; --ok: #21692C; --ok-text: #1D5E27; }
+    .tgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; grid-auto-flow: row dense; } /* dense: when a tile opens to double width, the next tile fills the gap it leaves */
+    .item-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 6px; position: relative; min-width: 0; transition: box-shadow .2s ease; }
+    .item-card:hover { box-shadow: 0 10px 28px rgba(36,33,30,.10); }
+    .item-img { width: 100%; height: 150px; object-fit: contain; background: #fff; border-radius: 0; margin-bottom: 4px; }
+    .cond-badge { position: absolute; top: 10px; left: 10px; z-index: 2; border-radius: 3px; padding: 4px 8px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+    .cond-badge.new, .cond-badge.stock-in { background: var(--ok); color: #fff; }
+    .cond-badge.open, .cond-badge.stock-low { background: var(--copper); color: #fff; }
+    .eye-badge { position: absolute; top: 10px; right: 10px; z-index: 2; border-radius: 3px; padding: 4px 11px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #fff; max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .eye-badge.red { background: #dc2626; } .eye-badge.amber { background: #d97706; } .eye-badge.green { background: #15803d; } .eye-badge.blue { background: #1d4ed8; } .eye-badge.purple { background: #7e22ce; } .eye-badge.black { background: #111827; }
+    .item-card.has-eye .item-img { margin-top: 18px; }
+    .item-card.has-eye .eye-badge + .item-brand, .item-card.has-eye .eye-badge + .cond-badge + .item-brand { margin-top: 24px; }
+    .item-brand { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+    .item-desc { font-family: var(--serif); font-weight: 600; font-size: 15px; color: var(--ink); line-height: 1.3; }
+    .item-model { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 500; letter-spacing: 0; }
+    .item-cat { font-size: 11.5px; color: var(--muted); margin-top: auto; } /* tiles line up however tall the description */
+    .item-display { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--accent); }
+    .item-display svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--copper); }
+    .item-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; gap: 8px; }
+    .item-price { color: var(--ink); font-weight: 600; font-size: 19px; }
+    .item-price small { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-right: 5px; }
+    .item-price .was { display: block; font-size: 13px; font-weight: 400; line-height: 1.15; color: var(--muted); }
+    .item-price .was s { text-decoration-thickness: 1.25px; }
+    .item-foot .btn { white-space: nowrap; }
+    .item-foot .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .item-foot .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); transform: none; }
+    .item-foot .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    /* pictures: our own photo of the unit fills the frame, with a chip; several pictures flip with ‹ › or a swipe */
+    .item-pic { position: relative; margin-bottom: 4px; }
+    .item-pic .item-img { margin-bottom: 0; }
+    .item-pic.actual .item-img { object-fit: cover; border-radius: var(--r); background: var(--sunk); }
+    .photo-chip { position: absolute; left: 8px; bottom: 8px; background: rgba(36,33,30,.88); color: #fff; border-radius: 3px; padding: 3px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; backdrop-filter: blur(4px); }
+    .photo-chip[hidden] { display: none; }
+    .pic-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); color: var(--ink); font-size: 17px; line-height: 1; cursor: pointer; display: grid; place-items: center; opacity: 0; transition: opacity .15s ease; }
+    .pic-nav.prev { left: 6px; } .pic-nav.next { right: 6px; }
+    .item-pic:hover .pic-nav, .pic-nav:focus-visible { opacity: 1; }
+    @media (hover: none) { .pic-nav { opacity: 1; } }
+    .pic-count { position: absolute; right: 8px; bottom: 8px; background: rgba(36,33,30,.72); color: #fff; border-radius: 3px; padding: 2px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; }
+    .item-pic[data-pics] { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+    .item-pic[data-pics] .item-img { -webkit-user-drag: none; transition: transform .18s ease; }
+    @media (hover: hover) and (pointer: fine) { .item-pic[data-pics] { cursor: grab; } .item-pic[data-pics].dragging { cursor: grabbing; } }
+    .item-pic.dragging .item-img { transition: none; }
+    @keyframes picInR { from { transform: translateX(22px); opacity: .35; } to { transform: none; opacity: 1; } }
+    @keyframes picInL { from { transform: translateX(-22px); opacity: .35; } to { transform: none; opacity: 1; } }
+    .item-img.in-r { animation: picInR .2s ease; }
+    .item-img.in-l { animation: picInL .2s ease; }
+    /* the description and model number open the product page; the arrow says so */
+    .item-link { display: flex; flex-direction: column; gap: 6px; color: inherit; text-decoration: none; border-radius: 3px; }
+    .item-link .item-model { display: inline-flex; align-items: center; gap: 7px; }
+    .item-go { flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+    .item-link:hover .item-desc, .item-link:focus-visible .item-desc { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+    .item-link:hover .item-model, .item-link:focus-visible .item-model { color: var(--accent); }
+    .item-link:hover .item-go, .item-link:focus-visible .item-go { transform: translateX(3px); }
+    .item-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    /* Details: a tap on the tile (or Details) opens it to double width with Features | Specs and the sell sheet */
+    .item-card.has-details { cursor: pointer; }
+    .item-more { align-self: flex-start; appearance: none; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .item-more::after { content: ""; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .18s ease; }
+    .item-card.expanded .item-more::after { transform: translateY(2px) rotate(-135deg); }
+    .item-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+    .item-details { display: none; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; cursor: auto; }
+    .item-card.expanded .item-details { display: block; }
+    .item-card.expanded { border-color: var(--ink); box-shadow: 0 14px 34px rgba(36,33,30,.14); }
+    .idt-feats { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 7px; }
+    .idt-feats li { position: relative; padding-left: 18px; font-size: 14.5px; font-weight: 600; line-height: 1.35; }
+    .idt-feats li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--copper); }
+    .idt-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+    .idt-desc { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+    .idt-tabs { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin: 0 0 12px; }
+    .idt-tab { appearance: none; border: 0; background: var(--surface); color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: .02em; padding: 0 18px; min-height: 40px; cursor: pointer; }
+    .idt-tab + .idt-tab { border-left: 1px solid var(--line); }
+    .idt-tab[aria-pressed="true"] { background: var(--ink); color: #fff; }
+    .idt-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+    .idt-pane[hidden] { display: none; }
+    .idt-specs { margin: 0 0 10px; }
+    .idt-specs > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.35; }
+    .idt-specs > div:first-child { border-top: 1px solid var(--line); }
+    .idt-specs dt { color: var(--muted); }
+    .idt-specs dd { margin: 0; font-weight: 600; text-align: right; }
+    .idt-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .idt-note a { color: var(--accent); font-weight: 600; white-space: nowrap; }
+    .idt-docs { display: grid; gap: 8px; margin-top: 14px; }
+    .item-details > .idt-docs:first-child { margin-top: 0; }
+    .idt-doc { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); text-decoration: none; }
+    .idt-doc:hover { border-color: var(--ink); }
+    .idt-doc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .idt-doc-ic { flex: 0 0 auto; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: #fff; background: var(--copper); border-radius: 3px; padding: 4px 6px; }
+    .idt-doc-tx { min-width: 0; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+    .idt-doc-tx small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+    @media (min-width: 620px) {
+      /* double width: the tile's own content on the left, the details on the right */
+      .item-card.expanded { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-content: start; }
+      .item-card.expanded > * { grid-column: 1; }
+      .item-card.expanded > .item-details { grid-column: 2; grid-row: 1 / span 12; border-top: 0; border-left: 1px solid var(--line); margin-top: 0; padding: 4px 0 0 20px; }
+      .item-card.expanded > .eye-badge, .item-card.expanded > .cond-badge { grid-column: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) { .item-img.in-r, .item-img.in-l { animation: none; } .item-pic[data-pics] .item-img, .item-go { transition: none; } }
+    /* placeholders while the numbers load */
+    .fcard.sk { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-height: 330px; }
     .fcard.sk .img, .fcard.sk .line { background: var(--ivory-2); border-radius: 3px; animation: pulse 1.2s ease-in-out infinite; }
+    .fcard.sk .img { height: 150px; margin-bottom: 14px; }
     .fcard.sk .line { height: 12px; margin-top: 10px; } .fcard.sk .line.w { width: 40%; }
 
     /* ---------- showroom ---------- */
@@ -195,7 +290,7 @@
       .journey:nth-child(3n) { border-right: 0; }
       .journey { border-bottom: 1px solid var(--line); }
       .journey:nth-child(4) { border-right: 1px solid var(--line); } .journey:nth-child(5) { border-right: 0; }
-      .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .showroom .wrap { grid-template-columns: 1fr; gap: 40px; }
       footer .wrap { grid-template-columns: 1fr 1fr; }
     }
@@ -223,13 +318,12 @@
       .dgrid { grid-template-columns: 1fr 1fr; gap: 10px; }
       .dept .cap { left: 14px; right: 14px; bottom: 14px; }
       .dept .cap h3 { font-size: 22px; } .dept .cap small { font-size: 10px; } .dept .cap .arrow { display: none; }
-      .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-      .fcard { padding: 12px; min-height: 0; } .fcard .img { height: 130px; } .fcard .model { font-size: 18px; } .fcard .desc { display: none; }
       .mosaic { grid-auto-rows: 110px; gap: 8px; }
       .pillars .pgrid { grid-template-columns: 1fr; }
       .pillar p { min-height: 0; }
       footer .wrap { grid-template-columns: 1fr; gap: 26px; }
     }
+    @media (max-width: 619px) { .tgrid { grid-template-columns: minmax(0, 1fr); } } /* one tile across on a phone, as in the shop; a tile opens in place */
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
   </style>
 </head>
@@ -244,6 +338,8 @@
       mode: "overlay",
       current: "express",
       tag: "Express<br>Assortment",
+      // the cart, as on the product pages: a best seller's Add to cart keeps the shopper here and counts it on this icon (11/20)
+      rightHtml: `<a class="util-btn cart-btn" href="/shop.html?show=cart" aria-label="Cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></a>`,
       search: { placeholder: "Search", onSubmit(v) { location.href = "/shop.html" + (v.trim() ? "?q=" + encodeURIComponent(v.trim()) : ""); } }
     });
   </script>
@@ -338,7 +434,7 @@
         </div>
         <a class="link-arrow" href="/shop.html">Shop best sellers</a>
       </div>
-      <div class="fgrid" id="featured">
+      <div class="tgrid" id="featured">
         <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
         <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
         <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
@@ -456,7 +552,7 @@
         Outdoor: ["Outdoor"]
       };
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-      const money = (n) => "$" + Math.round(Number(n)).toLocaleString();
+      const money = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); // as the shop writes it
       const num = (n) => Number(n).toLocaleString();
 
       function fillStats(d) {
@@ -470,25 +566,300 @@
         }
       }
 
-      function fillFeatured(list) {
-        const grid = document.getElementById("featured");
-        if (!Array.isArray(list) || !list.length) { document.getElementById("featuredSection").style.display = "none"; return; }
-        grid.innerHTML = list.slice(0, 4).map((m) => `
-          <a class="fcard" href="/shop.html?q=${encodeURIComponent(m.model)}">
-            <div class="img"><img src="${esc(m.image)}" alt="${esc(m.brand)} ${esc(m.model)}" loading="lazy" decoding="async"></div>
-            <div class="brand">${esc(m.brand)}</div>
-            <div class="desc">${esc(m.description)}</div>
-            <div class="model">${esc(m.model)}</div>
-            <div class="foot">
-              <div class="price">${Number.isFinite(Number(m.price)) ? `<small>From</small>${money(m.price)}` : `<small>Price in cart</small>`}</div>
-              <div class="stock">${m.units > 1 ? `${num(m.units)} in stock` : "In stock"}</div>
-            </div>
-          </a>`).join("");
+      // ---- Best sellers, as the shop's own tiles (Andrew 11/20) ----------------
+      // "copy the shop tiles here with the detail expansion logic and link to
+      // the PDP". /api/shop/home-stats sends each of the four with what a shop
+      // tile shows; the markup, the picture flip and swipe, and the Details
+      // panel below are shop.html's (renderGrid, flipPic, toggleDetails,
+      // placeExpanded, showDetailTab), so a change to the shop's tile belongs
+      // here too. The description and model number open the product page when
+      // the model has one; without one they are plain text, as in the shop.
+      // Add to cart works the way it does on a product page: the model is
+      // staged in this tab ("wilsonShopStaged"), the cart icon counts it, the
+      // button becomes Go to Cart, and the shop puts it in the cart the next
+      // time it opens. Without storage the button is a plain ?add= link.
+      const tiles = { list: [], detailTab: "features", expandedKey: "", onDisplayLabel: "" };
+      const keyOf = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 40);
+      const SMS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+      function conditionBadge(item) {
+        if (item.hideStockBadge) return "";
+        if (item.source === "stock") return item.stockLevel === "in" ? `<span class="cond-badge stock-in">In Stock</span>` : `<span class="cond-badge stock-low">Low Stock</span>`;
+        if (item.condition === "new") return `<span class="cond-badge new">New in Box</span>`;
+        if (item.condition === "open") return `<span class="cond-badge open">${item.serialType === "DISPLAY" ? "Floor Model" : "Open Box"}</span>`;
+        return "";
       }
+      const morePics = (g) => Array.isArray(g.images) && g.images.length > 1;
+      const wasTag = (g) => (Number(g.was) > 0 ? `<span class="was"><span class="sr-only">Regular price </span><s>${money(g.was)}</s></span><span class="sr-only">Current price </span>` : "");
+      function descBody(det) {
+        const full = String(det?.description || "").trim(), head = String(det?.headline || "").trim();
+        if (!head || !full.toLowerCase().startsWith(head.toLowerCase())) return full;
+        return full.slice(head.length).replace(/^[\s,;:.–—-]+/, "");
+      }
+      const inchText = (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n <= 0) return "";
+        const whole = Math.floor(n), six = (n - whole) * 16;
+        if (Math.abs(six - Math.round(six)) > 1e-6) return `${n} in.`;
+        let nu = Math.round(six), den = 16;
+        if (!nu) return `${whole} in.`;
+        while (nu % 2 === 0) { nu /= 2; den /= 2; }
+        return `${whole ? whole + " " : ""}${nu}/${den} in.`;
+      };
+      function specRows(sp) {
+        if (!sp) return [];
+        const rows = [];
+        if (sp.type) rows.push(["Type", sp.type]);
+        if (sp.width) rows.push(["Nominal width", inchText(sp.width)]);
+        if (sp.height) rows.push(["Nominal height", inchText(sp.height)]);
+        if (sp.depth) rows.push(["Nominal depth", inchText(sp.depth)]);
+        if (sp.capacity) { const parts = String(sp.capacity).split("/"); rows.push([parts.length > 1 ? "Capacity (washer / dryer)" : "Capacity", `${parts.join(" / ")} cu. ft.`]); }
+        if (sp.finish) rows.push(["Finish", sp.finish]);
+        if (sp.panelReady) rows.push(["Panel ready", "Yes"]);
+        if (sp.ada) rows.push(["ADA compliant", sp.ada === "yes" ? "Yes" : "No"]);
+        return rows.filter((r) => r[1]);
+      }
+      // Only a page under /p/ on this site is linked; a spec sheet only from the shop's own sheet route.
+      const pageHref = (g) => (/^\/p\/[0-9A-Z]{3,40}$/.test(String(g.page || "")) ? g.page : "");
+      const sheetHref = (u) => (/^\/api\/shop\/spec-sheet\/[\w.-]+$/.test(String(u || "")) ? u : "");
+      const picUrl = (u) => (/^(\/(?!\/)|https:\/\/)/.test(String(u || "")) ? u : "");
+      function tileHtml(g) {
+        const det = g.details && (g.details.description || (g.details.features || []).length) ? g.details : null;
+        const specs = specRows(g.specs);
+        const docs = (Array.isArray(g.sheets) ? g.sheets : []).filter((d) => sheetHref(d?.url));
+        const canOpen = !!det || specs.length > 0 || docs.length > 0;
+        const both = !!det && specs.length > 0;
+        const tab = both ? (tiles.detailTab === "specs" ? "specs" : "features") : specs.length ? "specs" : "features";
+        const open = canOpen && tiles.expandedKey === keyOf(g.model);
+        const pics = morePics(g) ? g.images.filter((p) => picUrl(p?.url)) : [];
+        const href = pageHref(g), title = det?.headline || g.description || "";
+        const addHref = "/shop.html?add=" + encodeURIComponent(g.model);
+        return `
+          ${g.badge ? `<span class="eye-badge ${esc(/^(red|amber|green|blue|purple|black)$/.test(g.badgeStyle) ? g.badgeStyle : "red")}">${esc(g.badge)}</span>` : ""}
+          ${conditionBadge(g)}
+          ${picUrl(g.image) ? `<div class="item-pic${g.photoActual ? " actual" : ""}"${pics.length > 1 ? ` data-pics="${esc(JSON.stringify(pics))}" data-i="0"` : ""}><img class="item-img" src="${esc(g.image)}" alt="${esc(g.model)}" loading="lazy" draggable="false" onerror="this.parentElement.remove()">${g.photoActual || pics.length > 1 ? `<span class="photo-chip"${g.photoActual ? "" : " hidden"}>Actual product photo</span>` : ""}${pics.length > 1 ? `<button type="button" class="pic-nav prev" aria-label="Previous photo">‹</button><button type="button" class="pic-nav next" aria-label="Next photo">›</button><span class="pic-count">1 / ${pics.length}</span>` : ""}</div>` : ""}
+          <div class="item-brand">${esc(g.brand)}</div>
+          ${href
+            ? `<a class="item-link" href="${esc(href)}" title="Photos, features and specs for ${esc(g.model)}"><span class="item-desc">${esc(title)}</span><span class="item-model">${esc(g.model)}<svg class="item-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>`
+            : `<div class="item-desc">${esc(title)}</div><div class="item-model">${esc(g.model)}</div>`}
+          ${canOpen ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
+          <div class="item-cat">${esc(g.categoryLabel || g.category || "")}${g.source === "stock" || !(g.units > 0) ? "" : ` · ${num(g.units)} available`}</div>
+          ${g.onDisplay ? `<div class="item-display"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(tiles.onDisplayLabel || "On display in Dripping Springs")}</div>` : ""}
+          <div class="item-foot">
+            <span class="item-price">${wasTag(g)}${g.priceFrom ? "<small>From</small>" : ""}${money(g.price)}</span>
+            <a class="btn primary" href="${esc(addHref)}" data-add="${esc(addHref)}" data-model="${esc(g.model)}">Add to cart</a>
+          </div>
+          ${canOpen ? `<div class="item-details">
+            ${both ? `<div class="idt-tabs" role="group" aria-label="Details for ${esc(g.model)}">
+              <button type="button" class="idt-tab" data-idt="features" aria-pressed="${tab === "features"}">Features</button>
+              <button type="button" class="idt-tab" data-idt="specs" aria-pressed="${tab === "specs"}">Specs</button>
+            </div>` : ""}
+            ${det ? `<div class="idt-pane" data-pane="features"${tab === "features" ? "" : " hidden"}>
+              ${det.features && det.features.length ? `<ul class="idt-feats">${det.features.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+              ${descBody(det) ? `<p class="idt-sub">Full description</p><p class="idt-desc">${esc(descBody(det))}</p>` : ""}
+            </div>` : ""}
+            ${specs.length ? `<div class="idt-pane" data-pane="specs"${tab === "specs" ? "" : " hidden"}>
+              ${both ? "" : `<p class="idt-sub">Specs</p>`}
+              <dl class="idt-specs">${specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+              ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide, or call <a href="tel:512-894-0907">512-894-0907</a> or <a class="text-us" href="sms:+15128940907">${SMS_SVG}Text Us</a>.</p>` : ""}
+            </div>` : ""}
+            ${docs.length ? `<div class="idt-docs">${docs.map((d) => `<a class="idt-doc" href="${esc(sheetHref(d.url))}" target="_blank" rel="noopener"><span class="idt-doc-ic" aria-hidden="true">PDF</span><span class="idt-doc-tx">${esc(d.label)}<small>${esc(d.note || "Exact dimensions, features and warranty by model")}</small></span></a>`).join("")}</div>` : ""}
+          </div>` : ""}`;
+      }
+
+      function fillFeatured(list, d) {
+        const grid = document.getElementById("featured");
+        const shown = (Array.isArray(list) ? list : []).filter((m) => m && m.model && Number.isFinite(Number(m.price))).slice(0, 4);
+        if (!shown.length) { document.getElementById("featuredSection").style.display = "none"; return; }
+        tiles.list = shown;
+        tiles.onDisplayLabel = String(d?.onDisplayLabel || "");
+        grid.innerHTML = "";
+        for (const g of shown) {
+          const card = document.createElement("div");
+          card.className = "item-card" + (g.badge ? " has-eye" : "");
+          card.innerHTML = tileHtml(g);
+          if (card.querySelector(".item-details")) { card.classList.add("has-details"); card.dataset.detailKey = keyOf(g.model); }
+          grid.appendChild(card);
+        }
+        syncCart();
+      }
+
+      // Pictures: ‹ › and a sideways swipe (or a click-and-drag) flip through them.
+      function flipPic(pic, step) {
+        let list = [];
+        try { list = JSON.parse(pic.dataset.pics || "[]"); } catch { return; }
+        if (list.length < 2) return;
+        const i = ((Number(pic.dataset.i) || 0) + step + list.length) % list.length;
+        pic.dataset.i = i;
+        const img = pic.querySelector(".item-img");
+        img.src = list[i].url;
+        img.classList.remove("in-r", "in-l"); void img.offsetWidth; img.classList.add(step > 0 ? "in-r" : "in-l");
+        pic.classList.toggle("actual", !!list[i].actual);
+        const chip = pic.querySelector(".photo-chip"); if (chip) chip.hidden = !list[i].actual;
+        const count = pic.querySelector(".pic-count"); if (count) count.textContent = `${i + 1} / ${list.length}`;
+      }
+      document.addEventListener("click", (e) => {
+        const nav = e.target.closest("#featured .pic-nav");
+        if (!nav) return;
+        e.preventDefault(); e.stopPropagation();
+        flipPic(nav.closest(".item-pic"), nav.classList.contains("next") ? 1 : -1);
+      });
+      let picSwipe = null, swallowPicClick = 0;
+      document.addEventListener("pointerdown", (e) => {
+        const pic = e.target.closest("#featured .item-pic[data-pics]");
+        if (!pic || e.target.closest(".pic-nav") || (e.pointerType === "mouse" && e.button !== 0)) return;
+        picSwipe = { pic, id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, on: false };
+        try { // the next and previous pictures start loading now, so the flip is instant
+          const list = JSON.parse(pic.dataset.pics || "[]"), i = Number(pic.dataset.i) || 0;
+          [1, -1].forEach((s) => { const u = list[(i + s + list.length) % list.length]?.url; if (u) new Image().src = u; });
+        } catch {}
+      });
+      document.addEventListener("pointermove", (e) => {
+        const s = picSwipe;
+        if (!s || e.pointerId !== s.id) return;
+        const dx = e.clientX - s.x, dy = e.clientY - s.y;
+        if (!s.on) {
+          if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { picSwipe = null; return; } // scrolling the page
+          if (Math.abs(dx) < 8) return;
+          s.on = true; s.pic.classList.add("dragging");
+          try { s.pic.setPointerCapture(e.pointerId); } catch {}
+        }
+        s.dx = dx;
+        s.pic.querySelector(".item-img").style.transform = `translateX(${Math.max(-90, Math.min(90, dx * 0.6))}px)`;
+      });
+      function endPicSwipe(e) {
+        const s = picSwipe;
+        if (!s || e.pointerId !== s.id) return;
+        picSwipe = null;
+        if (!s.on) return;
+        s.pic.classList.remove("dragging");
+        s.pic.querySelector(".item-img").style.transform = "";
+        swallowPicClick = Date.now();
+        if (e.type === "pointerup" && Math.abs(s.dx) >= 36) flipPic(s.pic, s.dx < 0 ? 1 : -1);
+      }
+      document.addEventListener("pointerup", endPicSwipe);
+      document.addEventListener("pointercancel", endPicSwipe);
+      document.addEventListener("click", (e) => {
+        if (swallowPicClick && Date.now() - swallowPicClick < 400 && e.target.closest("#featured .item-pic")) { e.preventDefault(); e.stopPropagation(); }
+        swallowPicClick = 0;
+      }, true);
+
+      // Details: one tile open at a time; a tap anywhere on the tile that isn't
+      // a button, link or field toggles it, and Details does the same for
+      // keyboards. Features | Specs remembers the side last chosen.
+      function showDetailTab(card, which) {
+        const tabs = card.querySelectorAll(".idt-tab");
+        if (!tabs.length) return;
+        for (const b of tabs) b.setAttribute("aria-pressed", String(b.dataset.idt === which));
+        for (const pane of card.querySelectorAll(".idt-pane")) pane.hidden = pane.dataset.pane !== which;
+      }
+      document.addEventListener("click", (e) => {
+        const tab = e.target.closest("#featured .idt-tab");
+        if (!tab) return;
+        tiles.detailTab = tab.dataset.idt === "specs" ? "specs" : "features";
+        showDetailTab(tab.closest(".item-card"), tiles.detailTab);
+      });
+      // A tile opened in the far-right column stays in its own row across the
+      // last two columns; the tile beside it steps down (shop.html, 11/13).
+      let pinnedCard = null;
+      function placeExpanded() {
+        if (pinnedCard) { pinnedCard.style.gridColumn = ""; pinnedCard.style.gridRow = ""; pinnedCard = null; }
+        const grid = document.getElementById("featured");
+        const card = grid.querySelector(".item-card.expanded");
+        if (!card) return;
+        const cs = getComputedStyle(card);
+        if (!`${cs.gridColumnStart} ${cs.gridColumnEnd}`.includes("span")) return; // not doubled at this width (phone)
+        const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
+        const i = [...grid.children].indexOf(card);
+        if (cols < 2 || i < 0 || i % cols !== cols - 1) return; // only the far-right column needs it
+        card.style.gridColumn = `${cols - 1} / span 2`;
+        card.style.gridRow = String(Math.floor(i / cols) + 1);
+        pinnedCard = card;
+      }
+      let placeTimer = null;
+      window.addEventListener("resize", () => { clearTimeout(placeTimer); placeTimer = setTimeout(placeExpanded, 120); });
+      function toggleDetails(card) {
+        const opening = !card.classList.contains("expanded");
+        for (const el of document.querySelectorAll("#featured .item-card.expanded")) { el.classList.remove("expanded"); const b = el.querySelector(".item-more"); if (b) { b.textContent = "Details"; b.setAttribute("aria-expanded", "false"); } }
+        tiles.expandedKey = opening ? card.dataset.detailKey : "";
+        if (!opening) { placeExpanded(); return; }
+        card.classList.add("expanded");
+        placeExpanded();
+        showDetailTab(card, tiles.detailTab);
+        const btn = card.querySelector(".item-more"); if (btn) { btn.textContent = "Hide details"; btn.setAttribute("aria-expanded", "true"); }
+        // the tile may have moved to a new row to fit its double width — keep it in view
+        requestAnimationFrame(() => { const r = card.getBoundingClientRect(); const top = (document.getElementById("siteTop")?.getBoundingClientRect().bottom || 0) + 12; if (r.top < top || r.bottom > window.innerHeight) window.scrollBy({ top: r.top - top, behavior: "smooth" }); });
+      }
+      document.addEventListener("click", (e) => {
+        const card = e.target.closest("#featured .item-card.has-details");
+        if (!card) return;
+        const more = e.target.closest(".item-more");
+        if (!more && (e.target.closest("a, button, input, select, textarea, label, .item-details") || String(window.getSelection?.() || ""))) return; // other controls keep their job; selecting text is not a tap
+        toggleDetails(card);
+      });
+
+      // The cart: the shop keeps it in this tab's storage, so this page can
+      // count it on the cart icon and offer Go to Cart on a tile whose model
+      // is already in it. Runs again when the browser brings the page back
+      // whole (Back), since the cart may have changed in between.
+      const STAGED = "wilsonShopStaged";
+      const listOf = (v) => (Array.isArray(v) ? v : []);
+      function readJson(key) { try { return JSON.parse(sessionStorage.getItem(key) || "null"); } catch { return null; } }
+      function stagedList() { const s = readJson(STAGED); return s && s.v === 1 ? listOf(s.models) : []; }
+      function syncCart() {
+        let saved = readJson("wilsonShopCart");
+        if (!saved || saved.v !== 1) saved = {};
+        const qty = (v) => listOf(v).reduce((a, l) => a + (Number(l && l.qty) || 0), 0);
+        const inSaved = listOf(saved.models);
+        const staged = stagedList().filter((m) => !inSaved.includes(keyOf(m.model)));
+        const count = listOf(saved.itemIds).length + qty(saved.special) + qty(saved.addonLines) + staged.length;
+        const icon = document.querySelector(".site-head a.cart-btn");
+        if (icon) {
+          let badge = icon.querySelector(".cart-count");
+          if (!badge && count > 0) { badge = document.createElement("span"); badge.className = "cart-count"; icon.appendChild(badge); }
+          if (badge) { badge.textContent = String(count); badge.style.display = count > 0 ? "" : "none"; }
+          icon.setAttribute("aria-label", count > 0 ? "Cart, " + count + (count === 1 ? " item" : " items") : "Cart");
+        }
+        const inCart = new Set([...inSaved, ...staged.map((m) => keyOf(m.model))]);
+        document.querySelectorAll("#featured a[data-add]").forEach((a) => {
+          const has = inCart.has(keyOf(a.getAttribute("data-model")));
+          a.textContent = has ? "Go to Cart" : "Add to cart";
+          a.setAttribute("href", has ? "/shop.html?show=cart" : a.getAttribute("data-add"));
+          if (has) a.dataset.inCart = "1"; else delete a.dataset.inCart;
+        });
+      }
+      // Google Tag (11/19): the add is counted here; when storage is blocked
+      // the link goes to the shop, which counts it there instead.
+      function gaAdd(g) {
+        try {
+          const dept = Object.keys(DEPT_CATS).find((d) => DEPT_CATS[d].includes(g.category)) || g.category || "";
+          const item = { item_id: String(g.model), item_name: [g.brand, g.model].filter(Boolean).join(" "), item_brand: g.brand || "", item_category: dept, item_variant: "New in Box", price: Math.round(Number(g.price) * 100) / 100, quantity: 1 };
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({ ecommerce: null });
+          window.dataLayer.push({ event: "add_to_cart", ecommerce: { currency: "USD", value: item.price, items: [item] } });
+        } catch {}
+      }
+      document.addEventListener("click", (e) => {
+        const a = e.target.closest("#featured a[data-add]");
+        if (!a || a.dataset.inCart) return; // Go to Cart: follow the link
+        const model = a.getAttribute("data-model"), key = keyOf(model);
+        if (!key) return;
+        try {
+          const models = stagedList().filter((m) => keyOf(m.model) !== key);
+          models.push({ model, at: Date.now() });
+          sessionStorage.setItem(STAGED, JSON.stringify({ v: 1, models }));
+          if (!stagedList().some((m) => keyOf(m.model) === key)) return; // storage didn't take: go to the shop with it
+        } catch { return; }
+        e.preventDefault();
+        syncCart();
+        const g = tiles.list.find((x) => keyOf(x.model) === key);
+        if (g) gaAdd(g);
+      });
+      syncCart();
+      window.addEventListener("pageshow", (e) => { if (e.persisted) syncCart(); });
 
       fetch("/api/shop/home-stats", { cache: "default" })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
-        .then((d) => { fillStats(d || {}); fillFeatured(d?.featured); })
+        .then((d) => { fillStats(d || {}); fillFeatured(d?.featured, d); })
         .catch(() => { fillStats({}); fillFeatured([]); });
     })();
   </script>

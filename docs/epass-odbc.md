@@ -748,6 +748,23 @@ Finished-orders moving 11 MB in 14 seconds shows the line itself is not the
 bottleneck. Open-service stores ~24,000 rows the old way before answering and
 runs 205–236 seconds in business hours: the next one to watch.
 
+## 8b9. The Customer Master bundle (2026-11-20)
+
+The seventh bundle, kind `epass-customers` (own outbox `W:\Agility\outbox\epass-customers`), feeds the **Customer Master** page (`docs/sales/customer-master.md`). It runs once a day, on the first run at or after 5 AM; the date of the last good run is kept in `epass\customers-last-pull.txt`, and `-Customers` forces a run. It goes up as three files, `epass-customers-<stamp>-<part>.json`. The kind isn't a snapshot on the agent, so all three upload.
+
+| Part | Dataset | Query |
+|---|---|---|
+| master | `customers` | The same Customer master SELECT as the finance bundle (contact and address columns only). |
+| master | `customer-extras` | `Customer.Code, LastActivityDate, PreferredContact`. It's its own query so a missing column can't stop the master. |
+| totals | `customer-sales` | Every finished sales invoice ever, totalled per `BillToCode, SoldToCode`: `COUNT(*)`, the pre-tax revenue sum, and the earliest and latest `InvFinishDate` / `DateFinished`. Sales means `R, S, AC, CAB, MOD`, `FINISHED` / `NOT POSTED`, not void. |
+| totals | `customer-service` | The same for `InvTypeCode = 'SV'`. |
+| brands | `customer-brands` | `InvoiceModel` joined to `Invoice`, `Model` and `Brand` on those sales invoices, per customer pair and `BrandCode`: line count and the last finish date. |
+
+- **Safe to fail one at a time.** Each query is guarded on its own: a failure is logged in `odbc.log`, and the other datasets still go.
+- **What Agility stores** (`lib/customer-master-postgres.js`):
+  - The pair is credited to the bill-to, else the sold-to, and summed per customer.
+  - Totals go to `epass_customer_totals` (the sales and service halves are replaced independently), brands to `epass_customer_brands`, and the extras to `epass_customers.last_activity` / `preferred_contact`.
+
 ## 8c. The service catalogue (2026-09-23)
 
 A fourth bundle, `epass-service-catalogue` (own outbox), carries every

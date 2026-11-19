@@ -53,6 +53,17 @@
 #                        report can split taxable from exempt dollars per invoice and per city
 #                        Runs on the 6:00 pull (last 3 posted months) - or -TaxBackfill (one bundle per quarter
 #                        from -TaxBackfillFrom, default 2022; fine to run during the day) / -TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]
+#   customers            (seventh bundle, epass-customers, once a day from 5 AM - or -Customers) the
+#                        Customer master's contact + address columns (same SELECT as the finance one)
+#   customer-extras      Customer.Code, LastActivityDate, PreferredContact (own query: a missing column
+#                        can't stop the master above)
+#   customer-sales       every finished sales invoice (R/S/AC/CAB/MOD) ever, totalled per bill-to /
+#                        sold-to pair: count, pre-tax revenue, first and last finish date
+#   customer-service     the same for customer-pay service (SV)
+#   customer-brands      InvoiceModel lines of those sales invoices per customer pair and brand: line
+#                        count and last finish date - the Customer Master's "bought" filter
+#                        Each of the five is its own read-only, guarded query (a failure is logged and the
+#                        rest still go); written as separate files so each stays well under the upload limit
 #   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) - the field
 #                        tool's component labor picker, priced as ePASS prices it
 #                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) - or, once,
@@ -124,6 +135,12 @@ param(
   # number of days once to seed history or to re-pull a window by hand,
   # e.g. -RecentQuoteDays 30 (capped at 31).
   [int]$RecentQuoteDays = 0,
+  # Customer Master bundle (seventh, epass-customers, 11/20): the Customer
+  # master plus lifetime sales / service totals and brands bought per
+  # customer, once a day on the first run at or after 5 AM (the date of the
+  # last good run is kept in epass\customers-last-pull.txt). -Customers
+  # forces it on any run.
+  [switch]$Customers,
   [switch]$TaxBackfill,
   [int]$TaxBackfillFrom = 2022,
   [string]$TaxSince = "",
@@ -141,10 +158,11 @@ $FinOutbox = Join-Path $Root "outbox\epass-finished-orders"
 $CatOutbox = Join-Path $Root "outbox\epass-service-catalogue"
 $TaxOutbox = Join-Path $Root "outbox\epass-tax"
 $FncOutbox = Join-Path $Root "outbox\epass-finance"
+$CusOutbox = Join-Path $Root "outbox\epass-customers"
 # Own log file: the agent's 10-minute task writes agent.log and Add-Content
 # fails when both hold it (seen 2026-09-21: "being used by another process").
 $LogFile   = Join-Path $Root "odbc.log"
-foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox, $TaxOutbox, $FncOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox, $TaxOutbox, $FncOutbox, $CusOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 
 function Log([string]$msg) {
   $line = "{0}  [odbc] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
@@ -1179,6 +1197,91 @@ ORDER BY c.Code
       Log ("bundle -> {0} ({1:n0} KB; cash ops)" -f $path, ($json.Length / 1024))
     } catch { Log ("finance bundle FAILED: {0}" -f $_.Exception.Message) }
   } else { Log "finance: skipped this run (first run of each hour only, or -Finance)" }
+
+  # ---- CUSTOMER MASTER (seventh bundle, epass-customers) -------------------
+  # 11/20, Andrew: "I need a Customer Master to build an email list for the
+  # Event RSVP tool." Once a day: the Customer master (the same contact and
+  # address columns as the finance bundle's - never employer, credit or ID
+  # fields), ePASS's Last Activity Date and Preferred Contact, and each
+  # customer's LIFETIME totals - every finished sales and customer-pay
+  # service invoice since ePASS began, summed per bill-to / sold-to pair
+  # (Agility credits the bill-to, else the sold-to, as everywhere else) -
+  # plus the brands each one has bought. Read-only SELECTs, each guarded on
+  # its own. One file per part (epass-customers-<stamp>-<part>.json, not a snapshot
+  # kind on the agent), so no single upload approaches the 60 MB limit.
+  $cusStampFile = Join-Path $LatestDir "customers-last-pull.txt"
+  $cusDue = $Customers
+  if (-not $cusDue -and (Get-Date).Hour -ge 5) {
+    try { $cusDue = -not ((Test-Path $cusStampFile) -and (((Get-Content $cusStampFile -TotalCount 1) -as [string]).Trim() -eq (Get-Date).ToString("yyyy-MM-dd"))) }
+    catch { $cusDue = $true }
+  }
+  if ($cusDue) {
+    $cusSales = "i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) IN ('FINISHED','NOT POSTED') AND (i.Void IS NULL OR i.Void = 0)"
+    $cusParts = [ordered]@{
+      "master" = [ordered]@{
+        "customers" = @"
+SELECT c.Code, c.LastName, c.FirstName, c.MiddleName, c.AccountType, c.InvTypeCode, c.SalespersonCode, c.BranchCode,
+       c.Phone1, c.Phone2, c.OtherPhone, c.BusinessPhone, c.MailingPhone, c.Email, c.BillingEmail, c.MailingEmail, c.DoNotEmail, c.DeclineEmail,
+       c.Address1, c.Address2, c.City, c.State, c.ZipCode, c.MailingAddress1, c.MailingAddress2, c.MailingCity, c.MailingState, c.MailingZipCode,
+       c.ParentCompanyCode, c.ProjectCode, c.DateCreated, c.DateModified
+FROM Customer c
+ORDER BY c.Code
+"@
+        "customer-extras" = @"
+SELECT c.Code, c.LastActivityDate, c.PreferredContact
+FROM Customer c
+ORDER BY c.Code
+"@
+      }
+      "totals" = [ordered]@{
+        "customer-sales" = @"
+SELECT i.BillToCode AS BillTo, i.SoldToCode AS SoldTo, COUNT(*) AS Invoices,
+       SUM(COALESCE(i.SerialTotal, 0) + COALESCE(i.ItemTotal, 0) + COALESCE(i.LaborTotal, 0) + COALESCE(i.MiscTotal, 0) + COALESCE(i.WtyTotal, 0)) AS Revenue,
+       MIN(i.InvFinishDate) AS FirstInvFinish, MIN(i.DateFinished) AS FirstFinished, MAX(i.InvFinishDate) AS LastInvFinish, MAX(i.DateFinished) AS LastFinished
+FROM Invoice i
+WHERE $cusSales
+GROUP BY i.BillToCode, i.SoldToCode
+"@
+        "customer-service" = @"
+SELECT i.BillToCode AS BillTo, i.SoldToCode AS SoldTo, COUNT(*) AS Invoices,
+       SUM(COALESCE(i.SerialTotal, 0) + COALESCE(i.ItemTotal, 0) + COALESCE(i.LaborTotal, 0) + COALESCE(i.MiscTotal, 0) + COALESCE(i.WtyTotal, 0)) AS Revenue,
+       MIN(i.InvFinishDate) AS FirstInvFinish, MIN(i.DateFinished) AS FirstFinished, MAX(i.InvFinishDate) AS LastInvFinish, MAX(i.DateFinished) AS LastFinished
+FROM Invoice i
+WHERE i.InvTypeCode = 'SV' AND UPPER(i.Status) IN ('FINISHED','NOT POSTED') AND (i.Void IS NULL OR i.Void = 0)
+GROUP BY i.BillToCode, i.SoldToCode
+"@
+      }
+      "brands" = [ordered]@{
+        "customer-brands" = @"
+SELECT i.BillToCode AS BillTo, i.SoldToCode AS SoldTo, m.BrandCode, b.Description AS BrandName, COUNT(*) AS Lines,
+       MAX(i.InvFinishDate) AS LastInvFinish, MAX(i.DateFinished) AS LastFinished
+FROM InvoiceModel im
+INNER JOIN Invoice i ON im.InvoiceCode = i.Code
+INNER JOIN Model m ON im.ModelCode = m.Code
+LEFT JOIN Brand b ON m.BrandCode = b.Code
+WHERE $cusSales
+GROUP BY i.BillToCode, i.SoldToCode, m.BrandCode, b.Description
+"@
+      }
+    }
+    $cusOk = $false
+    foreach ($part in $cusParts.Keys) {
+      $cus = [ordered]@{ pulledAt = (Get-Date).ToString("s"); source = $Dsn; machine = $env:COMPUTERNAME; part = $part; datasets = [ordered]@{} }
+      foreach ($name in $cusParts[$part].Keys) {
+        try { $cus.datasets[$name] = Export-Query $conn $cusParts[$part][$name] (Join-Path $LatestDir "$name.csv") $name }
+        catch { Log ("{0} FAILED (bundle continues without it): {1}" -f $name, $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+      }
+      if ($cus.datasets.Count -eq 0) { Log ("customers {0}: nothing to send" -f $part); continue }
+      try {
+        $json = $cus | ConvertTo-Json -Depth 6 -Compress
+        $path = Join-Path $CusOutbox "epass-customers-$stamp-$part.json"
+        [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
+        Log ("bundle -> {0} ({1:n0} KB; customer master {2})" -f $path, ($json.Length / 1024), $part)
+        $cusOk = $true
+      } catch { Log ("customers {0} bundle FAILED: {1}" -f $part, $_.Exception.Message) }
+    }
+    if ($cusOk) { try { Set-Content -Path $cusStampFile -Value (Get-Date).ToString("yyyy-MM-dd") } catch {} }
+  } else { Log "customers: skipped this run (done today, or before 5 AM; -Customers forces it)" }
 
   # ---- SERVICE CATALOGUE (fourth bundle) ---------------------------------
   # Every finished SV/WTY ticket with its complaint, work performed, unit,

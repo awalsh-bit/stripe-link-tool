@@ -19,6 +19,8 @@
 #   W:\Agility\outbox\epass-finished-orders <- same, finished orders (OE-23 replacement), hourly
 #   W:\Agility\outbox\epass-service-catalogue <- same, finished service tickets + labor rates (history / Model Insight), daily + one-time backfill
 #   W:\Agility\outbox\epass-tax <- same, posted invoices + lines with tax flags (Tax Report), daily + one-time backfill
+#   W:\Agility\outbox\epass-customers <- same, the Customer master + lifetime totals and brands per customer
+#                                       (Customer Master page), once a day, three files per day (11/20)
 #   W:\Agility\processed\<kind>\    <- files Agility accepted (kept 60 days)
 #   W:\Agility\failed\<kind>\       <- files Agility rejected (bad export?)
 #   W:\Agility\agent.log            <- what happened, when
@@ -55,11 +57,13 @@ $KeepProcessedDays = 60
 $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
-$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax", "epass-finance")
+$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax", "epass-finance", "epass-customers")
 # Feeds that are a full SNAPSHOT of the moment - when several pile up, only
 # the newest matters. The catalogue and tax bundles are NOT snapshots: each
 # one is a distinct date slice (a backfill writes one per year / quarter in a
-# single run), so every one of them must go up, oldest first.
+# single run), so every one of them must go up, oldest first. The customer
+# bundle (11/20) is three different parts a day (master, totals, brands), so
+# it isn't a snapshot either: each part replaces its own data in Agility.
 $SnapshotKinds = @("epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-finance")
 $LogFile = Join-Path $Root "agent.log"
 

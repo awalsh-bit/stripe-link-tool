@@ -21,12 +21,12 @@ These are Google's standard ecommerce events, pushed to `dataLayer`. Each carrie
 | Event | When | Carries |
 |---|---|---|
 | `view_item` | A product page opens | Model, brand, department, New in Box / Open Box, and the price **only when the page shows one** (never for "Price in cart") |
-| `add_to_cart` | **Add to cart** on a product page, a tile, or a website link (`?add=`) | The model and the price it was added at |
+| `add_to_cart` | **Add to cart** on a product page, a tile, a best seller on the landing page (11/20), or a website link (`?add=`) | The model and the price it was added at |
 | `begin_checkout` | The secure checkout opens | The cart (appliances, then installation and parts) and its value after any promo |
 | `purchase` | An order is placed | `transaction_id` (the WEB- order number), `value`, `tax`, `shipping` (the delivery fee), `coupon` (the promo code) and the items |
 | `generate_lead` | A cart of special-order items is sent as a quote request | No value (nothing is priced yet) |
 
-- **Each add counts once.** An add on a product page is counted there. When the shop picks the model up, it doesn't count it again.
+- **Each add counts once.** An add on a product page or a landing-page best seller is counted there. When the shop picks the model up, it doesn't count it again.
 - **Purchase value** is the merchandise (appliances, installation and parts) after any promo, without tax or delivery. It comes from the server's own totals for the order.
 - **Purchase means the order was placed.** The card is saved, not charged, until a consultant confirms. A later cancellation isn't sent back to Google.
 - **Nothing personal is sent.** No name, phone, email, address, client code or shopper token goes into the data layer, only model numbers, prices and order totals. The test checks this on a real test order.

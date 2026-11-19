@@ -14,7 +14,7 @@ The catalog page carries the whole assortment, so it is slow to first paint. The
 | Stat strip (live model count · "days, not weeks") | `/api/shop/home-stats` |
 | Five one-click journeys: Outlet · Schedule service · Sub-Zero & Wolf · Visit the showroom · Call or text | /shop.html?outlet=1 · service host · service host /subzero · Google Maps · tel: |
 | Shop by department (6 photo tiles with live model counts, website order: Cooking, Coffee, Refrigeration, Kitchen Cleanup, Laundry, Outdoor) | /shop.html?dept=Cooking … Outdoor |
-| "What our neighbors take home" (top 4 sellers in stock, MAP-advertisable price only) | /shop.html?q=MODEL |
+| "What our neighbors take home" (top 4 sellers in stock, MAP-advertisable price only), drawn as the shop's own tiles (11/20) | the product page `/p/MODEL`, Details in place, Add to cart |
 | Showroom (copy, address, photo mosaic) | /subzero and department sub-links |
 | Delivery / Service / Builders pillars | /shop.html · service · tel: |
 
@@ -36,7 +36,7 @@ These can be texted or put in ads: `shop.wilsonappliance.com/shop.html?dept=Laun
 
 ## Data
 
-`GET /api/shop/home-stats` (public on the shop host, cached 2 minutes) **never builds anything while a visitor waits**: the numbers are computed after every catalog build (the warmer runs one every minute while the shop is in use, every 5 minutes idle), kept in memory and written to `shop_home_stats` in Postgres so a fresh deploy answers instantly with the last known numbers. The shop catalog itself is also served stale-while-revalidate up to 2 hours old rather than going cold at 10 minutes. It returns `{ models, units, byCategory, featured[4], paused, asOf }` (`asOf` = when ePASS last pushed the on-hand feed, not the clearance workbook's upload date) from the same `computeShopCatalog()` the shop uses. Featured = the four most-sold in-stock models that have a photo and a MAP-advertisable price. If the call fails the page still renders; the stat tiles show "—" and the featured row hides.
+`GET /api/shop/home-stats` (public on the shop host, cached 2 minutes) **never builds anything while a visitor waits**: the numbers are computed after every catalog build (the warmer runs one every minute while the shop is in use, every 5 minutes idle), kept in memory and written to `shop_home_stats` in Postgres so a fresh deploy answers instantly with the last known numbers. The shop catalog itself is also served stale-while-revalidate up to 2 hours old rather than going cold at 10 minutes. It returns `{ models, units, byCategory, featured[4], paused, asOf }` (`asOf` = when ePASS last pushed the on-hand feed, not the clearance workbook's upload date) from the same `computeShopCatalog()` the shop uses. Featured = the four most-sold in-stock models that have a photo and a MAP-advertisable price; since 11/20 each also carries what a shop tile shows (see *Best sellers as shop tiles* below). If the call fails the page still renders; the stat tiles show "—" and the featured row hides.
 
 ## Photos and fonts
 
@@ -142,3 +142,24 @@ Rules that changed on the server:
 - Card form: when there is no address on file, the Stripe payment element collects the billing ZIP itself (`address: "auto"`) instead of being handed one. **This path could only be tested against a stand-in for Stripe — place one real pickup order with no address before advertising.**
 
 Email as a contact preference is no longer offered at sign-up (Call or Text only); it is still selectable in the profile panel and in Shopper Profiles.
+
+## Best sellers as shop tiles (11/20)
+
+*Andrew, with a screenshot of the old cards, whose photos ran over the text: "this isn't great - can you copy the shop tiles here with the detail expansion logic and link to the PDP?"*
+
+The four best sellers under "What our neighbors take home" are now the shop's own product tiles, and they behave the way they do on `shop.html`:
+
+- **Pictures.** A model with several pictures flips through them with ‹ ›, a sideways swipe on a phone, or a click-and-drag with a mouse. Up and down still scrolls the page.
+- **Product page.** The description and the model number (with its arrow) open `/p/<MODEL>`. A model without a product page shows them as plain text, as in the shop.
+- **Details.** A tap on the tile, or **Details**, opens it to double width on a computer (in place on a phone) with Features | Specs and the sell sheet. One tile is open at a time, and the far-right tile opens over the last two columns of its own row.
+- **Badges and lines.** The shop's badges (In Stock / Low Stock / New in Box, and any eye-catcher), the category line with "N available", and "On display in Dripping Springs".
+- **Price.** The advertised price only, written as the shop writes it ($1,499.00), with the struck-through regular price when there is one. "From" shows only if some units of the model are priced higher.
+- **Add to cart** works as on a product page. The shopper stays on the landing page, the button becomes **Go to Cart**, and the shop puts the model in the cart the next time it opens. Without storage (some private windows) the button goes to the shop with the model (`?add=`). Google Tag gets one `add_to_cart`.
+- **Cart icon.** The landing page's header now has the cart icon, with its count, as the product pages do.
+- **Layout.** Four across on a computer, two on a tablet, one on a phone.
+
+**Data.** `buildShopHomeStats` in `server.js` now gives each featured model the fields a shop tile reads: the pictures (`images`, `photoActual`), the badge and stock fields (`source`, `stockLevel`, `hideStockBadge`, `badge`, `badgeStyle`), `categoryLabel`, `units`, `onDisplay` (with `onDisplayLabel` beside the list), `was` and `priceFrom`, `page` (`/p/<KEY>` when the model has a product page), and the Details content (`details`, `specs`, `sheets`), taken the same way as `/api/shop/catalog`. The tile is drawn from the unit at the price it shows. Numbers saved before this change still draw a plain tile until the next catalog build replaces them, within minutes.
+
+**Keep the two in step.** The tile rules and script in `shop-home.html` are copies of `shop.html`'s (`renderGrid`'s tile, `flipPic`, the swipe handlers, `toggleDetails`, `placeExpanded`, `showDetailTab`), scoped to `#featured`. A change to the shop's tile belongs in both.
+
+**Checked before delivery.** The real `server.js` was run on a local test database, with two made-up variants beside the two real best sellers so every kind of tile showed. 40 checks passed on a computer and an iPhone, covering links, Details, Specs, the far-right tile, photo arrows, drag and swipe, Add to cart through to the shop's cart, Google Tag, blocked storage, older saved numbers, and an empty list. The earlier shop-tile, Google Tag and add-to-cart suites still pass.

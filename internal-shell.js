@@ -327,6 +327,7 @@
           { href: "epass-uploads.html", title: "ePASS Upload Center" },
           { href: "message-automations.html", title: "Text Automations" },
           { href: "event-rsvps.html", title: "Events & RSVPs" },
+          { href: "customer-master.html", title: "Customer Master" },
           { href: "signature-builder.html", title: "Email Signature" }
         ]
       },

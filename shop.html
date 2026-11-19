@@ -17,8 +17,9 @@
   <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
        phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
   <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
-  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <!-- Search engines (11/20): indexable on shop.wilsonappliance.com only; the server sends noindex on any other address. -->
   <title>Wilson Express Assortment</title>
+  <meta name="description" content="Appliances in stock at Wilson AC &amp; Appliance in Dripping Springs, delivered and installed by our own team.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <!-- Stripe.js is loaded on demand when checkout opens (see loadStripeJs) so it
        never blocks first paint of the storefront. -->
@@ -902,8 +903,9 @@
   </aside>
 
   <main id="mainArea">
+    <!-- The paused and no-match notes (11/20) are written by the script only when they apply, so the page as it
+         arrives - what a search engine reads first - never carries them. -->
     <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
-      Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> or <a class="text-us" href="sms:+15128940907" style="color:inherit; font-weight:700;"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text Us</a> for availability, or check back shortly.
     </div>
     <!-- The headline that sat here ("Better choices, already made…") came off
          11/11 (Andrew): shoppers arriving from an ad go straight to the Top
@@ -952,7 +954,7 @@
 
     <div class="grid" id="itemGrid"></div>
     <div class="show-more" id="showMore" style="display:none;"><button type="button" class="btn ghost" id="showMoreBtn">Show more</button><span class="muted" id="showMoreNote"></span></div>
-    <div class="empty-note" id="emptyNote" style="display:none;">Nothing in stock matches those filters right now — check back soon, the assortment moves fast.</div>
+    <div class="empty-note" id="emptyNote" style="display:none;"></div>
   </main>
 
   <div class="done-card" id="doneCard" style="display:none;">
@@ -1147,6 +1149,8 @@
 
 <script>
 (() => {
+  // Written into #pausedNote only while the shop is paused (11/20: kept out of the page as it arrives).
+  const PAUSED_NOTE_HTML = `Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> or <a class="text-us" href="sms:+15128940907" style="color:inherit; font-weight:700;"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text Us</a> for availability, or check back shortly.`;
   const TOKEN_KEY = "wilsonShopToken";
   const ZIP_KEY = "wilsonShopZip";
   const PROMO_KEY = "wilsonShopPromo";
@@ -1377,6 +1381,7 @@
       $("unlockChip").textContent = nm ? `${nm}${/s$/i.test(nm) ? "'" : "'s"} Profile` : "My Profile";
     }
     $("pausedNote").style.display = state.paused ? "block" : "none";
+    $("pausedNote").innerHTML = state.paused ? PAUSED_NOTE_HTML : "";
     $("heroStrip").style.display = "";
     $("zipStrip").hidden = state.paused; // nothing to order while ordering is paused
     $("cartBtn").style.display = state.paused ? "none" : "";
@@ -1836,6 +1841,7 @@
     }
     state.renderedGroups = groups;
     $("emptyNote").style.display = groups.length ? "none" : "block";
+    $("emptyNote").textContent = groups.length ? "" : "Nothing in stock matches those filters right now — check back soon, the assortment moves fast.";
 
     // Only the first page of tiles is built (Andrew 10/3: hundreds of tiles
     // made the page slow); "Show more" adds the next page. A change of

@@ -846,6 +846,7 @@ const SHOP_PUBLIC_PATHS = new Set([
   "/logo-white.png", // landing-page header/footer (same mark, ivory)
   "/favicon.svg",
   "/robots.txt",
+  "/sitemap.xml", // the shop's pages for search engines (11/20)
   "/favicon.ico"
 ]);
 
@@ -1884,7 +1885,10 @@ function rateLimit(name, maxAttempts, windowMs) {
 }
 
 app.use((req, res, next) => {
-  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  // Search engines (Andrew 11/20, advertising the shop: "Open the shop"): the shop's own pages on
+  // shop.wilsonappliance.com may be crawled and indexed. Everything else - Agility, the service site, any
+  // API answer, and the shop pages on any other address - keeps noindex. robots.txt says the same per host.
+  if (!(getRequestHost(req) === SHOP_PUBLIC_HOST && !req.path.startsWith("/api/"))) res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "same-origin");
@@ -6448,6 +6452,48 @@ app.post("/api/hr/phone-screen", requirePagePermission("/hr-phone-screen.html"),
 // ---------------------------------------------------------------------------
 const SHOP_PRODUCT_PAGE_DIR = path.join(__dirname, "data", "product-pages");
 const SHOP_PRODUCT_PHOTO_DIR = path.join(__dirname, "product-photos");
+// robots.txt per host (11/20). The shop host opens its pages to search engines and Google Shopping, keeps
+// them out of the API (except what the pages read to draw themselves) and out of cart links; every other
+// host - Agility, the service site - serves the repo's robots.txt, which blocks everything.
+const SHOP_ROBOTS_TXT = [
+  "# shop.wilsonappliance.com: the shop's pages are open to search engines (Wilson, 11/20).",
+  "User-agent: *",
+  "Allow: /",
+  "Disallow: /api/",
+  "Allow: /api/shop/catalog",
+  "Allow: /api/shop/home-stats",
+  "Allow: /api/config",
+  "Allow: /api/promo/photo/",
+  "Allow: /api/shop/unit-photo/",
+  "Allow: /api/shop/spec-sheet/",
+  "Disallow: /*?*add=",
+  "Disallow: /*?*cart=",
+  "Disallow: /*?*show=",
+  "",
+  `Sitemap: https://${SHOP_PUBLIC_HOST}/sitemap.xml`,
+  ""
+].join("\n");
+app.get("/robots.txt", (req, res, next) => {
+  if (getRequestHost(req) !== SHOP_PUBLIC_HOST) return next(); // the file on disk
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  return res.type("text/plain").send(SHOP_ROBOTS_TXT);
+});
+// The shop's pages for search engines: the landing, the shop and every product page.
+app.get("/sitemap.xml", async (req, res) => {
+  if (getRequestHost(req) !== SHOP_PUBLIC_HOST) return res.status(404).send("Not found.");
+  try {
+    const keys = await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => []);
+    const base = `https://${SHOP_PUBLIC_HOST}`;
+    const urls = ["/", "/shop.html", ...[...keys].sort().map((k) => `/p/${encodeURIComponent(k)}`)];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${base}${u}</loc></url>`).join("\n")}\n</urlset>\n`;
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.type("application/xml").send(xml);
+  } catch (err) {
+    console.error("Sitemap failed:", err.message);
+    return res.status(500).send("Unavailable.");
+  }
+});
+
 app.get("/p/:model", async (req, res) => {
   try {
     const rec = await loadProductPage(SHOP_PRODUCT_PAGE_DIR, req.params.model);
@@ -6471,9 +6517,10 @@ app.get("/p/:model", async (req, res) => {
       live = { paused: true, unit: null, sheets: [] };
     }
     live.why = await loadWhyWilsonCards(path.join(__dirname, "data")).catch(() => null); // the Why Wilson cards (data/why-wilson.json)
+    live.origin = `https://${SHOP_PUBLIC_HOST}`; // canonical address and structured data (11/20)
     const html = renderProductPage(await loadProductPageTemplate(SHOP_PRODUCT_PAGE_DIR), rec, live);
     res.setHeader("Cache-Control", "no-store"); // price and stock are live
-    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    if (getRequestHost(req) !== SHOP_PUBLIC_HOST) res.setHeader("X-Robots-Tag", "noindex, nofollow"); // indexable on the shop host only (11/20)
     return res.type("html").send(html);
   } catch (err) {
     console.error("Product page failed:", err.message);

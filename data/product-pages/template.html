@@ -17,9 +17,13 @@
   <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
        phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
   <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
-  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
   <base href="/">
   <title>{{PAGE_TITLE}} | Wilson AC &amp; Appliance</title>
+  <!-- Search engines (11/20): indexable on shop.wilsonappliance.com only - the server sends noindex on any other
+       address. The product facts below are in the page as it arrives, for Google Search and Merchant Center. -->
+  <meta name="description" content="{{META_DESC}}">
+  <link rel="canonical" href="{{CANONICAL}}">
+  <script type="application/ld+json">{{JSON_LD}}</script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <!-- Express shop product page. This file is the template every model shares:
        the server fills the double-brace names from the model's record in this folder and

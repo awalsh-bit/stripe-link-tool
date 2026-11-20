@@ -1,17 +1,19 @@
-# Event email: up to 100 people, PDFs attached
+# Event email: up to 500 people, PDFs attached
 
 *Added 11/18. Andrew: "Can you build me a 100 email address Resend tool for communicating events? We'd like to attach PDFs if possible." Addresses come from the event's roster plus any pasted in; anyone with Event RSVPs can send.*
+
+*Changed 11/20. Andrew moved Resend to the Pro plan ($20 a month) and chose **500 per send** (the Customer Master fills a guest list 500 at a time). A full send of 500 takes about two minutes.*
 
 ## Using it
 
 On **Event RSVPs**, open an event and press **Email guests**.
 
-1. **To.** Tick people on the roster, or tick a status (Confirmed, Pending, Planned...) to take everyone in it. **Everyone with an email** takes the whole roster. Paste any other addresses in the box below the list: one per line or separated by commas, as `jane@example.com` or `Jane Doe <jane@example.com>`. Anything that isn't an address is named, and Send waits until it's fixed. Someone on the roster and in the pasted list counts once. The count beside **To** is the number of emails that will go: **100 at most per send**.
+1. **To.** Tick people on the roster, or tick a status (Confirmed, Pending, Planned...) to take everyone in it. **Everyone with an email** takes the whole roster. Paste any other addresses in the box below the list: one per line or separated by commas, as `jane@example.com` or `Jane Doe <jane@example.com>`. Anything that isn't an address is named, and Send waits until it's fixed. Someone on the roster and in the pasted list counts once. The count beside **To** is the number of emails that will go: **500 at most per send**.
 2. **Subject and message.** `{first name}` becomes each person's first name (from the roster, or from the name in front of a pasted address). With no name it is left out: "Hi {first name}," reads "Hi,". A blank line starts a new paragraph, and web addresses become links.
 3. **The event's card** (on by default) adds the date and time, the place, and an **RSVP** button to the event's page, with the RSVP deadline. The button shows only once the event is published.
 4. **PDFs.** Up to 5, 10 MB together. Only real PDFs are accepted.
 5. **Preview** shows the email as the first person picked will see it. **Send me a test** sends one copy, marked [Test], to your own address.
-6. **Send to N people**, then **Yes, send it** on the line that appears. The emails go out in the background, about four a second, so 100 take under half a minute. The drawer shows the count as they go, and the list of people clears when it's done so a second click can't send it again.
+6. **Send to N people**, then **Yes, send it** on the line that appears. The emails go out in the background, about four a second, so 100 take under half a minute and 500 about two minutes. The drawer shows the count as they go, and the list of people clears when it's done so a second click can't send it again.
 
 ## What a guest gets
 
@@ -34,8 +36,16 @@ Under the roster, **Emails sent** lists every send for the event: when, who sent
 
 ## Limits worth knowing
 
-- **Resend's plan.** Resend's free plan allows **100 emails a day** for everything Agility sends: sign-in emails, payment notices, spec packages, and these. If the plan is free, one full event send uses the day. When Resend says the quota is used up, the send stops at once, says so, and the rest can go the next day (the day resets at midnight UTC) with **Send to the N who didn't get it**. Paid plans have no daily limit.
-- Resend sends at most 10 requests a second for the whole account. This tool uses about four, so the rest of Agility's email keeps flowing during a send.
+- **Resend's plan (Pro since 11/20).** Wilson is on Resend Pro: **50,000 emails a month**, no daily limit. That covers everything Agility sends: sign-in emails, payment notices, spec packages, and these.
+  - **Over 50,000 in a month:** Resend charges **$0.90 per extra 1,000** only if *Transactional Overages* is turned on in Resend's team settings. Resend's pages don't say clearly what happens with overages off, so check before a month that might pass 50,000.
+  - **When Resend says a limit is used up**, the send stops at once and says so. The rest go later with **Send to the N who didn't get it**.
+  - A *daily* stop would mean the account is back on the free plan (100 a day).
+- **Keep bounces and spam reports low.** Resend asks for bounces under **4%** and spam complaints under **0.08%**, and can pause the whole account above that. A pause would also stop Agility's sign-in and payment emails.
+  - Old ePASS addresses are the main bounce risk. Send the first big list to recent customers.
+  - Bulk mail through this tool must go to people who expect Wilson's email. Every email carries its own unsubscribe link and the one-click unsubscribe headers, as Resend requires.
+- Resend allows 10 requests a second for the whole account, whatever the plan. This tool keeps to about four, so the rest of Agility's email keeps flowing during a send.
+  - Fixed 11/20: the two senders could start together and reach about eight a second.
+  - A send of 500 with a large PDF moves more data and can take a little longer.
 - Resend's batch endpoint can't carry attachments, so each person's email is its own request. Each request has an idempotency key: if the same request is retried, Resend sends it once.
 - **Two minutes.** The same subject and message to the same event within two minutes is held back as a likely double click.
 
@@ -46,7 +56,8 @@ The real `server.js` was run on a local test database against a stand-in for Res
 - **100-person send:** all 100 arrived, one person each. Each was personalized, with both PDFs byte for byte, the event contact as reply-to, its own unsubscribe link, and the one-click headers.
 - **Rate limits and quota:** rate-limited requests were retried with the same idempotency key. A quota stop was followed by **Send to the rest**, and nobody got an email twice.
 - **Restart:** a send cut short by a restart was marked as such and sent nothing until someone pressed the button.
-- **Refused before anything was sent:** a missing confirm, 101 people, a non-address, a non-PDF, six PDFs, and no subject.
+- **Refused before anything was sent:** a missing confirm, 501 people (101 before 11/20), a non-address, a non-PDF, six PDFs, and no subject.
+- **500-person send (11/20):** all 500 arrived, one person each, each with the PDF, in 125 seconds at a steady four a second.
 - **Unsubscribe:** the link, the button and one-click all worked, and the next send left those people out.
 - **Audit:** sends, tests, retries and unsubscribes all landed in `access_audit_log`.
 - **Browser, desktop and phone:** picking by status, pasting, PDFs, preview, test, confirm, progress, the sent list and who got it.

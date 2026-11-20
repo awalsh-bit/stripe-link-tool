@@ -57,17 +57,19 @@
 #                        Customer master's contact + address columns (same SELECT as the finance one)
 #   customer-extras      Customer.Code, LastActivityDate, PreferredContact (own query: a missing column
 #                        can't stop the master above)
-#   customer-sales       every finished sales invoice (R/S/AC/CAB/MOD) ever, totalled per bill-to /
-#                        sold-to pair: count, pre-tax revenue, first and last finish date
-#   customer-service     the same for customer-pay service (SV)
-#   customer-brands      InvoiceModel lines of those sales invoices per customer pair and brand: line
-#                        count and last finish date - the Customer Master's "bought" filter
-#                        Each of the five is its own read-only, guarded query (a failure is logged and the
-#                        rest still go); written as separate files so each stays well under the upload limit
+#                        Each is its own read-only, guarded query (a failure is logged and the other still
+#                        goes). The lifetime totals and brands (customer-sales / -service / -brands, which
+#                        re-read every invoice since 2006 each morning) were retired the same day: they come
+#                        once from the ePASS history export (scripts/epass-export-import.mjs), and Agility adds
+#                        its own finished orders on top from the hourly bundle.
 #   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) - the field
 #                        tool's component labor picker, priced as ePASS prices it
-#                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) - or, once,
-#                        -CatalogueBackfill (one bundle per year since 2005) / -CatalogueSince yyyy-MM-dd
+#                        Runs daily on the 6:00 pull (tickets finished in the last 21 days, with labor-rates)
+#                        and, since 11/20, on the first pull of each of the other hours (the last 3 days, so
+#                        the board's history drawer is never more than an hour behind) - or, once,
+#                        -CatalogueBackfill (one bundle per year since 2005) / -CatalogueSince yyyy-MM-dd.
+#                        The history before 11/18/2026 can come from the ePASS history export instead
+#                        (scripts/epass-export-import.mjs), with no ODBC reading at all.
 #   open-service        Invoice header, InvTypeCode SV/WTY, Status not FINISHED, not void
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
 #   open-service-items   InvoiceItem (parts) for those tickets
@@ -77,7 +79,8 @@
 #   open-service-po-items-by-ref / -by-shipto  the same via POItem.Reference and PO.ShipToCode (third/fourth)
 #   open-service-po-items-unreceived  every unreceived PO line with a BO invoice, no Invoice join (fifth)
 #   open-service-parts-pending  every part line on an open ticket still on order, with its link columns (the probe)
-#   service-history     finished SV/WTY invoices, last 3 years, for customers with an open ticket
+#   (service-history, the finished SV/WTY tickets of the last 3 years for every customer with an
+#    open ticket, was retired 11/20: the board's history drawer reads the service catalogue.)
 #
 # Sensitive columns never leave ePASS: anything whose name matches the
 # deny-list below is dropped from every dataset (see Data minimization in
@@ -879,25 +882,11 @@ ORDER BY ii.InvoiceCode
 "@ (Join-Path $LatestDir "open-service-parts-pending.csv") "open-service-parts-pending"
   } catch { Log ("open-service-po-items FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
-  # Service history (2026-09-22): the finished SV/WTY invoices of the last
-  # three years for every customer who has an open ticket - what the board's
-  # "Service history" drawer shows. Header columns only (no line detail);
-  # guarded so the bundle survives without it.
-  $histSince = (Get-Date).AddYears(-3).ToString("yyyy-MM-dd")
-  try {
-    $svc.datasets["service-history"] = Export-Query $conn @"
-SELECT h.Code, h.InvTypeCode, h.Status, h.JobStatusCode, h.DateCreated, h.DateFinished, h.SvcScheduleDate, h.Salesperson1Code, h.SoldToCode,
-       h.SoldToLastName, h.SoldToFirstName, h.SoldToAddress1, h.SoldToZipCode, h.SoldToPhone1,
-       h.SvcBrandCode, h.SvcModel, h.SvcSerial, h.SvcProductCode, h.SvcComplaintDesc, h.SvcPerformedDesc, h.SvcRepairCode, h.PaymentTypeCode,
-       h.SerialTotal, h.ItemTotal, h.LaborTotal, h.MiscTotal, h.WtyTotal, h.Tax1Total, h.Tax2Total, h.Tax3Total, h.DispatchUnits
-FROM Invoice h
-WHERE h.InvTypeCode IN ('SV','WTY') AND (h.Void IS NULL OR h.Void = 0)
-  AND h.DateCreated >= '$histSince'
-  AND UPPER(h.Status) = 'FINISHED'
-  AND h.SoldToCode IN (SELECT i.SoldToCode FROM Invoice i WHERE $svcWhere)
-ORDER BY h.SoldToCode, h.DateCreated DESC
-"@ (Join-Path $LatestDir "service-history.csv") "service-history"
-  } catch { Log ("service-history FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  # Service history (2026-09-22 .. 11/20): retired. It re-read three years of
+  # finished SV/WTY tickets for every customer with an open ticket on every
+  # 15-minute run; the board's history drawer reads the service catalogue
+  # (epass-service-catalogue, now topped up hourly) instead, and what this
+  # dataset last delivered stays in Agility as the fallback.
 
   $json = $svc | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $SvcOutbox "epass-open-service-$stamp.json"
@@ -1202,13 +1191,11 @@ ORDER BY c.Code
   # 11/20, Andrew: "I need a Customer Master to build an email list for the
   # Event RSVP tool." Once a day: the Customer master (the same contact and
   # address columns as the finance bundle's - never employer, credit or ID
-  # fields), ePASS's Last Activity Date and Preferred Contact, and each
-  # customer's LIFETIME totals - every finished sales and customer-pay
-  # service invoice since ePASS began, summed per bill-to / sold-to pair
-  # (Agility credits the bill-to, else the sold-to, as everywhere else) -
-  # plus the brands each one has bought. Read-only SELECTs, each guarded on
-  # its own. One file per part (epass-customers-<stamp>-<part>.json, not a snapshot
-  # kind on the agent), so no single upload approaches the 60 MB limit.
+  # fields) and ePASS's Last Activity Date and Preferred Contact. Read-only
+  # SELECTs, each guarded on its own, written as
+  # epass-customers-<stamp>-master.json (not a snapshot kind on the agent).
+  # The lifetime totals and brands are no longer read here (11/20, see the
+  # "totals" note below).
   $cusStampFile = Join-Path $LatestDir "customers-last-pull.txt"
   $cusDue = $Customers
   if (-not $cusDue -and (Get-Date).Hour -ge 5) {
@@ -1216,7 +1203,6 @@ ORDER BY c.Code
     catch { $cusDue = $true }
   }
   if ($cusDue) {
-    $cusSales = "i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) IN ('FINISHED','NOT POSTED') AND (i.Void IS NULL OR i.Void = 0)"
     $cusParts = [ordered]@{
       "master" = [ordered]@{
         "customers" = @"
@@ -1233,36 +1219,11 @@ FROM Customer c
 ORDER BY c.Code
 "@
       }
-      "totals" = [ordered]@{
-        "customer-sales" = @"
-SELECT i.BillToCode AS BillTo, i.SoldToCode AS SoldTo, COUNT(*) AS Invoices,
-       SUM(COALESCE(i.SerialTotal, 0) + COALESCE(i.ItemTotal, 0) + COALESCE(i.LaborTotal, 0) + COALESCE(i.MiscTotal, 0) + COALESCE(i.WtyTotal, 0)) AS Revenue,
-       MIN(i.InvFinishDate) AS FirstInvFinish, MIN(i.DateFinished) AS FirstFinished, MAX(i.InvFinishDate) AS LastInvFinish, MAX(i.DateFinished) AS LastFinished
-FROM Invoice i
-WHERE $cusSales
-GROUP BY i.BillToCode, i.SoldToCode
-"@
-        "customer-service" = @"
-SELECT i.BillToCode AS BillTo, i.SoldToCode AS SoldTo, COUNT(*) AS Invoices,
-       SUM(COALESCE(i.SerialTotal, 0) + COALESCE(i.ItemTotal, 0) + COALESCE(i.LaborTotal, 0) + COALESCE(i.MiscTotal, 0) + COALESCE(i.WtyTotal, 0)) AS Revenue,
-       MIN(i.InvFinishDate) AS FirstInvFinish, MIN(i.DateFinished) AS FirstFinished, MAX(i.InvFinishDate) AS LastInvFinish, MAX(i.DateFinished) AS LastFinished
-FROM Invoice i
-WHERE i.InvTypeCode = 'SV' AND UPPER(i.Status) IN ('FINISHED','NOT POSTED') AND (i.Void IS NULL OR i.Void = 0)
-GROUP BY i.BillToCode, i.SoldToCode
-"@
-      }
-      "brands" = [ordered]@{
-        "customer-brands" = @"
-SELECT i.BillToCode AS BillTo, i.SoldToCode AS SoldTo, m.BrandCode, b.Description AS BrandName, COUNT(*) AS Lines,
-       MAX(i.InvFinishDate) AS LastInvFinish, MAX(i.DateFinished) AS LastFinished
-FROM InvoiceModel im
-INNER JOIN Invoice i ON im.InvoiceCode = i.Code
-INNER JOIN Model m ON im.ModelCode = m.Code
-LEFT JOIN Brand b ON m.BrandCode = b.Code
-WHERE $cusSales
-GROUP BY i.BillToCode, i.SoldToCode, m.BrandCode, b.Description
-"@
-      }
+      # "totals" and "brands" (lifetime sales / service per customer, brands
+      # bought) were retired 11/20 - every invoice since 2006, re-read each
+      # morning. They come once from the ePASS history export instead
+      # (scripts/epass-export-import.mjs), with Agility's own hourly finished
+      # orders added on top.
     }
     $cusOk = $false
     foreach ($part in $cusParts.Keys) {
@@ -1299,6 +1260,11 @@ GROUP BY i.BillToCode, i.SoldToCode, m.BrandCode, b.Description
     $catSlices += ,@($CatalogueSince, $u, $true)
   } elseif ((Get-Date).Hour -eq 6 -and (Get-Date).Minute -lt 15) {
     $catSlices += ,@((Get-Date).AddDays(-21).ToString("yyyy-MM-dd"), $today, $true)
+  } elseif ((Get-Date).Minute -lt 15) {
+    # 11/20: every other hour's first pull tops up the last 3 days (no
+    # labor-rates) - the board's history drawer reads the catalogue now that
+    # the 15-minute service-history query is retired.
+    $catSlices += ,@((Get-Date).AddDays(-3).ToString("yyyy-MM-dd"), $today, $false)
   }
   foreach ($slice in $catSlices) {
     $cSince = $slice[0]; $cUntil = $slice[1]; $withRates = $slice[2]

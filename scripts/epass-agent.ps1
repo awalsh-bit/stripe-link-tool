@@ -21,6 +21,12 @@
 #   W:\Agility\outbox\epass-tax <- same, posted invoices + lines with tax flags (Tax Report), daily + one-time backfill
 #   W:\Agility\outbox\epass-customers <- same, the Customer master + lifetime totals and brands per customer
 #                                       (Customer Master page), once a day, three files per day (11/20)
+#   W:\Agility\outbox\epass-history <- the ePASS HISTORY EXPORT turned into bundles (11/20) by
+#                                       scripts/epass-export-import.mjs on Andrew's laptop: Customer Master
+#                                       lifetime totals, the service catalogue back to 2006 and finished sales
+#                                       orders back to 2006. Copy the files in once; they go up in name order,
+#                                       at most about four minutes' worth per run so the live feeds keep
+#                                       flowing, until the folder is empty (docs/epass-history-import.md)
 #   W:\Agility\processed\<kind>\    <- files Agility accepted (kept 60 days)
 #   W:\Agility\failed\<kind>\       <- files Agility rejected (bad export?)
 #   W:\Agility\agent.log            <- what happened, when
@@ -57,13 +63,17 @@ $KeepProcessedDays = 60
 $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
-$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax", "epass-finance", "epass-customers")
+$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax", "epass-finance", "epass-customers", "epass-history")
 # Feeds that are a full SNAPSHOT of the moment - when several pile up, only
 # the newest matters. The catalogue and tax bundles are NOT snapshots: each
 # one is a distinct date slice (a backfill writes one per year / quarter in a
 # single run), so every one of them must go up, oldest first. The customer
 # bundle (11/20) is three different parts a day (master, totals, brands), so
 # it isn't a snapshot either: each part replaces its own data in Agility.
+# The history export (11/20) is a few hundred one-time files: never a
+# snapshot, sent in name order (customers, then the catalogue years, then
+# the order months), and only HistoryBudgetSeconds of them per run.
+$HistoryBudgetSeconds = 240
 $SnapshotKinds = @("epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-finance")
 $LogFile = Join-Path $Root "agent.log"
 
@@ -117,13 +127,21 @@ foreach ($kind in $Kinds) {
     $snaps = @($snaps | Select-Object -Last 1)
   }
   $files = @($windows) + @($snaps)
+  if ($kind -eq "epass-history") { $files = @($files | Sort-Object Name) }
+  $budget = [System.Diagnostics.Stopwatch]::StartNew()
   # A service bundle can run to several MB and Agility mirrors every ticket
   # before answering; over the VPN that can take well past three minutes.
   # Agility acknowledges a bundle as soon as it is stored (processing runs
   # after the reply), so a healthy upload answers in well under 5 minutes even
   # at 47 MB over the VPN. Waiting longer only ever meant the server was down.
   $timeout = if ($kind -like "epass-*") { 300 } else { 180 }
+  $sent = 0
   foreach ($file in $files) {
+    if ($kind -eq "epass-history" -and $budget.Elapsed.TotalSeconds -ge $HistoryBudgetSeconds) {
+      Log ("PAUSE [{0}] {1} file(s) left for the next run (sent {2} this run)" -f $kind, ($files.Count - $sent), $sent)
+      break
+    }
+    $sent++
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {

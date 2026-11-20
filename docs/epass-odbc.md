@@ -750,7 +750,9 @@ runs 205–236 seconds in business hours: the next one to watch.
 
 ## 8b9. The Customer Master bundle (2026-11-20)
 
-The seventh bundle, kind `epass-customers` (own outbox `W:\Agility\outbox\epass-customers`), feeds the **Customer Master** page (`docs/sales/customer-master.md`). It runs once a day, on the first run at or after 5 AM; the date of the last good run is kept in `epass\customers-last-pull.txt`, and `-Customers` forces a run. It goes up as three files, `epass-customers-<stamp>-<part>.json`. The kind isn't a snapshot on the agent, so all three upload.
+The seventh bundle, kind `epass-customers` (own outbox `W:\Agility\outbox\epass-customers`), feeds the **Customer Master** page (`docs/sales/customer-master.md`). It runs once a day, on the first run at or after 5 AM; the date of the last good run is kept in `epass\customers-last-pull.txt`, and `-Customers` forces a run. It goes up as `epass-customers-<stamp>-master.json`. The kind isn't a snapshot on the agent.
+
+**Retired the same day:** the `totals` and `brands` parts below re-read every invoice since 2006 each morning. They now come once from the ePASS history export (§8e), and Agility adds its own finished orders after the export date. The rows below are kept for reference; Agility still accepts these datasets if an older pull sends them.
 
 | Part | Dataset | Query |
 |---|---|---|
@@ -765,6 +767,19 @@ The seventh bundle, kind `epass-customers` (own outbox `W:\Agility\outbox\epass-
   - The pair is credited to the bill-to, else the sold-to, and summed per customer.
   - Totals go to `epass_customer_totals` (the sales and service halves are replaced independently), brands to `epass_customer_brands`, and the extras to `epass_customers.last_activity` / `preferred_contact`.
 
+## 8e. The ePASS history export instead of ODBC backfills (2026-11-20)
+
+Andrew put a full ePASS export in `data/EPASS_FULL_EXPORT_20260917_0729/`: November 2006 to November 18, 2026, refreshed 11/18. `scripts/epass-export-import.mjs` turns it into `epass-history` bundles on the laptop, and the agent sends them (see `docs/epass-history-import.md`). They take the place of these ODBC readings:
+
+| ODBC reading | Now |
+|---|---|
+| `-FinishedSince` backfills | Finished sales orders back to 2006 load from the export as history only: Sales Order Detail, Brand Sales and the lookups, never commission or Performance months. Months the live feed already has are skipped. |
+| `-CatalogueBackfill` | The service catalogue back to 2006 loads from the export. Tickets already loaded over ODBC are left alone. |
+| `customer-sales` / `-service` / `-brands`, daily | Retired. The lifetime totals come from the export, with Agility's own finished orders added after 11/17/26. |
+| `service-history`, every 15 minutes | Retired. The board's history drawer reads the catalogue, which the pull now tops up hourly (the last 3 days). |
+
+The export can't replace the tax backfill (`-TaxBackfill`), because its service file has no tax columns. Anything current still comes from the pull.
+
 ## 8c. The service catalogue (2026-09-23)
 
 A fourth bundle, `epass-service-catalogue` (own outbox), carries every
@@ -777,7 +792,7 @@ as ePASS holds it). The slice filter is `InvTypeCode IN ('SV','WTY')`,
 `UPPER(Status) = 'FINISHED'`, not void, `DateFinished` or `InvFinishDate`
 inside the slice.
 
-When it runs: by itself on the 6:00 pull (the last 21 days), or by hand —
+When it runs: by itself on the 6:00 pull (the last 21 days), and since 11/20 on the first pull of each other hour (the last 3 days, no labor-rates), or by hand —
 `-CatalogueBackfill` writes one bundle per year since 2005 (run it once,
 off-hours, from `C:\Agility`), `-CatalogueSince yyyy-MM-dd [-CatalogueUntil
 yyyy-MM-dd]` one slice. Agility upserts by invoice number
@@ -833,6 +848,8 @@ WHERE (InvTypeCode = 'SV' OR InvTypeCode = 'WTY')
 Keep `JobStatusCode` as a field for analysis rather than using it as the primary inclusion filter.
 
 ### In the feed (2026-09-22): `service-history`
+
+**Retired 11/20.** The board's history drawer reads the service catalogue instead (§8c, topped up hourly; history before 11/18/26 comes from the ePASS export, §8e). The last `service-history` rows stay in `epass_service_history` as the drawer's fallback. What follows describes what it was.
 
 `scripts/epass-odbc-pull.ps1` now adds a `service-history` dataset to the
 service bundle: the finished SV/WTY invoices of the last three years for

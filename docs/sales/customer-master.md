@@ -63,9 +63,12 @@ What happens:
   - their ePASS salesperson as *invited by*
   - the note *From Customer Master · ePASS #…*
 - **People already there are left alone.** Anyone already on that guest list with the same email isn't added twice or changed.
-- **Nobody is emailed.** Sending stays on **Events & RSVPs → Email guests**: 100 people per send, PDFs attached, unsubscribes honoured.
+- **Nobody is emailed.** Sending stays on **Events & RSVPs → Email guests**: 500 people per send, PDFs attached, unsubscribes honoured.
 
-**Sending a long list.** Event emails go through Resend. On Resend's free plan that is **100 emails a day** for all of Agility's email, so a guest list of several hundred takes several days of sends. A paid Resend plan removes the daily limit.
+**Sending a long list.** Event emails go through Resend, on the Pro plan since 11/20: 50,000 a month, no daily limit, 500 people per send.
+
+- **Bounces.** Resend can pause the whole account when more than 4% of emails bounce, and that would also stop sign-in and payment emails. ePASS addresses go back to about 2006, and many old ones no longer work. Start with recent customers (Last purchase since a recent date) before sending to the whole list.
+- **Who to send to.** Send only to customers who would expect to hear from Wilson.
 
 ## Export CSV
 
@@ -85,37 +88,42 @@ It opens directly in Excel. A cell that starts with `=`, `+`, `-` or `@` is pref
 
 **The customer list.** Every ePASS customer comes from ePASS's Customer master, contact and address columns only (never credit, ID or employer fields). It is refreshed daily by the new **epass-customers** bundle. The Cash Ops (finance) bundle also still carries the master.
 
-**Lifetime totals and brands.** Once a day, the ePASS pull totals every finished sales invoice ever (R, S, AC, CAB and MOD, finished or not posted, not void) and every customer-pay service ticket (SV), per customer:
+**Lifetime totals and brands (changed the same day).** They come once from the **ePASS history export** (`docs/epass-history-import.md`). The export covers every finished sales invoice since 2006 (R, S, AC, CAB and MOD, finished or not posted, not void) and every customer-pay service ticket (SV), totalled per customer:
 
 - **Sales:** number of orders, pre-tax revenue (serial + item + labor + misc + warranty totals), first and last finish date.
 - **Service:** number of visits, revenue, last visit.
 - **Brands:** every brand on the model lines of those sales orders, and when it was last bought.
 
-An invoice is credited to its **bill-to** customer, or its **sold-to** when there's no bill-to, as everywhere else in Agility. ePASS's sales history reaches back to about 2006.
+The export reaches up to 11/17/26. Agility adds every order finished after that date from its hourly finished-orders feed: the sales and service totals from Sales Order Detail, and the brands from the units sold. The line under the title reads *Lifetime sales and service from ePASS through 11/17/26, plus every order finished since*.
 
-**Until the first lifetime bundle arrives**, the page uses the order history already in Agility (finished orders and the units on them). The line under the title then says those figures only reach back as far as that history does (it gives the date). It switches to *Lifetime sales and service from ePASS* by itself once the bundle lands.
+The first design re-read all of this over ODBC every morning, every invoice since 2006. That query was retired the same day.
+
+An invoice is credited to its **bill-to** customer, or its **sold-to** when there's no bill-to, as everywhere else in Agility.
+
+**Until the lifetime part arrives**, the page uses the order history already in Agility (finished orders and the units on them). The line under the title then says those figures only reach back as far as that history does (it gives the date).
 
 ## What Andrew needs to do on the ePASS server
 
 The pull script and the agent each changed. Both run on the showroom server.
 
 1. **Copy both scripts.** Copy `scripts/epass-odbc-pull.ps1` and `scripts/epass-agent.ps1` from the repo to `\\WILSON-FS02\SharedDrive\Agility\`, replacing the old ones. The agent reads its key from `epass-agent.key` beside it, so a straight copy is fine.
-2. **Run it once now (optional).** Run the pull once with `-Customers` to send the first bundle without waiting for tomorrow:
+2. **Load the history export** (the lifetime totals and brands), as `docs/epass-history-import.md` describes.
+3. **Run it once now (optional).** Run the pull once with `-Customers` to send the customer master without waiting for tomorrow:
 
    ```
    C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "W:\Agility\epass-odbc-pull.ps1" -Customers
    ```
 
-   Every query is a read-only SELECT. The brands query reads every model line since 2006, so the run can take a few minutes; run it outside the busiest hours.
-3. **From then on, it's automatic.** The pull sends the bundle once a day, on its first run after 5 AM. It keeps the date in `W:\Agility\epass\customers-last-pull.txt`. The agent picks up the new `outbox\epass-customers` folder by itself.
+   Every query is a read-only SELECT.
+4. **From then on, it's automatic.** The pull sends the bundle once a day, on its first run after 5 AM. It keeps the date in `W:\Agility\epass\customers-last-pull.txt`. The agent picks up the new `outbox\epass-customers` folder by itself.
 
 **Checking it:**
 
-- `W:\Agility\agent.log` should show three `OK [epass-customers]` lines a day: master, totals and brands.
-- The line under the Customer Master title changes to *Lifetime sales and service from ePASS*.
+- `W:\Agility\agent.log` should show one `OK [epass-customers]` line a day, for the master.
+- The line under the Customer Master title changes to *Lifetime sales and service from ePASS through 11/17/26, plus every order finished since* once the history export has loaded.
 - If a query fails, `W:\Agility\odbc.log` says which. That part of the page keeps its last good data, and the other parts still arrive.
 
-**Something to confirm:** *Last activity* and *Preferred contact* come from ePASS's `LastActivityDate` and `PreferredContact`. These are listed in the ePASS field guide but haven't been pulled before. If ePASS doesn't have them, that one small query fails and logs it, and everything else still arrives.
+**Last activity and Preferred contact** come from ePASS's `LastActivityDate` and `PreferredContact`. The ePASS history export's customer file carries both, so the columns exist. If the query ever fails, it logs the failure and everything else still arrives.
 
 ## Checked before delivery
 
@@ -151,10 +159,11 @@ The real `server.js` ran on a local test database, with 300 made-up customers se
   - **Schema:** `epass_customers.last_activity` / `preferred_contact`, `epass_customer_totals`, `epass_customer_brands`, `customer_master_meta`.
   - **Ingest:** `ingestCustomerBundle` handles the parts `customers`, `customer-extras`, `customer-sales`, `customer-service` and `customer-brands`. A missing dataset leaves its data as it was.
   - **Reading:** `listCustomerMaster` (filters, paging, totals, each row's brands), `exportCustomerMaster` with `customerMasterCsv`, and `addCustomersToEvent`, which allows at most 500 at a time and adds emailable customers only.
-  - **Sources:** `totalsSql` / `brandsSql` read the lifetime tables when they have arrived, otherwise `sales_order_detail` and `epass_sold_serials`.
+  - **Sources:** `totalsSql` / `brandsSql` read the lifetime tables, plus `sales_order_detail` / `epass_sold_serials` rows finished after `customer_master_meta.as_of`, leaving out rows loaded from the history export. Without the lifetime tables they read Agility's order history alone. Sales are matched by number: R, S, AC, CB, MD, CAB, MOD and Q (cabinetry is numbered CB and modifications MD in ePASS).
 - `server.js`:
   - **Routes:** `GET /api/customer-master/meta`; `POST /api/customer-master/list`; `POST /api/customer-master/export.csv`; `GET /api/customer-master/:code/history`; `POST /api/customer-master/add-to-event`.
   - **Why POST:** filters travel in the body, not the address, because a search can be a phone number or an email.
   - **Agent kind:** `epass-customers` on `/api/epass-agent/upload`.
-- `scripts/epass-odbc-pull.ps1`: the seventh bundle (`-Customers`; `customers-last-pull.txt`), written as three files `epass-customers-<stamp>-<part>.json`.
-- `scripts/epass-agent.ps1`: the `epass-customers` kind. It isn't a snapshot kind, so all three files go up.
+- `scripts/epass-odbc-pull.ps1`: the seventh bundle (`-Customers`; `customers-last-pull.txt`), written as `epass-customers-<stamp>-master.json`. The `totals` and `brands` parts were retired the same day.
+- `scripts/epass-agent.ps1`: the `epass-customers` kind. It isn't a snapshot kind.
+- The lifetime parts now arrive as `epass-history` bundles (`scripts/epass-export-import.mjs`, `docs/epass-history-import.md`).

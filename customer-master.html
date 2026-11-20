@@ -195,7 +195,7 @@
       <p class="note" id="addLead"></p>
       <div class="row"><label for="addEvent">Event</label><select id="addEvent"></select></div>
       <div class="row" id="addTypeRow"><label for="addType">Guest type (optional)</label><select id="addType"></select></div>
-      <p class="mut" style="margin-top:12px;">They go on the guest list as <b>Planned</b>, with their ePASS salesperson as <i>invited by</i>. Nobody is emailed: send from <b>Events &amp; RSVPs → Email guests</b>, 100 at a time. Anyone already on that guest list (same email) is left as they are.</p>
+      <p class="mut" style="margin-top:12px;">They go on the guest list as <b>Planned</b>, with their ePASS salesperson as <i>invited by</i>. Nobody is emailed: send from <b>Events &amp; RSVPs → Email guests</b>, 500 at a time. Anyone already on that guest list (same email) is left as they are.</p>
       <div class="status" id="addStatus" role="status"></div>
       <div class="btns">
         <button type="button" class="quiet" id="addCancel">Cancel</button>
@@ -230,8 +230,8 @@
     // ---- what's on file ------------------------------------------------------
     function renderFresh(m) {
       const bits = [`<span><b>${num(m.customers)}</b> ePASS customers${m.masterUpdatedAt ? `, refreshed ${esc(new Date(m.masterUpdatedAt).toLocaleDateString())}` : ""}</span>`];
-      if (m.lifetime.totals) bits.push(`<span>Lifetime sales and service from ePASS${m.parts.sales?.at ? `, refreshed ${esc(new Date(m.parts.sales.at).toLocaleDateString())}` : ""}</span>`);
-      else bits.push(`<span class="warn">Sales, last purchase and brands come from the order history in Agility${m.historyFrom ? ` (since ${esc(day(m.historyFrom))})` : ""}, not yet lifetime. Lifetime totals start once the updated ePASS pull runs.</span>`);
+      if (m.lifetime.totals) bits.push(`<span>Lifetime sales and service from ePASS${m.lifetime.asOf ? ` through ${esc(day(m.lifetime.asOf))}, plus every order finished since` : ""}</span>`);
+      else bits.push(`<span class="warn">Sales, last purchase and brands come from the order history in Agility${m.historyFrom ? ` (since ${esc(day(m.historyFrom))})` : ""}, not yet lifetime. Lifetime totals start once the ePASS history export is loaded.</span>`);
       $("fresh").innerHTML = bits.join("");
     }
     function fillSelect(sel, values, label) {

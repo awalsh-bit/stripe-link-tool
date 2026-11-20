@@ -14,7 +14,8 @@ feed that already runs (SHOP_SNAPSHOT_KEY).
 | `W:\Agility\outbox\inventory`  | ExportModel (Model Maintenance serials)   | Shop availability, hit list, aging inventory |
 | `W:\Agility\outbox\quotes`     | Invoice Maintenance — quotes, Open        | Quote Follow-Up board |
 | `W:\Agility\outbox\open-orders`| OE-23 Salesperson Activity (open orders)  | Aging/open-orders reporting |
-| `W:\Agility\outbox\epass-customers` | Written by `epass-odbc-pull.ps1` once a day (11/20): Customer master + lifetime sales / service totals + brands bought, three files | Customer Master page |
+| `W:\Agility\outbox\epass-customers` | Written by `epass-odbc-pull.ps1` once a day (11/20): the Customer master (the lifetime totals and brands moved to the history export the same day) | Customer Master page |
+| `W:\Agility\outbox\epass-history` | Copied in once by hand (11/20): the ePASS history export as bundles, made by `scripts/epass-export-import.mjs` on the laptop. Sent in name order, about four minutes' worth per run, until the folder is empty | Customer Master lifetime totals, the service catalogue and Sales Order Detail / Brand Sales back to 2006 (`docs/epass-history-import.md`) |
 
 Still manual (they need a human month choice): the monthly Crystal
 commission report and the monthly balance check — keep using the ePASS

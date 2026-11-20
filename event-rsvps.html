@@ -152,7 +152,7 @@
     <div id="internal-shell-header"></div>
     <div class="surface">
       <h2>Events</h2>
-      <p class="note">Set up an event here and publish it — it gets its own page on <strong>service.wilsonappliance.com/events/…</strong> with an RSVP form, and shows on the events listing when marked visible. The roster below each event is the RSVP tracker: add or import invitees, track Planned → Pending → Confirmed, and online RSVPs land on the same list automatically (matched by email, then name). <strong>Email guests</strong> sends an event email to up to 100 people at a time, each their own copy, with PDFs attached if you like.</p>
+      <p class="note">Set up an event here and publish it — it gets its own page on <strong>service.wilsonappliance.com/events/…</strong> with an RSVP form, and shows on the events listing when marked visible. The roster below each event is the RSVP tracker: add or import invitees, track Planned → Pending → Confirmed, and online RSVPs land on the same list automatically (matched by email, then name). <strong>Email guests</strong> sends an event email to up to 500 people at a time, each their own copy, with PDFs attached if you like.</p>
       <div id="status" class="status"></div>
       <div class="toolbar">
         <select id="filter"><option value="all">All events</option><option value="published">Published</option><option value="draft">Drafts</option><option value="archived">Archived</option></select>
@@ -493,7 +493,7 @@
         updateCount();
       }
       function updateCount() {
-        const a = audience(), max = mail.info?.limits?.recipients || 100;
+        const a = audience(), max = mail.info?.limits?.recipients || 500;
         $("mCount").textContent = `${a.count} ${a.count === 1 ? "person" : "people"}${a.count > max ? ` (over ${max})` : ""}`;
         $("mCount").classList.toggle("over", a.count > max);
         const n = a.extra.found.length, bad = a.extra.invalid;

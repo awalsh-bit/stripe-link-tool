@@ -267,7 +267,7 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets, modelDiscountsFromFeed } from "./lib/epass-feed-finished.js";
-import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldUnitsForTicket, listSoldSerialOptions, listSoldSerialDetail } from "./lib/epass-sold-serials-postgres.js";
+import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldUnitsForTicket, listSoldSerialOptions, listSoldSerialDetail, insertHistorySoldSerials } from "./lib/epass-sold-serials-postgres.js";
 import { traceCommissionTicket, baseTicketOf, isTicketNumber } from "./lib/commission-ticket-trace.js";
 // Site walks (Cayden, handoff v0.9.85): the pre-delivery site walk tool. lib/site-walk-*.js are his, as delivered.
 import { registerSiteWalkRoutes } from "./lib/site-walk-routes.js";
@@ -307,7 +307,7 @@ import { ticketKey, collectTicketRecords, buildTicketAudit, searchTicketRecords,
 import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails } from "./lib/important-dates-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
-import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
+import { processCatalogueBundle, processCatalogueHistoryBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
 import {
   extractServiceEstimateFromPdf,
   assessPartsQuality,
@@ -496,7 +496,9 @@ import {
   getOpenOrdersMeta,
   getOpenOrdersByInvoices,
   listHvacJobsForMonths,
-  listHvacJobMonths
+  listHvacJobMonths,
+  insertHistoryOrders,
+  salespersonNamesByCode
 } from "./lib/sales-order-detail-postgres.js";
 import {
   FIELD_SALES_PLAN,
@@ -13269,6 +13271,10 @@ let epassCatalogueChain = Promise.resolve();
 let lastCataloguePostProcessing = null;
 // epass-tax bundle (posted invoices + lines with tax flags; Tax Report)
 let epassTaxChain = Promise.resolve();
+// epass-history bundles (11/20): the full ePASS export turned into bundles
+// on Andrew's laptop (scripts/epass-export-import.mjs), one at a time.
+let epassHistoryChain = Promise.resolve();
+let lastHistoryBundle = null;
 let lastFinanceBundle = null;
 let lastTaxPostProcessing = null;
 // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"): the
@@ -13353,6 +13359,47 @@ async function processFinishedOrdersBundle(bundle) {
     if (Array.isArray(ql) && ql.length) counts.quoteLines = await replaceQuoteLines(quoteLinesFromFeedRows(ql));
   } catch (err) { console.error("Quote lines from finished bundle failed:", err.message); counts.quoteLines = { error: err.message }; }
   return counts;
+}
+
+// ePASS HISTORY EXPORT (11/20, Andrew: "I just dropped all of ePASS's
+// historical data in to the data folder ... see if you can figure out how to
+// use that instead of pinging the ODBC for all of our historical data").
+// scripts/epass-export-import.mjs turns the export into bundles shaped like
+// the pull's own, marked history: "finished-orders" | "service-catalogue" |
+// "customers", and the agent sends them as kind epass-history. Everything
+// here only fills in what Agility doesn't have: finished sales orders and
+// their units for months with no feed data (never commission or Performance
+// months), service tickets not yet in the catalogue, and the Customer
+// Master's lifetime totals as of the export date (Agility's own finished
+// orders are added on top after that date).
+async function processHistoryBundle(bundle, { filename = "" } = {}) {
+  const type = String(bundle?.history || "").trim().toLowerCase();
+  if (type === "finished-orders") {
+    const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedUntil || "")) ? String(bundle.finishedUntil) : "";
+    if (!since || !until) throw Object.assign(new Error("A history finished-orders bundle needs finishedSince and finishedUntil."), { status: 400 });
+    const names = await salespersonNamesByCode().catch(() => ({}));
+    // Sales orders only (by ePASS's own type: cabinetry is numbered CB…,
+    // modifications MD…). Service tickets go to the catalogue, and the few
+    // sales-type invoices numbered SV… are left out, because Agility files
+    // anything numbered SV as Repair Service (service commissions read it).
+    const isSale = (r) => ["R", "S", "AC", "CAB", "MOD"].includes(String(r?.InvTypeCode || "").trim().toUpperCase()) && !/^SV/i.test(String(r?.Code || "").trim());
+    const datasets = { ...bundle.datasets, "finished-orders": (bundle.datasets["finished-orders"] || []).filter(isSale) };
+    const tickets = finishedTicketsFromFeed(datasets, { names, since, until });
+    const orders = await insertHistoryOrders(tickets);
+    const soldSerials = await insertHistorySoldSerials({ ...bundle, datasets });
+    return { type, since, until, orders, soldSerials };
+  }
+  if (type === "service-catalogue") return { type, since: bundle.catalogueSince || "", until: bundle.catalogueUntil || "", ...(await processCatalogueHistoryBundle(bundle, { filename })) };
+  if (type === "customers") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(bundle.asOf || ""))) throw Object.assign(new Error("A history customers bundle needs asOf (yyyy-mm-dd)."), { status: 400 });
+    // Lifetime parts only: the Customer master itself keeps coming from the daily pull.
+    const ds = bundle.datasets || {};
+    const keep = Object.fromEntries(["customer-sales", "customer-service", "customer-brands"].filter((k) => Array.isArray(ds[k])).map((k) => [k, ds[k]]));
+    if (!Object.keys(keep).length) throw Object.assign(new Error("A history customers bundle needs customer-sales, customer-service or customer-brands."), { status: 400 });
+    return { type, asOf: bundle.asOf, part: String(bundle.part || ""), ...(await ingestCustomerBundle({ ...bundle, datasets: keep }, { filename })) };
+  }
+  throw Object.assign(new Error(`Unknown history bundle "${type}" — expected finished-orders, service-catalogue or customers.`), { status: 400 });
 }
 
 let epassServiceMirrorChain = Promise.resolve(); // feed mirrors run one after another, off the request
@@ -13638,6 +13685,28 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
       return res.json({ ok: true, kind, rows, since: bundle.taxSince || "", until: bundle.taxUntil || "", postProcessing: "running", pulledAt });
     }
 
+    // History export bundles (11/20): answered once they're in the database,
+    // like a backfill window, so a failure stays in the agent's outbox and
+    // goes again on its next run.
+    if (kind === "epass-history") {
+      let bundle;
+      try { bundle = JSON.parse(req.body.toString("utf8").replace(/^﻿/, "")); } catch { return res.status(400).json({ error: "Not a JSON bundle from epass-export-import.mjs." }); }
+      if (!bundle || typeof bundle !== "object" || !bundle.datasets || !bundle.history) return res.status(400).json({ error: "Not a history bundle (no history type or datasets)." });
+      const work = epassHistoryChain.catch(() => {}).then(() => processHistoryBundle(bundle, { filename: sourceFile }));
+      epassHistoryChain = work;
+      try {
+        const counts = await work;
+        lastHistoryBundle = { finishedAt: new Date().toISOString(), filename: sourceFile.slice(0, 120), ...counts };
+        await recordAudit({ ip: req.ip, actorUserId: null, action: "epass_history_received", targetUserId: null,
+          detail: { ...counts, source: String(bundle.source || "").slice(0, 120), machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+        return res.json({ ok: true, kind, ...counts });
+      } catch (err) {
+        if (err.status === 400) return res.status(400).json({ error: err.message });
+        console.error("ePASS history bundle failed:", err.message);
+        return res.status(500).json({ error: `History bundle ${sourceFile.slice(0, 80)} did not land: ${err.message}` });
+      }
+    }
+
     // Seventh bundle (11/20): the Customer Master — the Customer master, its
     // extra columns, lifetime sales / service totals and brands bought, sent
     // as three files a day (part master / totals / brands).
@@ -13695,7 +13764,7 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
       return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, epass-tax, epass-finance, or epass-customers.` });
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, epass-tax, epass-finance, epass-customers, or epass-history.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -13716,7 +13785,7 @@ app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) =
       stockModels: (cat.stockModels || []).length, stockModelsListed: (cat.stockModels || []).filter((m) => m.listed).length, itemsForSale: cat.items.length,
       lastBundleHasModelColumns: cols.includes("Model_Description"), lastSalesBundleProcessed: lastSalesPostProcessing?.finishedAt || null, lastRebuild: lastShopSnapshotRebuild };
   } catch (err) { shop = { error: err.message }; }
-  try { return res.json({ shop, ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing }, tax: { ...(await taxStatus().catch(() => ({}))), last: lastTaxPostProcessing } }); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try { return res.json({ shop, ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing }, tax: { ...(await taxStatus().catch(() => ({}))), last: lastTaxPostProcessing }, history: lastHistoryBundle }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
   try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -18921,11 +18990,33 @@ app.get("/api/inventory-lookup/model/:model", requireInventoryLookup, async (req
 
 // "Ask the GM to sell this display" (Andrew 10/27): a free DISPLAY unit is
 // never "available to sell" on the lookup; the salesperson sends the GM a
-// request instead. The GM is an employee code in the directory (E80 unless
-// INVENTORY_DISPLAY_APPROVER_CODE says otherwise): dashboard flag + email,
-// with the requester's name so the answer comes back to the right person.
+// request instead. The GM is whoever holds JOB code E80 in the directory
+// (INVENTORY_DISPLAY_APPROVER_CODE overrides): dashboard flag + email, with
+// the requester's name so the answer comes back to the right person. Until
+// 11/20 this looked E80 up as an EMPLOYEE code and found nobody ("No email on
+// file for employee code E80"); a directory entry whose own code is E80 still
+// counts. More than one holder: each gets the flag and the email.
 // Internal only — nothing here reaches a customer.
 const DISPLAY_APPROVER_CODE = String(process.env.INVENTORY_DISPLAY_APPROVER_CODE || "E80").trim().toUpperCase();
+// Everyone still on the team who holds a JOB code: the code stamped on their
+// directory row, or their title's code when the row was never stamped (the
+// same rule as Quote Follow-Up's sales codes).
+async function listEmployeesByJobCode(jobCode) {
+  const code = String(jobCode || "").trim().toUpperCase();
+  if (!code) return [];
+  await getEmployeeDirectoryObject(); // the directory tables exist (and are current) before the query
+  const pool = await getPostgresPool();
+  const r = await pool.query(
+    `SELECT d.code, d.name, d.email
+       FROM employee_directory d
+       LEFT JOIN job_titles t ON LOWER(trim(t.name)) = LOWER(trim(d.commission_plan))
+      WHERE d.archived = FALSE
+        AND upper(trim(COALESCE(NULLIF(trim(d.job_title_code), ''), t.code, ''))) = $1
+      ORDER BY d.name, d.code`,
+    [code]
+  );
+  return r.rows.map((row) => ({ code: row.code, name: row.name || "", email: String(row.email || "").trim().toLowerCase() }));
+}
 const displayRequestRecent = new Map(); // `${email}|${serial}` → ts (10-minute double-send guard)
 app.post("/api/inventory-lookup/display-request", requireInventoryLookup, async (req, res) => {
   try {
@@ -18945,30 +19036,40 @@ app.post("/api/inventory-lookup/display-request", requireInventoryLookup, async 
     if (!unit) return res.status(404).json({ error: "That serial isn't on hand for this model in the latest ePASS feed." });
     if (unit.status !== "display" && unit.status !== "exclusive") return res.status(400).json({ error: `Serial ${serial} is ${String(unit.statusLabel || unit.status).toLowerCase()} — no GM request needed.` });
 
-    const directory = await getEmployeeDirectoryObject().catch(() => ({}));
-    const gm = directory[DISPLAY_APPROVER_CODE] || null;
-    const gmEmail = String(gm?.email || "").trim().toLowerCase();
-    if (!gmEmail) return res.status(500).json({ error: `No email on file for employee code ${DISPLAY_APPROVER_CODE} — ask Andrew to check the directory.` });
+    const holders = await listEmployeesByJobCode(DISPLAY_APPROVER_CODE).catch((err) => { console.error("Display request: job code lookup failed:", err.message); return []; });
+    const byCode = (await getEmployeeDirectoryObject().catch(() => ({})))[DISPLAY_APPROVER_CODE];
+    if (byCode) holders.push({ code: DISPLAY_APPROVER_CODE, name: byCode.name || "", email: String(byCode.email || "").trim().toLowerCase() });
+    const approvers = [];
+    for (const h of holders) if (h.email && !approvers.some((a) => a.email === h.email)) approvers.push(h);
+    if (!approvers.length) {
+      return res.status(500).json({ error: holders.length
+        ? `${holders.map((h) => h.name || h.code).join(" and ")} ${holders.length === 1 ? "holds" : "hold"} job code ${DISPLAY_APPROVER_CODE} but the directory has no email for ${holders.length === 1 ? "them" : "any of them"} — add it in User Admin → Employee directory.`
+        : `Nobody in the employee directory holds job code ${DISPLAY_APPROVER_CODE} — set it on the GM's title in User Admin.` });
+    }
+    const gm = approvers[0], gmEmail = approvers.map((a) => a.email).join(", ");
 
     const where = [unit.location, unit.bin].filter(Boolean).join(" / ");
     const title = `Display sale request: ${detail.displayName || detail.model} · ${serial}`;
     const facts = [`${detail.brand ? detail.brand + " " : ""}${detail.displayName ? `${detail.displayName} (${detail.model})` : detail.model}${detail.description ? " — " + detail.description : ""}`, `Serial ${serial}${where ? ` · ${where}` : ""}${unit.received ? ` · received ${unit.received}` : ""}${unit.ageDays != null ? ` (${unit.ageDays} days)` : ""}`];
     const body = `${me.name || me.email} is asking to sell this display unit${customer ? ` to ${customer}` : ""}.${note ? ` Note: ${note}` : ""}`;
     let flagged = false, emailed = false;
-    try {
-      await createPushedNotification({ severity: "yellow", typeLabel: "Display sale request", refId: `displayreq:${serial}:${Date.now()}`, title, body: `${facts.join(" · ")}. ${body}`, audienceEmail: gmEmail, byEmail: me.email, byName: me.name });
-      flagged = true;
-    } catch (err) { console.error("Display request flag failed:", err.message); }
-    try {
-      const url = `${buildDashboardBaseUrl(req)}/inventory-lookup.html`;
-      const lines = [body, ...facts, `Reply to ${me.name || "the salesperson"} directly${me.email ? ` (${me.email})` : ""} — this request doesn't move the unit in ePASS.`];
-      await sendAuthEmail(gmEmail, title, [...lines, "", `Inventory Lookup: ${url}`].join("\n"), buildAuthEmailHtml("A salesperson wants to sell a display", lines, "Open Inventory Lookup", url, "Sent by Inventory Lookup in Wilson internal tools."));
-      emailed = true;
-    } catch (err) { console.error("Display request email failed:", err.message); }
+    const stamp = Date.now();
+    const url = `${buildDashboardBaseUrl(req)}/inventory-lookup.html`;
+    const lines = [body, ...facts, `Reply to ${me.name || "the salesperson"} directly${me.email ? ` (${me.email})` : ""} — this request doesn't move the unit in ePASS.`];
+    for (const a of approvers) {
+      try {
+        await createPushedNotification({ severity: "yellow", typeLabel: "Display sale request", refId: `displayreq:${serial}:${stamp}:${a.email}`, title, body: `${facts.join(" · ")}. ${body}`, audienceEmail: a.email, byEmail: me.email, byName: me.name });
+        flagged = true;
+      } catch (err) { console.error("Display request flag failed:", err.message); }
+      try {
+        await sendAuthEmail(a.email, title, [...lines, "", `Inventory Lookup: ${url}`].join("\n"), buildAuthEmailHtml("A salesperson wants to sell a display", lines, "Open Inventory Lookup", url, "Sent by Inventory Lookup in Wilson internal tools."));
+        emailed = true;
+      } catch (err) { console.error("Display request email failed:", err.message); }
+    }
     if (!flagged && !emailed) return res.status(500).json({ error: "Couldn't reach the GM right now — try again in a minute or call them." });
     displayRequestRecent.set(guardKey, Date.now());
     sjAudit(req, "inventory_display_sale_requested", { model: detail.model, serial, customer, note, approver: DISPLAY_APPROVER_CODE, gmEmail, flagged, emailed });
-    return res.json({ ok: true, approver: { code: DISPLAY_APPROVER_CODE, name: gm?.name || "", email: gmEmail }, flagged, emailed });
+    return res.json({ ok: true, approver: { code: DISPLAY_APPROVER_CODE, name: approvers.map((a) => a.name || a.code).join(" and "), email: gmEmail }, flagged, emailed });
   } catch (err) { console.error("Display request failed:", err.message); return res.status(500).json({ error: "Unable to send that request right now." }); }
 });
 
@@ -24597,7 +24698,7 @@ app.get("/api/events/:id/roster.csv", eventPage, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// EVENT EMAIL (11/18): email an event to up to 100 people, PDFs attached.
+// EVENT EMAIL (11/18): email an event to up to 500 people a send (100 until Resend Pro, 11/20), PDFs attached.
 // lib/event-email.js has the how and why. Anyone with Event RSVPs can send
 // (Andrew 11/18); every send is kept with who sent it, to whom, what it said
 // and the files, and audited. Each person gets their own email from

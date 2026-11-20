@@ -9,8 +9,11 @@ Google's current Tag Manager install code is placed as high in `<head>` as possi
 - `shop-home.html` (the landing page)
 - `shop.html` (the shop, the cart and checkout)
 - `data/product-pages/template.html` (every product page, `/p/<MODEL>`)
+- `lib/shop-about-page.js` (the About Wilson page, `/about`, since 11/20)
 
 It is not on any Agility page, staff page or service-site page.
+
+**Which container (11/20).** GTM-KCPSFXV7 is the shop's own container. wilsonappliance.com has its own, GTM-NWN9JZTQ (Tag Manager account "Wilson Appliance"). A third container, GTM-5HPCK4SV, was created on 11/20 and is not installed anywhere. Andrew chose to keep GTM-KCPSFXV7: two containers on the shop would count every sale twice. GTM-KCPSFXV7 came from Google Ads (the account named "Destination AW-16686388686", since renamed), and Andrew's access to it is *inherited* through being a Google Ads admin. Some tools only list containers a login was added to directly. Meta's connector is one of them, so the Meta Pixel was put straight into the shop's pages instead (`docs/shop/meta-pixel.md`).
 
 The code is Google's (`gtm.js?id=GTM-KCPSFXV7`, then `gtag('js', new Date())`), with one change: it loads only when the page is on **shop.wilsonappliance.com**. Local copies, test servers and Render's own address never report to Google. Tag Assistant's preview therefore works on shop.wilsonappliance.com only.
 

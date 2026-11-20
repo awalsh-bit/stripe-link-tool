@@ -1,0 +1,42 @@
+{
+  "_about": "The shop's About Wilson page (shop.wilsonappliance.com/about) and the review rating in the shop header (Andrew 11/20). Edit freely; text is plain text, and a blank line inside a paragraph isn't needed: each paragraph is its own entry. Keep the rating numbers current (the Why Wilson 'reviews' card in why-wilson.json says them too). The Why Wilson cards on the page come from why-wilson.json.",
+  "rating": {
+    "value": "4.9",
+    "count": "1,200+",
+    "source": "Google",
+    "href": "https://www.google.com/maps/search/?api=1&query=Wilson+AC+%26+Appliance+4205+E+Hwy+290+Dripping+Springs+TX"
+  },
+  "headline": "Family owned since 1949.",
+  "lede": "Wilson AC & Appliance has served Austin and the Hill Country for more than seventy-five years: appliances, central air conditioning, kitchen and bath design and cabinetry, sold, delivered, installed and serviced by our own team.",
+  "history": {
+    "title": "Our history",
+    "paragraphs": [
+      "Wilson AC & Appliance was founded in 1949 by J.W. Wilson, Jr. and his wife, Lurline. Upon his return from serving in the Pacific during WWII, J.W. decided to learn about television and radio repair. At that time Channel 4 out of San Antonio was the only television station on the air. J.W. took a course on television and radio repair and began serving an area in and around Austin and San Antonio.",
+      "More than seventy-five years later, the company is still family owned and operated by Trey and Gay Lynn Wilson and continues to serve Austin and the Hill Country.",
+      "Though no longer in the television and radio arena, Wilson AC & Appliance has focused its energy around selling and servicing the best appliance and central air conditioning products available, as well as offering kitchen and bath design, cabinetry sales and installation. The company has grown from three employees to nearly seventy and prides itself in having one of the friendliest, most professional teams in the industry."
+    ],
+    "milestones": [
+      { "when": "1949", "text": "J.W. Wilson, Jr. and Lurline Wilson start the company, repairing televisions and radios around Austin and San Antonio." },
+      { "when": "Today", "text": "Trey and Gay Lynn Wilson lead a team of nearly seventy: appliances, central air, kitchen design and cabinetry, and service." }
+    ]
+  },
+  "reviews": {
+    "title": "From our customers",
+    "podiumLocationUid": "86ff1a4c-7c5e-5ba3-926d-993a7ea33475",
+    "count": 5
+  },
+  "visit": {
+    "title": "Come see us in Dripping Springs.",
+    "address": "4205 E. Highway 290, Dripping Springs, TX 78620",
+    "directions": "https://www.google.com/maps/search/?api=1&query=4205+E+Hwy+290+Dripping+Springs+TX+78620",
+    "phone": "(512) 894-0907",
+    "email": "info@wilsonappliance.com",
+    "hours": [
+      { "days": "Monday – Friday", "time": "8:30 AM – 6:00 PM" },
+      { "days": "Saturday", "time": "10:00 AM – 4:00 PM" },
+      { "days": "Sunday", "time": "Closed" }
+    ],
+    "serviceArea": ["Austin", "Dripping Springs", "Westlake", "Bee Cave", "Lakeway", "Wimberley", "Fredericksburg", "Spicewood", "Horseshoe Bay", "Johnson City", "Blanco"],
+    "membership": "A proud member of Nationwide Marketing Group."
+  }
+}

@@ -13,6 +13,8 @@
     }
   </script>
   <!-- End Google Tag Manager -->
+  <!-- Meta Pixel (dataset 1962893141241918, Andrew 11/20): loads only on shop.wilsonappliance.com. See docs/shop/meta-pixel.md. -->
+  <script src="/meta-pixel.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
        phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
@@ -537,7 +539,9 @@
     try { gaItem = JSON.parse(document.getElementById("gaItem").textContent); } catch (err) {}
     const gaPush = (event) => {
       if (!gaItem) return;
-      try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ ecommerce: null }); window.dataLayer.push({ event: event, ecommerce: Object.assign({ currency: "USD" }, gaItem.price ? { value: gaItem.price } : {}, { items: [gaItem] }) }); } catch (err) {}
+      const ecommerce = Object.assign({ currency: "USD" }, gaItem.price ? { value: gaItem.price } : {}, { items: [gaItem] });
+      try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ ecommerce: null }); window.dataLayer.push({ event: event, ecommerce: ecommerce }); } catch (err) {}
+      if (window.wilsonMeta) window.wilsonMeta.track(event, ecommerce); // the same step for Meta (11/20, meta-pixel.js)
     };
     gaPush("view_item");
     document.querySelectorAll("a[data-add]").forEach((a) => a.addEventListener("click", (e) => {

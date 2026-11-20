@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { loadProductPage, loadProductPageTemplate, productPhotoFile, renderProductPage, listProductPageKeys, loadProductPageGalleries, regularPriceToShow, loadWhyWilsonCards, productFeedItem, merchantFeedXml } from "./lib/shop-product-page.js";
+import { loadAboutWilson, renderAboutPage } from "./lib/shop-about-page.js";
 import { parseDeliveryZipPaste, deliveryAreaFor, cleanZip as cleanShopZip, listShopDeliveryZips, importShopDeliveryZips, setShopDeliveryZipFees, removeShopDeliveryZips } from "./lib/shop-delivery-zips.js";
 import { createShopBrandNamer, unifyBrandSpellings, loadBrandTable } from "./lib/shop-brand-names.js";
 import {
@@ -834,9 +835,11 @@ const SERVICE_PUBLIC_API_PREFIXES = [
 // that host only.
 const SHOP_PUBLIC_PATHS = new Set([
   "/site-header.css", "/site-header.js", // the wilsonappliance.com header shared by the shop pages (11/10)
+  "/meta-pixel.js", // the Meta Pixel on the shop pages (11/20; it only reports from shop.wilsonappliance.com)
   "/",
   "/shop.html",
   "/shop-home.html",
+  "/about", // About Wilson (11/20): the history, Why Wilson, reviews, visit
   "/public-shell.css",
   "/fonts/roboto-latin-wght-normal.woff2",
   "/fonts/roboto-latin-wght-italic.woff2",
@@ -857,6 +860,7 @@ const SHOP_PUBLIC_PATHS = new Set([
 const SHOP_PUBLIC_API_PREFIXES = [
   "/showroom", // web-sized showroom photos for the landing page (originals live in showroom-photos/, which is denied)
   "/api/shop/home-stats",
+  "/api/shop/reviews-summary", // the review rating the shop header shows (data/about-wilson.json, 11/20)
   "/api/shop/stock", // the public website's "in stock at Wilson?" lookup (CORS-allowed partner origins)
   "/api/shop/handoff", // website -> shop cart handoff (POST makes a token, GET reads it)
   "/api/shop/quote-request", // website quote cart -> DIBS lead
@@ -6491,7 +6495,7 @@ app.get("/sitemap.xml", async (req, res) => {
   try {
     const keys = await listProductPageKeys(SHOP_PRODUCT_PAGE_DIR).catch(() => []);
     const base = `https://${SHOP_PUBLIC_HOST}`;
-    const urls = ["/", "/shop.html", ...[...keys].sort().map((k) => `/p/${encodeURIComponent(k)}`)];
+    const urls = ["/", "/shop.html", "/about", ...[...keys].sort().map((k) => `/p/${encodeURIComponent(k)}`)];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${base}${u}</loc></url>`).join("\n")}\n</urlset>\n`;
     res.setHeader("Cache-Control", "public, max-age=3600");
     return res.type("application/xml").send(xml);
@@ -6566,6 +6570,29 @@ app.get("/p/:model", async (req, res) => {
   } catch (err) {
     console.error("Product page failed:", err.message);
     return res.redirect(302, "/shop.html");
+  }
+});
+// ABOUT WILSON (Andrew 11/20): the shop's About page, and the review rating
+// the shop header shows. Words and numbers live in data/about-wilson.json,
+// the cards in data/why-wilson.json (lib/shop-about-page.js).
+app.get("/api/shop/reviews-summary", async (req, res) => {
+  const about = await loadAboutWilson(path.join(__dirname, "data")).catch(() => null);
+  const r = about?.rating;
+  res.setHeader("Cache-Control", "public, max-age=300");
+  if (!r) return res.json({ value: "", count: "" });
+  return res.json({ value: r.value, count: r.count, source: r.source });
+});
+app.get("/about", async (req, res) => {
+  try {
+    const dataDir = path.join(__dirname, "data");
+    const [about, why] = await Promise.all([loadAboutWilson(dataDir), loadWhyWilsonCards(dataDir).catch(() => null)]);
+    const html = renderAboutPage({ about, why, origin: `https://${SHOP_PUBLIC_HOST}` });
+    res.setHeader("Cache-Control", "public, max-age=300");
+    if (getRequestHost(req) !== SHOP_PUBLIC_HOST) res.setHeader("X-Robots-Tag", "noindex, nofollow"); // indexable on the shop host only
+    return res.type("html").send(html);
+  } catch (err) {
+    console.error("About page failed:", err.message);
+    return res.redirect(302, "/");
   }
 });
 app.get("/product-photos/:model/:file", (req, res) => {

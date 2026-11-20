@@ -70,6 +70,19 @@ a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !im
 .site-head .util-ic:hover { color: var(--sh-gold); }
 .site-head .util-ic svg { width: 18px; height: 18px; }
 .site-head .util-sep { width: 1px; height: 22px; background: rgba(255,255,255,.25); }
+/* the review rating (11/20): first on the right of the utility bar; it says less as the screen narrows */
+.site-head .util-rating { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-weight: 500; white-space: nowrap; }
+.site-head .util-rating b { font-weight: 700; }
+.site-head .util-rating svg { width: 13px; height: 13px; display: block; }
+.site-head .util-rating .r-stars { display: inline-flex; gap: 1px; color: var(--sh-gold); margin-right: 2px; }
+.site-head .util-rating .r-one { display: none; color: var(--sh-gold); }
+.site-head .util-rating .r-long::before { content: "\00B7"; margin-right: 6px; opacity: .7; }
+.site-head .util-rating .r-short { display: none; opacity: .85; }
+.site-head .util-rating:hover b, .site-head .util-rating:hover .r-long, .site-head .util-rating:hover .r-short { color: var(--sh-gold); }
+.site-head .util-rating.r-tight .r-long, .site-head .util-rating.r-tight .r-short { display: none !important; }
+.site-head .util-rating.r-tight .r-stars { display: none !important; }
+.site-head .util-rating.r-tight .r-one { display: inline-flex !important; }
+.site-head .util-rating.r-gone { display: none !important; }
 .site-head .acct-cluster { display: flex; align-items: center; gap: 22px; }
 .site-head .band-inner > .acct-cluster { margin-left: 8px; gap: 14px; }
 .site-head .util-btn { appearance: none; background: none; border: 0; color: #fff; cursor: pointer; padding: 6px; display: inline-flex; position: relative; border-radius: 6px; font: inherit; }
@@ -104,7 +117,7 @@ a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !im
 .site-head.scrolled .nav-wrap::before { top: 0; }
 .site-head .site-nav { position: relative; display: flex; align-items: center; gap: 38px; }
 .site-head .site-nav a { font-family: var(--sh-display); font-size: 15.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #fff; white-space: nowrap; padding: 10px 0; border-bottom: 2px solid transparent; text-shadow: 0 1px 2px rgba(0,0,0,.5), 0 0 12px rgba(0,0,0,.3); transition: font-size .25s ease; }
-.site-head .site-nav a:hover { border-bottom-color: #fff; }
+.site-head .site-nav a:hover, .site-head .site-nav a.current { border-bottom-color: #fff; }
 .site-head.scrolled .site-nav a { font-size: 13.5px; letter-spacing: .12em; }
 .site-head .band-search { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.6); padding: 4px 0; flex: 0 1 190px; min-width: 110px; }
 .site-head .band-search input { background: none; border: 0; color: #fff; font: inherit; font-size: 15px; width: 100%; padding: 4px 0; outline: none; box-shadow: none; border-radius: 0; }
@@ -157,6 +170,9 @@ a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !im
   .site-head .util-menu { left: auto; right: -40px; }
   .site-head .util-ic span { display: none; }
   .site-head .util-right { gap: 14px; }
+  .site-head .util-rating .r-stars { display: none; }
+  .site-head .util-rating .r-one { display: inline-flex; }
+  .site-head .util-rating .r-one svg { width: 15px; height: 15px; }
 }
 @media (max-width: 640px) {
   :root { --util-h: 40px; --band-h: 70px; }
@@ -175,6 +191,9 @@ a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !im
   .site-head .menu-btn { width: 40px; height: 40px; padding: 0; }
   .site-head .menu-btn-label { display: none; }
   .site-head .util-chip { max-width: 110px; padding: 4px 8px; font-size: 12px; }
+  .site-head .util-rating { gap: 4px; font-size: 13px; }
+  .site-head .util-rating .r-long { display: none; }
+  .site-head .util-rating .r-short { display: inline; }
   .site-head .ribbon-inner { padding: 0 12px; gap: 18px; }
   /* scrolled on a phone (11/18): the cart has come into the band, so the logo gives a little and the gaps close up */
   .site-head.scrolled .band-inner { gap: 8px; }
@@ -189,4 +208,5 @@ a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !im
   .site-head .util-links { gap: 10px; }
   .site-head .util-right, .site-head .acct-cluster { gap: 8px; }
   .site-head .acct-cluster .util-sep { display: none; }
+  .site-head .util-rating .r-short { display: none; }
 }

@@ -13,6 +13,8 @@
     }
   </script>
   <!-- End Google Tag Manager -->
+  <!-- Meta Pixel (dataset 1962893141241918, Andrew 11/20): loads only on shop.wilsonappliance.com. See docs/shop/meta-pixel.md. -->
+  <script src="/meta-pixel.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- iPhone does not turn numbers, addresses or dates into links of its own (in its own blue) on this page;
        phone numbers are written as tap-to-call links instead (Andrew 11/18). -->
@@ -519,6 +521,7 @@
           <li><a href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener">4205 E Hwy 290, Dripping Springs</a></li>
           <li><a href="tel:5128940907">512-894-0907</a></li>
           <li><a href="https://service.wilsonappliance.com/subzero">Sub-Zero, Wolf &amp; Cove live kitchen</a></li>
+          <li><a href="/about">About Wilson</a></li>
           <li><a href="https://www.wilsonappliance.com" target="_blank" rel="noopener">wilsonappliance.com</a></li>
         </ul>
       </div>
@@ -835,7 +838,9 @@
           const item = { item_id: String(g.model), item_name: [g.brand, g.model].filter(Boolean).join(" "), item_brand: g.brand || "", item_category: dept, item_variant: "New in Box", price: Math.round(Number(g.price) * 100) / 100, quantity: 1 };
           window.dataLayer = window.dataLayer || [];
           window.dataLayer.push({ ecommerce: null });
-          window.dataLayer.push({ event: "add_to_cart", ecommerce: { currency: "USD", value: item.price, items: [item] } });
+          const ecommerce = { currency: "USD", value: item.price, items: [item] };
+          window.dataLayer.push({ event: "add_to_cart", ecommerce });
+          if (window.wilsonMeta) window.wilsonMeta.track("add_to_cart", ecommerce); // the same step for Meta (11/20, meta-pixel.js)
         } catch {}
       }
       document.addEventListener("click", (e) => {

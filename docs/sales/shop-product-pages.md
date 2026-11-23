@@ -23,6 +23,12 @@ A product page sells one model: its photos, a short lead, five features with a l
 | `/p/B36CT81ENS` | Bosch 800 Series counter-depth 3-door refrigerator, recessed handles, water dispenser inside |
 | `/p/SMD2470ASY` | Sharp 24" Microwave Drawer, stainless steel |
 | `/p/SMD2479JS` | Sharp 24" Smart Microwave Drawer, Easy Wave Open, stainless steel with a viewing window |
+| `/p/KDTS224SPS` | KitchenAid 24" dishwasher, third level utensil rack, 47 dBA |
+| `/p/KDTS434SPS` | KitchenAid 24" dishwasher, 360° Max Jets third rack and Stemware Shield, 44 dBA, stainless only |
+| `/p/KDTS624SPS` | KitchenAid 24" dishwasher, Advanced ProDry and 360° Max Jets third rack, bar handle, 44 dBA |
+| `/p/KDPS624SPS` | KitchenAid 24" dishwasher, Advanced ProDry and 360° Max Jets third rack, pocket handle, 44 dBA |
+| `/p/KOES530PSS` | KitchenAid 30" single wall oven, Air Fry Mode, true convection, 5.0 cu. ft., stainless |
+| `/p/JFFCCE72SL` | JennAir RISE 36" counter-depth French door refrigerator, ice and water at the door |
 
 Search engines are told not to list these pages yet.
 
@@ -203,6 +209,42 @@ The product page itself opens without the ZIP. It only shows prices the shop is 
 2. Ask Claude to make the page. That converts the pictures (working copies go in `supplier-digital-assets/web/<MODEL>/`, the published ones in `product-photos/<MODEL>/`), writes the record, copies the spec sheet into `spec sheets` and lists it.
 3. Push.
 
+### Shared folders: pictures that fit several models
+
+*Added 11/23. Andrew sorts pictures that fit more than one model into group folders. A picture in a group folder goes on the page of every model the group covers, whatever model number its file name carries.*
+
+**KitchenAid dishwashers,** in `supplier-digital-assets/whr-portfolio`:
+
+| Folder | Goes on |
+|---|---|
+| `400 and Up KitchenAid Dishwashers 2026` | Every 424, 434, 624 and 724 model, KDTS and KDPS. |
+| `All KitchenAid KDTS Dishwashers` | Every KDTS model, with one exception: the finishes-and-hardware graphic (Black Ore, Stainless and Juniper finishes; brass, stainless, bronze and Black Ore hardware). |
+| `All KitchenAid KDPS Dishwashers` | Every KDPS model. Holds the pocket-handle front view (added 11/23), which leads the KDPS624 page. |
+| `All KitchenAid KDFS Dishwashers` | Every KDFS (front control) model. Holds the front-control front view (added 11/23). No KDFS page yet. |
+| `300 and below KitchenAid dishwashers` | Every 300-series model and below, KDTS224 included: the triple filtration photo (added 11/23). |
+| `All KitchenAid` | KitchenAid's "Pick your finish / Personalize your hardware" graphics (added 11/23). See below: they go only where those finishes and that hardware are offered. |
+| A model's own folder, or a file named for it | That model. |
+
+**The finishes-and-hardware graphic** goes on the KDTS 324, 424, 624 and 724 handle models, which come in the three finishes and take the colored handles and medallions. It does not go on:
+
+- **The KDTS434:** an independent-channel exclusive, stainless only. Its page says so instead.
+- **The KDTS224:** not in that list. Andrew confirmed 11/23 that it doesn't come in the finishes.
+
+**The `All KitchenAid` graphics** show Black Ore, Stainless Steel, Juniper and Porcelain White finishes and brass, stainless, bronze and Black Ore hardware. They go only on a model the portal lists in those finishes with handle kits. Today that's the KDTS624, where the "Pick your finish" graphic (with its note that handle and knob kits are sold separately) replaces the older three-finish one.
+
+They stay off these pages:
+
+- **KDTS434 and KDTS224:** stainless only.
+- **KDPS624:** the finishes, but a pocket handle and no hardware.
+- **KOES530PSS:** its finishes are white, stainless, PrintShield stainless and black stainless, with no handle kits.
+
+The second `All KitchenAid` graphic, a finish-and-hardware strip, repeats the first and isn't used.
+
+**Also:**
+
+- **The MaxTub clip** (`…KDTS424SPS-GIF-MaxTub…mp4`) is used as a still from its last frame. The frame carries the "*Based on usable volume" footnote, so the "Largest" claim keeps its fine print. The pages don't play video.
+- **Near-duplicates are skipped.** A model's own graphic wins over a group graphic showing the same thing. For example, the KDTS624's own 360° third-rack graphic says "Advanced ProDry", so the 434's version stays off its page.
+
 ## The Miele pages: what is thin, and what was left out
 
 - **One photo each.** The Miele folder holds one front view per model, 600 pixels wide, and that is all Miele supplies for these models. The page shows it without thumbnails or arrows. The plan is to photograph Wilson's own units later; those pictures go in the same way as Bosch's.
@@ -299,6 +341,90 @@ The pair, lineup and room-with-a-pair photos are not used anywhere yet.
 - **"Built for 25 years"** is on the TR7 page only, where Speed Queen's own page was read saying it, and it is attributed to Speed Queen.
 
 The records are generated, not hand-written: the line's facts and wording sit once per series, and each model's record is that plus its color, fuel and hinge. To change a sentence on every DR7 page, it is one edit and a rebuild. Ask and it is done.
+
+## The KitchenAid dishwasher pages
+
+*Added 11/23. Andrew: "use it to build these four PDPs first and I'll work on wall ovens next", pointing to the Whirlpool dealer portal (whirlpoolportal.com), whose product search and pages need no login.*
+
+**Facts** come from each model's page on the portal (read 11/23), in Wilson's own words. The portal URL is in each record's `sources`. The barcodes are the portal's UPCs, and all four check-digit correctly.
+
+**Pictures:**
+
+- They come from `supplier-digital-assets/whr-portfolio`, under the shared-folder rules above.
+- All 16 web-sized pictures (3 MB) live once in `product-photos/KITCHENAIDDW/`, and each record points there with `"photoKey": "KITCHENAIDDW"`.
+- The working list, with each picture's source file, is `supplier-digital-assets/web/KITCHENAIDDW/_converted.json`.
+- Cut-outs on white were trimmed to the product and flattened onto white.
+
+| Page | Pictures |
+|---|---|
+| KDTS224SPS | 3: the KDTS front, triple filtration photo, drain hose |
+| KDTS434SPS | 12: the KDTS front, its open shot, third rack in a kitchen, the shared third-rack photo, MaxTub, its three graphics, its middle-rack photo, ProDry, self-cleaning filtration, drain hose |
+| KDTS624SPS | 11: the KDTS front, the open shot from its folder (a KDPS624 photo), its own graphic, "Pick your finish" (`All KitchenAid`), third rack, MaxTub, Stemware Shield, water-repellent third rack, ProDry, self-cleaning filtration, drain hose |
+| KDPS624SPS | 10: the pocket-handle front (lead), its open shot and kitchen shot, third rack, MaxTub, the 434's third-rack graphic, Stemware Shield, water-repellent third rack, ProDry, self-cleaning filtration |
+
+**Choices worth knowing:**
+
+- **The KDTS434 page says why it's stainless only:** KitchenAid sells it only through independent dealers. Its page has no finishes graphic.
+- **The 624s say they're also made in Black Ore, Juniper and Porcelain White.** The portal lists all four finishes for both.
+  - The KDTS624 page also names the handle kits (brass, bronze, Black Ore, stainless). It says they're sold separately and that the Porcelain White model comes with brass, as KitchenAid's graphic states.
+  - The KDPS624 has a pocket handle, so its page doesn't mention handle kits.
+- **The three-finish graphic (`kd-finishes`) is still in `product-photos/KITCHENAIDDW`** for a 324 or 724 page later. No page uses it today.
+- **Comparative claims are left out or kept with their condition in the sentence.**
+  - **Left out:** "3x more jets", "72% better", the Bosch comparisons, "largest" and "driest dry".
+  - **Kept, with the comparison stated:** "10 more glasses and mugs than KitchenAid's 224 models" and "40% faster than the Normal cycle on KitchenAid's 2 and 3 Series".
+  - **The MaxTub picture** says "Largest" with its "Based on usable volume" footnote in the frame.
+- **ENERGY STAR is claimed for the 224 and the 434 only.** The portal's spec tables say "No" for both 624s, though ePASS's product description calls them E-Star. Worth confirming before anyone quotes it.
+- **No place-setting count on the KDTS224 page.** The portal doesn't give one. ePASS says 13; that isn't used.
+- **The KDPS624's cutout width** is the portal's 23 15/16 in. The other three list 24 in.
+- **Stemware holder counts are left out.** The portal's feature text and spec table disagree.
+
+## The KitchenAid wall oven page (KOES530PSS)
+
+*Added 11/23. Andrew: "KOES530PSS is ready."*
+
+**Facts** come from the model's page on the Whirlpool portal (read 11/23), in Wilson's own words. The UPC is the portal's, and it check-digits correctly.
+
+**Pictures:** six, from `supplier-digital-assets/whr-portfolio/KOES530PSS`, in `product-photos/KOES530PSS`:
+
+1. The oven open with a roast (lead)
+2. The front with KitchenAid's FIT badge
+3. A roast on the pulled-out rack
+4. The oven in a kitchen
+5. Open and empty
+6. The control panel
+
+**Choices worth knowing:**
+
+- **The FIT System is mentioned with its conditions:** KitchenAid's limited FIT guarantee excludes new cabinet installations and runs on dates KitchenAid sets. The page says to ask Wilson for the current terms, since the portal gives no term or dates.
+- **Air Fry is "less oil than deep frying,"** which is the comparison KitchenAid's footnote makes.
+- **Finishes:** the page says it's also made in white, PrintShield stainless and black stainless. The KOES530PSS itself is plain stainless steel, so the page doesn't say PrintShield for it.
+- **Not stated:** voltage, total wattage, warranty and ENERGY STAR. The portal lists none of them; the electrical line is 20 A, power cord not included.
+- **Weight is 144 lb (net).** The portal gives two gross weights, 160 and 161 lb, so gross isn't used.
+
+## The JennAir refrigerator page (JFFCCE72SL)
+
+*Added 11/23. Andrew: "so is the one Jenn Air refrigerator model in the folder for a PDP".*
+
+**Facts** come from the model's page on the Whirlpool portal (read 11/23), in Wilson's own words. The UPC is the portal's, and it check-digits correctly.
+
+**Pictures:** five, from `supplier-digital-assets/whr-portfolio/JFFCCE72SL`, in `product-photos/JFFCCE72SL`:
+
+1. Front (lead)
+2. Three-quarter view
+3. Open and empty
+4. Open and stocked
+5. The dispenser
+
+They came in at 1,600 pixels or smaller, so the largest size is the original.
+
+**Choices worth knowing:**
+
+- **Capacity is the total only (23.8 cu. ft.).** The portal's fresh-food (16.84) and freezer (6.56) figures add to 23.40, not its 23.84 total.
+- **Claims with conditions keep them in the sentence:**
+  - Remote access needs Wi-Fi and the app, and voice works in the US only.
+  - The filter's "up to 75 contaminants" names its NSF/ANSI 42, 53 and 401 certification.
+- **Door swing clearance and the water connection** aren't on the portal page, so they aren't stated.
+- **Weight is 345 lb (net).** The portal also prints a gross weight of 0 lb.
 
 ## The pedestal, and how an accessory gets onto the shop
 

@@ -28,6 +28,7 @@
   const SITE = {
     base: "https://www.wilsonappliance.com",
     shop: "/",                                  // the Express shop landing (this host)
+    catalog: "/shop.html",                      // the shop's full catalog (this host)
     about: "/about",                            // About Wilson on the shop (this host, 11/20)
     service: "https://service.wilsonappliance.com/applianceservice.html",
     phone: "(512) 894-0907",
@@ -48,7 +49,8 @@
     ],
     nav: [
       // "Luxury Appliances" came out 11/20 (Andrew: "Kill the Luxury Appliances banner for now"); add it back here when the page launches
-      { label: "Appliances", path: "/appliances" },
+      // Appliances stays on the shop (Andrew 11/23: it used to go to wilsonappliance.com/appliances)
+      { label: "Appliances", href: "catalog" },
       { label: "HVAC", path: "/hvac" },
       { label: "Cabinetry", path: "/cabinetry" },
       { label: "Sinks & Faucets", href: "https://dealers.thegalley.com/wilson-ac-appliance/" }, // Wilson's Galley dealer page, for now (Andrew 11/10)

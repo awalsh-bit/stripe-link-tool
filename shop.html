@@ -417,6 +417,11 @@
     .promo-rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; }
     .promo-rm:hover { color: #b91c1c; }
     .promo-notice { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 10px; padding: 9px 12px; font-size: 13px; margin-bottom: 10px; }
+    /* The cart's one-tap offer (11/23): a shown promo code the cart qualifies for, and the next tier. */
+    .offer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 4px; padding: 9px 10px 9px 12px; background: #fff; border: 1px solid #D9C3A8; border-left: 3px solid #BE7D3C; border-radius: 6px; font-size: 13.5px; line-height: 1.4; }
+    .offer-row .offer-text { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+    .offer-row .btn { flex: none; padding: 7px 14px; font-size: 13.5px; }
+    .offer-next { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 2px 0 6px; }
 
     /* ---- Checkout ---- */
     .checkout-section { margin-top: 14px; }
@@ -881,6 +886,7 @@
     </div>
   </template>
   <script src="site-header.js"></script>
+  <script src="/shop-offers.js"></script>
   <script>
     mountSiteHeader("siteTop", {
       mode: "photo",
@@ -937,6 +943,9 @@
          11/11 (Andrew): shoppers arriving from an ad go straight to the Top
          Deals cards. The empty anchor stays — notices are placed before it. -->
     <div id="heroStrip"></div>
+    <!-- Current offers (11/23): the promo codes switched to "Show on the shop" in Promo codes, drawn by
+         shop-offers.js. Hidden until there is one to show, and while ordering is paused. -->
+    <div id="offerStrip" hidden></div>
     <!-- Do we deliver to you? (11/19): the door gate is gone; this asks the same question without blocking the
          shop. Its own <form>, typed and named as a postal code, like the gate's was (10/12), so browsers never
          take it for a username. -->
@@ -1208,6 +1217,8 @@
     // changes (same math as the server) and re-checked at checkout.
     promo: readPromo(),
     promoNotice: "",
+    // promo codes shown on the shop (shop-offers.js, 11/23); the cart offers the best one it qualifies for
+    offers: [],
     shown: 20, gridSig: "", // tiles built so far (see renderGrid)
     // selection: { label, cats: [category keys], products: [product codes] } | null
     // sort "best": the whole store = brand units sold in the last 12 months
@@ -1242,11 +1253,10 @@
   function rememberZip(z) { try { if (z) sessionStorage.setItem(ZIP_KEY, z); else sessionStorage.removeItem(ZIP_KEY); } catch {} }
   // What the shop says about a ZIP. The product pages say the same words (data/product-pages/template.html).
   // "text us" and the number become links (linkPhone) wherever this is shown.
-  function zipAnswerHtml(z, area, fee) {
-    const name = esc(state.delivery?.name || "White Glove Delivery + Haul Away");
-    const feeText = fee != null && Number.isFinite(Number(fee)) ? money(Number(fee)) : "";
-    if (area === "express") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}, and you choose your delivery day at checkout.`;
-    if (area === "extended") return `Yes, we deliver to <b>${esc(z)}</b>. ${name} is ${feeText}. Order online and we will follow up via your preferred communication method to schedule your delivery day.`;
+  // Just yes or no for online orders (Andrew 11/23: "skip the details here, especially because I may have promo
+  // codes going"). The fee and how the day is set show in the cart and at checkout.
+  function zipAnswerHtml(z, area) {
+    if (area === "express" || area === "extended") return `Yes, we deliver to <b>${esc(z)}</b> for online orders.`;
     return `We can't take online orders for <b>${esc(z)}</b>. Call 512-894-0907 or text us and we'll help you from there.`;
   }
   // An answer (zip-check, or the catalog's deliveryArea) -> the page.
@@ -1294,7 +1304,7 @@
     $("zsAsk").hidden = known;
     $("zsChange").hidden = !known;
     const a = $("zsAnswer");
-    if (known) { a.className = "zs-answer"; a.innerHTML = zipAnswerHtml(state.zip, state.zipArea, state.zipFee); linkPhone(a); }
+    if (known) { a.className = "zs-answer"; a.innerHTML = zipAnswerHtml(state.zip, state.zipArea); linkPhone(a); }
     else if (!a.classList.contains("err")) a.textContent = "";
   }
   $("zipStrip").addEventListener("submit", async (e) => {
@@ -1410,6 +1420,7 @@
     $("pausedNote").innerHTML = state.paused ? PAUSED_NOTE_HTML : "";
     $("heroStrip").style.display = "";
     $("zipStrip").hidden = state.paused; // nothing to order while ordering is paused
+    syncOfferStrip();
     $("cartBtn").style.display = state.paused ? "none" : "";
     $("filterBar").style.display = "";
   }
@@ -3517,7 +3528,7 @@
     const taxableBase = itemsTotal + taxableAddons + delivery - taxableDiscount;
     const tax = Math.round(taxableBase * state.taxRate * 100) / 100;
     return {
-      items, itemsTotal, addonsTotal, delivery, discount, promoNote, tax,
+      items, itemsTotal, addonsTotal, delivery, discount, promoNote, tax, installTotal, pickup,
       special: state.cart.special,
       total: Math.round((itemsTotal + addonsTotal + delivery - discount + tax) * 100) / 100
     };
@@ -3544,6 +3555,49 @@
     if (!res.ok) throw new Error(data.error || "That code didn't work.");
     setPromo(data.promo);
     return data;
+  }
+
+  // ---------- Shown promo codes (11/23) ----------
+  // The codes switched to "Show on the shop" appear in the strip above Top deals, and the cart offers the one
+  // worth most to this cart with a single tap (Andrew: "Yes, one tap"). Nothing applies itself: the tap runs
+  // the same check a typed code gets, and the server checks again at checkout.
+  function syncOfferStrip() {
+    const box = $("offerStrip");
+    if (box) box.hidden = state.paused || !state.offers.length;
+  }
+  // What a shown code would take off this cart right now (0 when the cart doesn't qualify). Same math as
+  // cartTotals' promo branch.
+  function offerValue(o, t) {
+    if (!o || !t.items.length) return 0;
+    const target = promoTargetOf(o.kind);
+    if (o.minSubtotal > 0 && t.itemsTotal < o.minSubtotal) return 0;
+    if (target === "delivery" && (t.pickup || !(t.delivery > 0))) return 0;
+    if (target === "install" && !(t.installTotal > 0)) return 0;
+    const base = target === "delivery" ? t.delivery : target === "install" ? t.installTotal : t.itemsTotal;
+    const d = o.kind === "free_delivery" ? t.delivery : (o.kind === "percent" || /^percent_/.test(o.kind)) ? Math.min(base, base * o.value / 100) : Math.min(base, o.value);
+    return Math.round(d * 100) / 100;
+  }
+  // best: the shown code worth most now, when it beats what's applied. next: the nearest appliance tier not
+  // reached yet that would beat both.
+  function cartOffers(t) {
+    if (!state.offers.length || !t.items.length || outsideArea()) return { best: null, next: null };
+    const ranked = state.offers.map((o) => ({ o, d: offerValue(o, t) })).filter((x) => x.d > 0).sort((a, b) => b.d - a.d);
+    let best = ranked[0] || null;
+    if (best && (best.d <= t.discount || (state.promo && state.promo.code === best.o.code))) best = null;
+    const floor = Math.max(t.discount, best ? best.d : 0);
+    const next = state.offers
+      .filter((o) => promoTargetOf(o.kind) === "appliances" && o.minSubtotal > t.itemsTotal)
+      .map((o) => ({ o, gap: Math.round((o.minSubtotal - t.itemsTotal) * 100) / 100, would: (o.kind === "percent") ? o.minSubtotal * o.value / 100 : o.value }))
+      .filter((x) => x.would > floor)
+      .sort((a, b) => a.gap - b.gap)[0] || null;
+    return { best, next };
+  }
+  if (window.wilsonOffers) {
+    wilsonOffers.mountStrip("offerStrip").then(() => wilsonOffers.load()).then((d) => {
+      state.offers = d.offers || [];
+      syncOfferStrip();
+      if ($("cartDrawer").classList.contains("show") && !state.checkout.open) renderCart();
+    }).catch(() => {});
   }
 
   // Freeze the page behind the drawer without losing its scroll position.
@@ -3800,10 +3854,16 @@
       renderCartCount(); renderCart();
     }));
 
+    // A shown promo code this cart qualifies for (one tap), and the next tier up (11/23).
+    const off = cartOffers(t);
+    const offerRows = (off.best
+      ? `<div class="offer-row"><span class="offer-text"><span class="promo-tag">${esc(off.best.o.code)}</span> ${state.promo ? `Your cart now qualifies for ${esc(wilsonOffers.amount(off.best.o))}` : `${esc(wilsonOffers.amount(off.best.o))}: your cart qualifies`}</span><button type="button" class="btn ghost" id="offerApply" data-code="${esc(off.best.o.code)}">${state.promo ? "Switch" : "Apply"}</button></div><div class="promo-err" id="offerErr"></div>`
+      : "")
+      + (off.next ? `<div class="offer-next">Add ${money(off.next.gap)} more in appliances for ${esc(wilsonOffers.amount(off.next.o))} with ${esc(off.next.o.code)}.</div>` : "");
     const promoRow = state.promo
       ? `<div class="tot-row promo-row"><span><span class="promo-tag">${esc(state.promo.code)}</span> ${esc(promoLabel(state.promo))}${t.promoNote ? ` <span class="promo-note">— ${esc(t.promoNote)}</span>` : ""}<button type="button" class="promo-rm" id="promoRm" aria-label="Remove promo code">✕</button></span><span class="${t.discount ? "promo-amt" : ""}">${t.discount ? "−" + money(t.discount) : "—"}</span></div>`
       : `<div class="promo-entry" id="promoEntry">
-          <button type="button" class="promo-link" id="promoOpen">Have a promo code?</button>
+          <button type="button" class="promo-link" id="promoOpen">${off.best ? "Have a different code?" : "Have a promo code?"}</button>
           <div class="promo-form hidden" id="promoForm">
             <input type="text" id="promoInput" placeholder="Promo code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32">
             <button type="button" class="btn ghost" id="promoApply">Apply</button>
@@ -3826,7 +3886,7 @@
       <div class="tot-row"><span>Appliances</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
       <div class="tot-row"><span>${state.fulfillment.method === "pickup" && !outsideArea() ? "Customer Pickup" : "White Glove Delivery"}</span><span>${outsideArea() ? `<span class="muted">call or text</span>` : state.fulfillment.method === "pickup" ? "FREE" : zipKnown() ? money(t.delivery) : `<span class="muted">set by ZIP code</span>`}</span></div>
-      ${outsideArea() ? "" : promoRow}
+      ${outsideArea() ? "" : state.promo ? promoRow + offerRows : offerRows + promoRow}
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       ${t.special.length ? `<div class="tot-row"><span>Special-order items (${t.special.length})</span><span class="muted">quoted separately</span></div>` : ""}
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
@@ -3837,6 +3897,13 @@
     paintNotice();
     const rm = document.getElementById("promoRm");
     if (rm) rm.addEventListener("click", () => { setPromo(null); renderCart(); });
+    const offerBtn = document.getElementById("offerApply");
+    if (offerBtn) offerBtn.addEventListener("click", async () => {
+      const err = document.getElementById("offerErr"), label = offerBtn.textContent;
+      err.textContent = ""; offerBtn.disabled = true; offerBtn.textContent = "Checking…";
+      try { await applyPromo(offerBtn.dataset.code); renderCart(); }
+      catch (e) { err.textContent = e.message; offerBtn.disabled = false; offerBtn.textContent = label; }
+    });
     const open = document.getElementById("promoOpen");
     if (open) {
       const form = document.getElementById("promoForm"), input = document.getElementById("promoInput"), err = document.getElementById("promoErr"), apply = document.getElementById("promoApply");

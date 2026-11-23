@@ -238,7 +238,11 @@ import {
   promoOrderRecord,
   promoDiscountLines,
   promoTarget,
-  installTotalOf
+  installTotalOf,
+  listFeaturedShopPromos,
+  getShopPromoDisplay,
+  saveShopPromoDisplay,
+  PROMO_DISPLAY_DEFAULT_HEADLINE
 } from "./lib/shop-promos-postgres.js";
 import {
   normalizeCreditAppToken,
@@ -303,8 +307,9 @@ import {
   addEmployeeDocument, listEmployeeDocuments, countEmployeeDocuments, getEmployeeDocument, removeEmployeeDocument,
   listCounselingRecords, getCounselingRecord, countCounselingRecords, listCounselingOverview, addCounselingRecord, addCounselingAddendum, setCounselingFollowUpDone, voidCounselingRecord,
   publicPto, createPtoRequest, getPtoRequest, listPtoForEmployee, listPendingPto, listKronosQueue, searchPtoRequests, archiveOldPtoRequests, PTO_ARCHIVE_AFTER_DAYS, listApprovedPtoBetween, decidePtoRequest, cancelPtoRequest, markPtoKronos, ptoCountsByEmployee,
-  PTO_HOLIDAYS, getPtoPolicy, savePtoPolicy, planPtoRequest, ptoPolicyNotes, ptoBalance, holidayDates
+  PTO_HOLIDAYS, getPtoPolicy, savePtoPolicy, planPtoRequest, ptoPolicyNotes, ptoBalance, holidayDates, PTO_POLICY_DEFAULTS
 } from "./lib/employee-profiles-postgres.js";
+import { listShopClosedDays, addShopClosedDay, removeShopClosedDay, cleanClosedDay } from "./lib/shop-closed-days.js";
 import { placeOrgNode, removeOrgNode, addOrgDottedLine, removeOrgDottedLine, dottedLinesFor, loadOrgContext, reportsToState, syncOrgReportsTo, scheduleStateFor } from "./lib/org-chart-postgres.js";
 import { ticketKey, collectTicketRecords, buildTicketAudit, searchTicketRecords, mergeTicketHits } from "./lib/ticket-audit.js";
 import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails } from "./lib/important-dates-postgres.js";
@@ -838,6 +843,7 @@ const SERVICE_PUBLIC_API_PREFIXES = [
 const SHOP_PUBLIC_PATHS = new Set([
   "/site-header.css", "/site-header.js", // the wilsonappliance.com header shared by the shop pages (11/10)
   "/meta-pixel.js", // the Meta Pixel on the shop pages (11/20; it only reports from shop.wilsonappliance.com)
+  "/shop-offers.js", // the promo codes shown on the landing page and the shop (11/23)
   "/",
   "/shop.html",
   "/shop-home.html",
@@ -886,6 +892,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/catalog",
   "/api/shop/cart-prices",
   "/api/shop/promo-check",
+  "/api/shop/offers",
   "/api/shop/setup-intent",
   "/api/shop/submit-order",
   "/api/shop/setup-intent-result/"
@@ -7386,6 +7393,33 @@ const SHOP_PICKUP_OFFER = {
 };
 const SHOP_PICKUP_LATER_NOTE = "Clearance and outlet items must be picked up within 30 days.";
 
+// ---- Closed days (Andrew 11/23: "Right now users can 'schedule' for thanksgiving day") ----
+// The days Wilson is closed: the company's paid holidays from the Time Off
+// policy, plus any extra day added on Online Shop Orders -> Closed days
+// (lib/shop-closed-days.js). On a closed day the shop offers no delivery day,
+// no pickup day and no showroom visit, and the day doesn't count as a working
+// day. Kept in memory; refreshed on every change and every 5 minutes. Until
+// the first read it holds the policy's standard holidays, so a restart never
+// offers Thanksgiving for a few seconds.
+const shopHolidayMap = (keys) => {
+  const year = Number(new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 4)), out = new Map();
+  for (const y of [year, year + 1]) for (const [day, label] of holidayDates(y, keys)) out.set(day, { label, source: "holiday" });
+  return out;
+};
+let shopClosedMap = shopHolidayMap(PTO_POLICY_DEFAULTS.holidays);
+async function refreshShopClosedDays() {
+  try {
+    const policy = await getPtoPolicy();
+    const next = shopHolidayMap(policy.holidays);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    for (const d of await listShopClosedDays({ from: today })) if (!next.has(d.date)) next.set(d.date, { label: d.label || "Closed", source: "extra", addedBy: d.addedBy });
+    shopClosedMap = next;
+  } catch (err) { console.error("Shop closed days refresh failed:", err.message); }
+}
+setTimeout(refreshShopClosedDays, 4 * 1000).unref?.();
+setInterval(refreshShopClosedDays, 5 * 60 * 1000).unref?.();
+const shopDayClosed = (dateStr) => shopClosedMap.has(String(dateStr || ""));
+
 // Pickup scheduling: orders placed before noon (Central) may choose same-day;
 // otherwise the choices run up to three working days out (Mon–Sat), plus
 // "I'd like to pick this up later" handled as the literal date "later".
@@ -7396,13 +7430,14 @@ function shopPickupDateChoices() {
   const d = new Date(`${todayStr}T00:00:00Z`);
   const label = (day) => day.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
   const choices = [];
-  if (hour < 12 && d.getUTCDay() !== 0) {
+  if (hour < 12 && d.getUTCDay() !== 0 && !shopDayClosed(todayStr)) {
     choices.push({ date: todayStr, label: `Today (${label(d)})` });
   }
-  let futureDays = 0;
-  while (futureDays < 3) {
+  let futureDays = 0, scanned = 0;
+  while (futureDays < 3 && scanned < 60) {
     d.setUTCDate(d.getUTCDate() + 1);
-    if (d.getUTCDay() === 0) continue; // closed Sundays
+    scanned++;
+    if (d.getUTCDay() === 0 || shopDayClosed(d.toISOString().slice(0, 10))) continue; // closed Sundays, holidays and closed days
     futureDays++;
     choices.push({ date: d.toISOString().slice(0, 10), label: label(d) });
   }
@@ -7413,10 +7448,11 @@ function shopDeliveryDateChoices() {
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
   const d = new Date(`${todayStr}T00:00:00Z`);
   const choices = [];
-  let workingDays = 0;
-  while (choices.length < 3) {
+  let workingDays = 0, scanned = 0;
+  while (choices.length < 3 && scanned < 60) {
     d.setUTCDate(d.getUTCDate() + 1);
-    if (d.getUTCDay() === 0) continue; // closed Sundays
+    scanned++;
+    if (d.getUTCDay() === 0 || shopDayClosed(d.toISOString().slice(0, 10))) continue; // closed Sundays, holidays and closed days: not working days
     workingDays++;
     if (workingDays >= 3) {
       choices.push({
@@ -7490,15 +7526,15 @@ function shopExpressDateChoices(express) {
   const hourNow = Number(now.toLocaleString("en-US", { timeZone: APP_TIMEZONE, hour12: false, hour: "2-digit" })) % 24;
   const d = new Date(`${todayStr}T00:00:00Z`);
   const choices = [];
-  if (hourNow < express.cutoffHour && daySet.has(d.getUTCDay())) {
+  if (hourNow < express.cutoffHour && daySet.has(d.getUTCDay()) && !shopDayClosed(todayStr)) {
     choices.push({ date: todayStr, label: "Today — same-day delivery & install", sameDay: true });
   }
   let future = 0;
   let scanned = 0;
-  while (future < 3 && scanned < 14) {
+  while (future < 3 && scanned < 30) {
     d.setUTCDate(d.getUTCDate() + 1);
     scanned++;
-    if (!daySet.has(d.getUTCDay())) continue; // not a program day
+    if (!daySet.has(d.getUTCDay()) || shopDayClosed(d.toISOString().slice(0, 10))) continue; // not a program day, or closed
     future++;
     choices.push({
       date: d.toISOString().slice(0, 10),
@@ -8546,6 +8582,34 @@ app.post("/api/shop/promo-check", rateLimit("shop-promo-check", 30, 15 * 60 * 10
   } catch (err) {
     console.error("Promo check failed:", err.message);
     return res.status(500).json({ error: "Unable to check that code right now." });
+  }
+});
+
+// PUBLIC: the promo codes shown on the shop (Andrew 11/23: "I'd like them to
+// appear in a classy way on the shop landing pages"). Only codes switched to
+// "Show on the shop" in Promo codes, and only while they are live. Each
+// carries what a shopper would see anyway once it's applied (the code, what
+// it takes off, its minimum) plus its end date. The landing page's band, the
+// shop's strip and the cart's one-tap offer all read this. Held half a
+// minute; any change in Promo codes clears it.
+let shopOffersCache = { at: 0, value: null };
+const invalidateShopOffers = () => { shopOffersCache = { at: 0, value: null }; };
+async function shopOffersNow() {
+  if (shopOffersCache.value && Date.now() - shopOffersCache.at < 30 * 1000) return shopOffersCache.value;
+  const [offers, display] = await Promise.all([listFeaturedShopPromos(), getShopPromoDisplay()]);
+  const value = { headline: display.headline || PROMO_DISPLAY_DEFAULT_HEADLINE, offers };
+  shopOffersCache = { at: Date.now(), value };
+  return value;
+}
+app.get("/api/shop/offers", async (req, res) => {
+  try {
+    const out = await shopOffersNow();
+    res.setHeader("Cache-Control", "public, max-age=30");
+    return res.json(out);
+  } catch (err) {
+    console.error("Shop offers failed:", err.message);
+    // never an error on the page: no offers just means no band
+    return res.json({ headline: PROMO_DISPLAY_DEFAULT_HEADLINE, offers: [] });
   }
 });
 
@@ -12048,6 +12112,7 @@ const SUBZERO_APPT_DAYS_AHEAD = Number(process.env.SUBZERO_APPT_DAYS_AHEAD) > 0 
 function subzeroSlotTimesForDate(dateStr) {
   const weekday = new Date(`${dateStr}T00:00:00Z`).getUTCDay(); // calendar weekday — timezone-free
   if (weekday === 0) return []; // Sunday closed
+  if (shopDayClosed(dateStr)) return []; // a holiday or closed day (11/23)
   const lastStart = weekday === 6 ? 15 : 17;
   const times = [];
   for (let h = 10; h <= lastStart; h++) times.push(`${String(h).padStart(2, "0")}:00`);
@@ -12647,7 +12712,8 @@ app.get("/api/shop/promo-codes/choices", requirePagePermission("/shop-orders.htm
 });
 app.get("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
-    return res.json({ promos: await listShopPromoCodes(), kinds: PROMO_KIND_LABELS });
+    const [promos, display] = await Promise.all([listShopPromoCodes(), getShopPromoDisplay().catch(() => ({ headline: "" }))]);
+    return res.json({ promos, kinds: PROMO_KIND_LABELS, display: { headline: display.headline, defaultHeadline: PROMO_DISPLAY_DEFAULT_HEADLINE } });
   } catch (err) {
     console.error("Promo list failed:", err.message);
     return res.status(500).json({ error: "Unable to load promo codes." });
@@ -12664,8 +12730,9 @@ app.get("/api/shop/promo-codes/:id/redemptions", requirePagePermission("/shop-or
 app.post("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const promo = await createShopPromoCode(await checkPromoMiscFields(req.body), req.authUser?.email || "");
+    invalidateShopOffers();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_created", targetUserId: null,
-      detail: { code: promo.code, kind: promo.kind, value: promo.value, maxRedemptions: promo.maxRedemptions, perShopper: promo.perShopper, minSubtotal: promo.minSubtotal, startsAt: promo.startsAt, endsAt: promo.endsAt, epassMiscCode: promo.epassMiscCode, netsuiteItem: promo.netsuiteItem } }).catch(() => {});
+      detail: { code: promo.code, kind: promo.kind, value: promo.value, maxRedemptions: promo.maxRedemptions, perShopper: promo.perShopper, minSubtotal: promo.minSubtotal, startsAt: promo.startsAt, endsAt: promo.endsAt, epassMiscCode: promo.epassMiscCode, netsuiteItem: promo.netsuiteItem, featured: promo.featured } }).catch(() => {});
     return res.json({ ok: true, promo });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to create the promo code." });
@@ -12675,8 +12742,9 @@ app.patch("/api/shop/promo-codes/:id", requirePagePermission("/shop-orders.html"
   try {
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad id." });
     const promo = await updateShopPromoCode(req.params.id, await checkPromoMiscFields(req.body), req.authUser?.email || "");
+    invalidateShopOffers();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_updated", targetUserId: null,
-      detail: { code: promo.code, changes: Object.keys(req.body || {}).filter((k) => k !== "epassMiscDesc"), ...(req.body?.epassMiscCode !== undefined ? { epassMiscCode: promo.epassMiscCode } : {}), ...(req.body?.netsuiteItem !== undefined ? { netsuiteItem: promo.netsuiteItem } : {}) } }).catch(() => {});
+      detail: { code: promo.code, changes: Object.keys(req.body || {}).filter((k) => k !== "epassMiscDesc"), ...(req.body?.epassMiscCode !== undefined ? { epassMiscCode: promo.epassMiscCode } : {}), ...(req.body?.netsuiteItem !== undefined ? { netsuiteItem: promo.netsuiteItem } : {}), ...(req.body?.featured !== undefined ? { featured: promo.featured } : {}) } }).catch(() => {});
     return res.json({ ok: true, promo });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to update the promo code." });
@@ -12686,10 +12754,23 @@ app.delete("/api/shop/promo-codes/:id", requirePagePermission("/shop-orders.html
   try {
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad id." });
     const removed = await deleteShopPromoCode(req.params.id);
+    invalidateShopOffers();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_deleted", targetUserId: null, detail: { id: req.params.id } }).catch(() => {});
     return res.json({ ok: true, removed });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to delete the promo code." });
+  }
+});
+// The headline over the codes shown on the shop (11/23). Blank goes back to the standard one.
+app.post("/api/shop/promo-display", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const display = await saveShopPromoDisplay({ headline: req.body?.headline }, req.authUser?.email || "");
+    invalidateShopOffers();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_display_saved", targetUserId: null, detail: { headline: display.headline } }).catch(() => {});
+    return res.json({ ok: true, display: { headline: display.headline, defaultHeadline: PROMO_DISPLAY_DEFAULT_HEADLINE } });
+  } catch (err) {
+    console.error("Promo display save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the headline." });
   }
 });
 
@@ -12905,6 +12986,49 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html
 // INTERNAL: refresh the availability snapshot from the latest ePASS
 // ExportModel export (parsed in the browser; serials only travel here).
 // Delivery ZIPs the online shop serves (Shop Orders).
+// Closed days (11/23): the company holidays the shop already skips, and the extra closed days kept here.
+app.get("/api/shop/closed-days", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    await refreshShopClosedDays();
+    const today = centralDateToday();
+    const upcoming = [...shopClosedMap].filter(([day]) => day >= today).sort((a, b) => a[0].localeCompare(b[0]));
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      today,
+      holidays: upcoming.filter(([, v]) => v.source === "holiday").map(([date, v]) => ({ date, label: v.label })),
+      extra: upcoming.filter(([, v]) => v.source === "extra").map(([date, v]) => ({ date, label: v.label, addedBy: v.addedBy || "" })),
+      // what a shopper is offered right now, so the effect is visible
+      nextDelivery: shopDeliveryDateChoices().map((c) => c.label),
+      nextPickup: shopPickupDateChoices().map((c) => c.label)
+    });
+  } catch (err) {
+    console.error("Closed days load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the closed days." });
+  }
+});
+app.post("/api/shop/closed-days", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const day = cleanClosedDay(req.body?.date);
+    if (day && shopClosedMap.get(day)?.source === "holiday") return res.status(400).json({ error: `${shopClosedMap.get(day).label} is already a closed day (a company holiday).` });
+    const added = await addShopClosedDay({ date: req.body?.date, label: req.body?.label }, req.authUser?.email || "", { today: centralDateToday() });
+    await refreshShopClosedDays();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_closed_day_added", targetUserId: null, detail: added }).catch(() => {});
+    return res.json({ ok: true, added });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to add that day." });
+  }
+});
+app.delete("/api/shop/closed-days/:date", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const removed = await removeShopClosedDay(req.params.date);
+    await refreshShopClosedDays();
+    if (removed) recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_closed_day_removed", targetUserId: null, detail: { date: cleanClosedDay(req.params.date) } }).catch(() => {});
+    return res.json({ ok: true, removed });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to remove that day." });
+  }
+});
+
 app.get("/api/shop/allowed-zips", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try { return res.json({ zips: await listShopAllowedZips() }); }
   catch (err) { return res.status(500).json({ error: err.message || "Unable to load the ZIP list." }); }
@@ -20309,6 +20433,7 @@ app.put("/api/pto/policy", requireExecutiveApi, async (req, res) => {
     const policy = await savePtoPolicy(req.body || {}, { byName: hrActor(req).byName });
     const changed = Object.keys(policy).filter((k) => !["updatedAt", "updatedBy"].includes(k) && JSON.stringify(policy[k]) !== JSON.stringify(before[k]));
     hrAudit(req, "pto_policy_saved", { changed, before: Object.fromEntries(changed.map((k) => [k, before[k]])), after: Object.fromEntries(changed.map((k) => [k, policy[k]])) });
+    await refreshShopClosedDays().catch(() => {}); // the shop skips the paid holidays (11/23)
     return res.json({ ok: true, policy, changed });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to save the policy." }); }
 });

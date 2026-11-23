@@ -86,3 +86,7 @@ The real `server.js` was run on a local test database with made-up ePASS misc co
   - `/api/shop/submit-order` stores `totals.promo` with `epassMiscCode`, `epassMiscDesc`, `netsuiteItem` and `lines`. The response to the shopper is still `priced.totals`, without them.
   - `GET /api/shop-orders` fills older orders from the code, with `fromCode: true`.
 - `shop-orders.html`: `miscPicker()` is used by the add form and by the row editor (**ePASS code** button). `promoEpassLine()` writes the order card line.
+
+## Showing a code on the shop (11/23)
+
+A code is private until **Show on shop** is switched on for it. A shown code appears on the landing page and the shop while it is live, and the cart offers it with one tap. See [promo-codes-on-the-shop.md](promo-codes-on-the-shop.md).

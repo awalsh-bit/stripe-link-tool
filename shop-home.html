@@ -366,6 +366,14 @@
     </div>
   </section>
 
+  <!-- ============ CURRENT OFFERS ============
+       The promo codes switched to "Show on the shop" in Online Shop Orders ->
+       Promo codes (Andrew 11/23). Drawn by shop-offers.js; with none switched
+       on, this stays hidden and empty. -->
+  <section id="offers" hidden></section>
+  <script src="/shop-offers.js"></script>
+  <script>if (window.wilsonOffers) wilsonOffers.mountBand("offers");</script>
+
   <!-- ============ ONE-CLICK JOURNEYS ============ -->
   <section class="journeys" aria-label="Quick actions">
     <div class="wrap">

@@ -569,14 +569,12 @@
       const input = document.getElementById("zipIn"), btn = document.getElementById("zipBtn"), ans = document.getElementById("zipAns");
       const q = document.getElementById("zipQ"), ask = document.getElementById("zipAsk"), change = document.getElementById("zipChange");
       const five = (z) => (String(z || "").trim().match(/^(\d{5})(?:-\d{4})?$/) || [])[1] || "";
-      const money = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const SMS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
       // built from fixed words, a 5-digit ZIP and a number only
+      // just yes or no for online orders (11/23): the fee and the delivery day are the cart's and checkout's to show
       function answer(d) {
-        const z = five(d.zip), name = String(d.name || "White Glove Delivery + Haul Away").replace(/[<>&"]/g, "");
-        const fee = d.fee != null && isFinite(Number(d.fee)) ? money(Number(d.fee)) : "";
-        if (d.area === "express") return "Yes, we deliver to <b>" + z + "</b>. " + name + " is " + fee + ", and you choose your delivery day at checkout.";
-        if (d.area === "extended") return "Yes, we deliver to <b>" + z + "</b>. " + name + " is " + fee + ". Order online and we will follow up via your preferred communication method to schedule your delivery day.";
+        const z = five(d.zip);
+        if (d.area === "express" || d.area === "extended") return "Yes, we deliver to <b>" + z + "</b> for online orders.";
         return "We can't take online orders for <b>" + z + '</b>. Call <a href="tel:512-894-0907">512-894-0907</a> or <a class="text-us" href="sms:+15128940907">' + SMS + "Text Us</a> and we'll help you from there.";
       }
       function show(d) {

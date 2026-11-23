@@ -41,10 +41,12 @@ Every change is recorded in the audit log with who made it.
 
 What the ZIP decides:
 
+*Shortened 11/23. Andrew: "skip the details here, especially because I may have promo codes going. Just a confirmed for online order or not." The ZIP box no longer names the delivery fee or how the day is set. The cart and checkout still show both, with any promo applied.*
+
 | ZIP is | The shop says | The cart offers |
 | --- | --- | --- |
-| On the express list | "Yes, we deliver to 78620. White Glove Delivery + Haul Away is $49.95, and you choose your delivery day at checkout." | Delivery with a day to pick, or Customer Pickup, as before. |
-| On the total list with a fee, not express | "Yes, we deliver to 78205. White Glove Delivery + Haul Away is $189.00. Order online and we will follow up via your preferred communication method to schedule your delivery day." | Delivery at that ZIP's fee with **no day to pick** ("We will follow up via your preferred communication method to schedule your delivery day."), or Customer Pickup. |
+| On the express list | "Yes, we deliver to 78620 for online orders." | Delivery with a day to pick, or Customer Pickup, as before. |
+| On the total list with a fee, not express | "Yes, we deliver to 78205 for online orders." | Delivery at that ZIP's fee with **no day to pick** ("We will follow up via your preferred communication method to schedule your delivery day."), or Customer Pickup. |
 | Neither | "We can't take online orders for 10001. Call 512-894-0907 or Text Us and we'll help you from there." | No delivery, no pickup, no checkout. **Call** and **Text Us** buttons sit where checkout would be. A pricing request for special-order items is refused too. |
 
 - **The fee follows the ZIP.** A fee set here is what the shop charges for delivery to that ZIP, in the express area too. An express ZIP with no fee here pays the standard fee, $49.95 (`SHOP_DELIVERY_OFFER.price` in `server.js`). The struck-through $89.95 and the "special online offer" wording are gone; free-delivery promo codes still work, in either area.

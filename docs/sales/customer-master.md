@@ -29,12 +29,49 @@ Every export and every add is written to the audit log (`customer_master_export`
 | **Customers who** | Bought appliances, had service only, or have nothing on file. |
 | **Last purchase between** | The date of the last finished sales order. |
 | **Lifetime sales** | The minimum and maximum, before tax. |
-| **Salesperson / Account type** | As ePASS has them on the customer. |
+| **Salesperson** | Everyone the salesperson sold to, plus any customer ePASS lists under them (see below). |
+| **Account type** | As ePASS has it on the customer. |
 | **Only customers we can email** | Leaves out everyone without a usable address (see below). |
 
 Sort by name, last purchase, lifetime sales, newest customers or customer #. The list shows 100 at a time (**Show more**), with the totals for the whole filtered list at the top: customers, how many can be emailed, and their lifetime sales.
 
 Tap a customer for everything on file: all emails and phones, address, account and salesperson, preferred contact, customer since, last activity in ePASS, sales, service, brands, and their recent orders in Agility.
+
+## The Salesperson filter
+
+*Changed 11/20. Andrew: "not all sales people are listed here".*
+
+The first version listed only the salespeople ePASS has on the customer record. In the ePASS history export (09/17), that field was filled in on 149 of about 47,000 customers, under 8 codes. Sales invoices since 2006 carry 99 salesperson codes.
+
+The filter now takes both:
+
+- **Everyone the salesperson sold to:** any finished sales order (R, S, AC, CB/CAB, MD/MOD, Q) with them as the order's salesperson, back to 2006 with the history export. Service tickets don't count.
+- **Any customer ePASS lists under them.**
+
+**The list:**
+
+- Every salesperson on a finished sales order, plus any on a customer record.
+- Each reads *Name (CODE) · customers*: how many customers choosing them shows.
+- The name comes from the employee directory in User Admin (former staff included), or else the name the commission reports gave the code, in ordinary case. A code with no known name shows as just the code.
+- **Sold in the last two years** come first, then **Earlier** (former staff, and codes only on customer records).
+- A code whose sales were all to customers no longer in the master isn't listed.
+
+**Adding a missing name** (Andrew, 11/20: "Is there a place I can add a name in the event a salesperson's code doesn't carry their name?"):
+
+1. In **User Admin**, press **+ Add teammate** and enter the code and the name. Nothing else is needed.
+2. For someone who no longer works here, open the entry and **Archive** it. It moves to *Former team members* and leaves the Team list.
+3. Reload Customer Master. The name you typed wins over any name from the commission reports, so it also fixes a misspelled one.
+
+Limits:
+
+- **Codes are 1–3 characters in User Admin,** so the two longer codes in ePASS's history, LSR2 and SAW2, can't be named there.
+- **An archived code still resolves on the payment pages,** as it does for every former employee, so old payments keep their name. Only add codes that were real people's.
+
+**Worth knowing:**
+
+- **Only the order's salesperson counts.** ePASS's second salesperson on a split sale isn't kept in Agility's order history.
+- **Other filters still apply to the whole customer.** *Last purchase between* and *Lifetime sales* look at all of the customer's purchases, not only that salesperson's. So *Salesperson RDW* with *Last purchase since 1/1/25* means customers RDW has sold to, whose latest purchase from anyone was this year or last.
+- **The row and the CSV still show ePASS's own salesperson field,** usually blank. The customer's details panel lists each recent order with its salesperson.
 
 ## Who can be emailed
 
@@ -60,7 +97,7 @@ What happens:
   - their name in ordinary case (ePASS stores capitals)
   - for a company account (no first name in ePASS), the company name as the company
   - the email and phone
-  - their ePASS salesperson as *invited by*
+  - as *invited by*: the salesperson the list was filtered by; otherwise the salesperson ePASS has on the customer; otherwise whoever made their latest sale
   - the note *From Customer Master · ePASS #…*
 - **People already there are left alone.** Anyone already on that guest list with the same email isn't added twice or changed.
 - **Nobody is emailed.** Sending stays on **Events & RSVPs → Email guests**: 500 people per send, PDFs attached, unsubscribes honoured.
@@ -153,11 +190,35 @@ The real `server.js` ran on a local test database, with 300 made-up customers se
 - **Speed:** with 120,000 made-up customers, a page of the list took 0.05–0.4 s and a CSV of all 120,000 took about 1 s.
 - **Earlier suites:** the event email tool still passes.
 
+**The Salesperson filter (11/20).** Made-up customers and sales orders on a local test database; 31 of 31 checks passed.
+
+- **The list:**
+  - It held the customer-record codes and every code with a sale, including one from a 2012 history-export order and a cabinetry (CB) order.
+  - Customer counts were right, and a service ticket didn't count.
+  - It was grouped last two years / earlier.
+  - Names came from the directory first, then the commission names (capitals put in ordinary case).
+  - A code with no name, once added in User Admin and archived, showed its name, still under Earlier.
+  - A code that only sold to a customer no longer in the master was left out.
+- **The filter:**
+  - It found the customers a salesperson sold to, plus their ePASS accounts.
+  - It combined with the other filters, and the CSV followed it.
+- **Add to event:**
+  - Filtered by a salesperson: *invited by* was that salesperson.
+  - Ticked: *invited by* was ePASS's salesperson where there was one, otherwise whoever made the latest sale.
+- **The page:**
+  - The grouped list showed name, code and count.
+  - Choosing a salesperson listed their customers, with no page errors.
+- **The earlier Customer Master suite:** 44 of 45 still pass. The one difference is intended: filtering by a salesperson now also shows a customer they sold to who has no salesperson in ePASS.
+
 ## For developers
 
 - `lib/customer-master-postgres.js`:
   - **Schema:** `epass_customers.last_activity` / `preferred_contact`, `epass_customer_totals`, `epass_customer_brands`, `customer_master_meta`.
   - **Ingest:** `ingestCustomerBundle` handles the parts `customers`, `customer-extras`, `customer-sales`, `customer-service` and `customer-brands`. A missing dataset leaves its data as it was.
+  - **Salesperson (11/20):**
+    - `whereFor` matches `c.salesperson`, or a `sales_order_detail` sales row with that `salesperson_code` for the customer.
+    - `salespeopleFacet` builds the list: customers per code (joined to the master), last sale, a name from `employee_directory` (archived included) or else `salesperson_codes` (`name`, proper-cased when all capitals), and `recent` (a sale in the last 730 days).
+    - `addCustomersToEvent` fills *invited by* from the filter, else `c.salesperson`, else the latest sale's `salesperson_code`.
   - **Reading:** `listCustomerMaster` (filters, paging, totals, each row's brands), `exportCustomerMaster` with `customerMasterCsv`, and `addCustomersToEvent`, which allows at most 500 at a time and adds emailable customers only.
   - **Sources:** `totalsSql` / `brandsSql` read the lifetime tables, plus `sales_order_detail` / `epass_sold_serials` rows finished after `customer_master_meta.as_of`, leaving out rows loaded from the history export. Without the lifetime tables they read Agility's order history alone. Sales are matched by number: R, S, AC, CB, MD, CAB, MOD and Q (cabinetry is numbered CB and modifications MD in ePASS).
 - `server.js`:

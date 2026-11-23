@@ -93,6 +93,8 @@
     .ws-tag.card { background: #f0fdf4; color: #166534; }
     .ws-tag.nocard { background: #fee2e2; color: #991b1b; }
     .ws-tag.byhand { background: #fef3c7; color: #92400e; }
+    .ws-tag.charged { background: #166534; color: #fff; }
+    .ws-btn.charge { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
     .ws-lines { font-size: 13px; line-height: 1.6; color: #374151; }
     .ws-lines .ws-serial { color: var(--muted); font-size: 11.5px; }
     .ws-lines .ws-total { font-weight: 700; color: inherit; }
@@ -446,7 +448,7 @@
     // upload that trims the storefront to live ePASS inventory.
     // ------------------------------------------------------------------
     (function () {
-      const state = { orders: [], snapshot: null, filter: "open" };
+      const state = { orders: [], snapshot: null, filter: "open", viewer: {} };
 
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -479,6 +481,7 @@
           state.mapFeedConfigured = Boolean(data.mapFeedConfigured);
           state.mapFeedLastAttempt = data.mapFeedLastAttempt || null;
           state.modelImages = data.modelImages || null;
+          state.viewer = data.viewer || {};
           renderSnapshot();
           renderMapFeed();
           renderChips();
@@ -602,6 +605,27 @@
         return `<div class="ws-epass">ePASS misc <b>${esc(p.epassMiscCode)}</b>${p.epassMiscDesc ? ` (${esc(p.epassMiscDesc)})` : ""}: ${how}${split}${p.netsuiteItem ? ` · NetSuite: ${esc(p.netsuiteItem)}` : ""}${p.fromCode ? ` · <i>set on the code after this order</i>` : ""}</div>`;
       }
 
+      // "Charge card" (Andrew 11/20): the order's claimer, or an executive,
+      // charges the card saved at checkout on Charge Saved Card, with the
+      // SetupIntent, customer, card, client and estimated total filled in.
+      function canChargeOrder(order) {
+        const v = state.viewer || {};
+        if (!v.canCharge || !order.setupIntentId || !["claimed", "completed"].includes(order.status)) return false;
+        return v.isExecutive === true || (Boolean(v.email) && order.claimedByEmail === v.email);
+      }
+      function chargeButton(order, ticketInput) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ws-btn charge";
+        btn.textContent = (order.cardCharges || []).length ? "Charge card again" : "Charge card";
+        btn.title = "Open Charge Saved Card with this order's saved card filled in. Nothing is charged until you check the amount and click Charge.";
+        btn.addEventListener("click", () => {
+          const ticket = ticketInput ? ticketInput.value.trim() : "";
+          location.href = `charge-saved-card.html?webOrder=${encodeURIComponent(order.id)}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}`;
+        });
+        return btn;
+      }
+
       function renderOrder(order) {
         const c = order.customer || {};
         const addr = c.address || {};
@@ -611,6 +635,9 @@
         const cardTag = order.cardSummary?.last4
           ? `<span class="ws-tag card">${esc((order.cardSummary.brand || "card").toUpperCase())} •••• ${esc(order.cardSummary.last4)}</span>`
           : `<span class="ws-tag nocard">No card captured</span>`;
+        const charges = order.cardCharges || [];
+        const chargedTotal = charges.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+        const chargedTag = charges.length ? `<span class="ws-tag charged">Charged ${money(chargedTotal)}</span>` : "";
 
         const lines = [
           ...(order.items || []).map((i) =>
@@ -637,6 +664,7 @@
           c.clientCode ? "Client code " + esc(c.clientCode) : "",
           order.claimedByName || order.claimedByEmail ? "Claimed by " + esc(order.claimedByName || order.claimedByEmail) : "",
           order.epassTicket ? "ePASS " + esc(order.epassTicket) : "",
+          ...charges.map((x) => `Card charged ${money(x.amount)}${x.at ? " " + esc(when(x.at)) : ""}${x.byName || x.byEmail ? " by " + esc(x.byName || x.byEmail) : ""}${x.salesOrder ? " (" + esc(x.salesOrder) + ")" : ""}`),
           order.cancelReason ? "Cancel reason: " + esc(order.cancelReason) : ""
         ].filter(Boolean).join(" · ");
 
@@ -647,6 +675,7 @@
             <span class="ws-spacer"></span>
             <span class="ws-tag contact">${esc(c.preferredContact || "Contact")} preferred</span>
             ${cardTag}
+            ${chargedTag}
             ${order.delivery?.manualSchedule && order.delivery?.method !== "pickup" ? `<span class="ws-tag byhand">Schedule by hand</span>` : ""}
             <span class="ws-pill ${esc(order.status)}">${esc(order.status.toUpperCase())}</span>
           </div>
@@ -681,6 +710,7 @@
           ticket.type = "text";
           ticket.placeholder = "ePASS ticket #";
           actions.appendChild(ticket);
+          if (canChargeOrder(order)) actions.appendChild(chargeButton(order, ticket));
           const complete = document.createElement("button");
           complete.type = "button";
           complete.className = "ws-btn primary";
@@ -701,6 +731,12 @@
             act(e.target, `/api/shop-orders/${order.id}/cancel`, { reason });
           });
           actions.appendChild(cancel);
+          wrap.appendChild(actions);
+        } else if (canChargeOrder(order)) {
+          // A completed order can still take a charge (a balance, a change on the ticket).
+          const actions = document.createElement("div");
+          actions.className = "ws-actions";
+          actions.appendChild(chargeButton(order, null));
           wrap.appendChild(actions);
         }
 

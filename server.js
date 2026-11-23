@@ -181,6 +181,8 @@ import {
   importStripeCustomerRecord,
   deleteShopper,
   updateShopOrderCardSummary,
+  getShopOrderBySetupIntent,
+  recordShopOrderCharge,
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
   getShopInventorySnapshot,
@@ -2816,8 +2818,9 @@ app.post("/api/me/dashboard-slots", async (req, res) => {
     return res.status(400).json({ error: "Send { slots: [pagePath, ...] }." });
   }
 
+  // Up to 8 cards (Andrew 11/22: "give people the option to switch from 2-8 tiles").
   const slots = [];
-  for (const value of raw.slice(0, 4)) {
+  for (const value of raw.slice(0, 8)) {
     const pagePath = String(value || "").trim();
     if (!pagePath) continue;
     if (slots.includes(pagePath)) continue;
@@ -12480,7 +12483,14 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
       mapFeedConfigured: Boolean(SHOP_MAP_PRICE_URL),
       mapFeedLastAttempt: shopMapLastAttempt,
       modelImages: await getShopModelImagesMeta().catch(() => null),
-      allowedZips: [...shopZipSet].sort()
+      allowedZips: [...shopZipSet].sort(),
+      // Who's looking (11/20), so the page offers "Charge card" on the
+      // viewer's own claimed orders (an executive's on any).
+      viewer: {
+        email: String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase(),
+        isExecutive: isExecutiveUser(req.authUser),
+        canCharge: isExecutiveUser(req.authUser) || canAccessPathForUser(req.authUser, "/charge-saved-card.html")
+      }
     });
   } catch (err) {
     console.error("Shop orders load failed:", err.message);
@@ -12754,6 +12764,74 @@ app.post("/api/shop-orders/:id/unclaim", requirePagePermission("/shop-orders.htm
   } catch (err) {
     console.error("Shop order unclaim failed:", err.message);
     return res.status(500).json({ error: "Unable to unclaim the order." });
+  }
+});
+
+// INTERNAL: charge a web order's saved card (Andrew 11/20: "a charge card
+// option for the sales DIBS claimer that auto fills the charge a saved card
+// with SETI"). The order's claimer, or an executive, opens Charge Saved Card
+// from the order; this hands that page the SetupIntent, the Stripe customer
+// and card, the client and the order's estimated total. Nothing is charged
+// here: the consultant checks the amount on the page and clicks.
+function shopOrderChargeRefusal(req, order) {
+  if (!order) return { status: 404, error: "Order not found." };
+  const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+  if (!isExecutiveUser(req.authUser)) {
+    if (!userEmail) return { status: 403, error: "Sign in with your individual account to charge a web order." };
+    if (order.claimedByEmail !== userEmail) {
+      return { status: 403, error: order.claimedByEmail
+        ? `${order.orderNumber} is claimed by ${order.claimedByName || order.claimedByEmail}. Only they or an executive can charge it.`
+        : order.status === "new"
+          ? `Claim ${order.orderNumber} first. Only its claimer or an executive can charge it.`
+          : `${order.orderNumber} was never claimed, so only an executive can charge it.` };
+    }
+  }
+  if (!["claimed", "completed"].includes(order.status)) {
+    return { status: 409, error: order.status === "canceled" ? `${order.orderNumber} was canceled.` : `Claim ${order.orderNumber} before charging it.` };
+  }
+  if (!order.setupIntentId) return { status: 409, error: `No card was saved with ${order.orderNumber}.` };
+  return null;
+}
+
+app.get("/api/shop-orders/:id/charge-prefill", requirePagePermission("/charge-saved-card.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad order id." });
+    const order = await getShopOrder(req.params.id);
+    const refused = shopOrderChargeRefusal(req, order);
+    if (refused) return res.status(refused.status).json({ error: refused.error });
+
+    const setupIntent = await stripe.setupIntents.retrieve(order.setupIntentId, { expand: ["payment_method"] });
+    if (setupIntent.status !== "succeeded") {
+      return res.status(409).json({ error: `The card saved with ${order.orderNumber} isn't usable (Stripe says ${setupIntent.status}).` });
+    }
+    const pm = setupIntent.payment_method || {};
+    const customerId = String((typeof setupIntent.customer === "string" ? setupIntent.customer : setupIntent.customer?.id) || order.stripeCustomerId || "");
+    const paymentMethodId = String((typeof pm === "string" ? pm : pm.id) || "");
+    if (!customerId || !paymentMethodId) {
+      return res.status(409).json({ error: `Stripe has no saved card for ${order.orderNumber}.` });
+    }
+    const c = order.customer || {};
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      setupIntentId: order.setupIntentId,
+      customerId,
+      paymentMethodId,
+      cardBrand: pm.card?.brand || order.cardSummary?.brand || "",
+      last4: pm.card?.last4 || order.cardSummary?.last4 || "",
+      customerName: `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+      amount: Number(order.totals?.total) || 0,
+      salesOrder: order.epassTicket || "",
+      description: `Online order ${order.orderNumber}`,
+      department: "Appliance",
+      claimedByName: order.claimedByName || order.claimedByEmail || "",
+      charges: order.cardCharges || []
+    });
+  } catch (err) {
+    console.error("Web order charge prefill failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the web order's saved card." });
   }
 });
 
@@ -17448,6 +17526,31 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
 
     const brand = paymentMethod?.card?.brand || "";
     const last4 = paymentMethod?.card?.last4 || "";
+
+    // A card saved at shop checkout (11/20) isn't a service request: before,
+    // looking one up on Charge Saved Card filed a blank service call in the
+    // queue. Answer with the card and the web order it came from, and leave
+    // the service queue alone. The customer and card IDs only go to someone
+    // signed in who can use Charge Saved Card.
+    if (setupIntent.metadata?.source === "online_shop") {
+      // On the service host (and local copies) this path skips the sign-in
+      // check, so read the session here rather than trust req.authUser alone.
+      const viewer = req.authUser || await resolveAuthUser(req).catch(() => null);
+      const canCharge = Boolean(viewer) && (isExecutiveUser(viewer) || canAccessPathForUser(viewer, "/charge-saved-card.html"));
+      if (!canCharge) return res.json({ setupIntentId: setupIntent.id, cardBrand: brand, last4, setupIntentStatus: setupIntent.status });
+      const webOrder = await getShopOrderBySetupIntent(setupIntent.id).catch(() => null);
+      return res.json({
+        setupIntentId: setupIntent.id,
+        customerId: customer?.id || "",
+        paymentMethodId: paymentMethod?.id || "",
+        customerName: customer?.name || (webOrder ? `${webOrder.customer?.firstName || ""} ${webOrder.customer?.lastName || ""}`.trim() : ""),
+        customerEmail: customer?.email || "",
+        cardBrand: brand,
+        last4,
+        setupIntentStatus: setupIntent.status,
+        webOrder: webOrder ? { orderNumber: webOrder.orderNumber, status: webOrder.status, claimedByName: webOrder.claimedByName || webOrder.claimedByEmail || "" } : { orderNumber: "" }
+      });
+    }
 
     const serviceCards = await readServiceCards();
     const existingServiceCardId = setupIntent.metadata?.service_card_id || "";
@@ -22777,7 +22880,6 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       salesOrder,
       description,
       customerName,
-      customerEmail,
       creatorCode,
       creatorName,
       creatorEmail,
@@ -22785,6 +22887,7 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       hvacDepositRecordId,
       depositAgreementId
     } = req.body;
+    let { customerEmail: chargeCustomerEmail } = req.body;
     const resolvedDepositAgreementId = String(depositAgreementId || hvacDepositRecordId || "").trim();
     // Department that owns this charge (11/12): same four as payment links
     // and the terminal. Client Care and executives pick it on the page;
@@ -22807,6 +22910,28 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       });
     }
 
+    // A web order charge (11/20): opened from Online Shop Orders, so it's
+    // held to the same rule as the prefill (the claimer or an executive) and
+    // to the card saved with that order. Without webOrderId, a card that
+    // was saved at shop checkout is still matched to its order by the
+    // SetupIntent, so the order shows the charge either way.
+    let webOrder = null;
+    const webOrderId = String(req.body?.webOrderId || "").trim();
+    if (webOrderId) {
+      if (!/^[0-9a-f-]{36}$/i.test(webOrderId)) return res.status(400).json({ error: "Bad web order id." });
+      webOrder = await getShopOrder(webOrderId);
+      const refused = shopOrderChargeRefusal(req, webOrder);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
+      if (webOrder.stripeCustomerId && webOrder.stripeCustomerId !== String(customerId)) {
+        return res.status(400).json({ error: `That Stripe customer isn't the one saved with ${webOrder.orderNumber}. Reopen the charge from Online Shop Orders.` });
+      }
+    } else if (/^seti_/.test(String(req.body?.setupIntentId || ""))) {
+      const matched = await getShopOrderBySetupIntent(req.body.setupIntentId).catch(() => null);
+      if (matched && (!matched.stripeCustomerId || matched.stripeCustomerId === String(customerId))) webOrder = matched;
+    }
+    if (webOrder && !chargeCustomerEmail) chargeCustomerEmail = webOrder.customer?.email || "";
+    const customerEmailOut = String(chargeCustomerEmail || "");
+
     const savedCardChargeConfig = {
       amount: amountInCents,
       currency: "usd",
@@ -22819,14 +22944,15 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
         sales_order: salesOrder,
         description: description || "",
         customer_name: customerName || "",
-        customer_email: customerEmail || "",
+        customer_email: customerEmailOut,
         creator_code: creatorCode || "",
         creator_name: creatorName || "",
         creator_email: creatorEmail || "",
         department,
         notes: internalNotes || "",
         hvac_deposit_record_id: hvacDepositRecordId || "",
-        deposit_agreement_id: resolvedDepositAgreementId
+        deposit_agreement_id: resolvedDepositAgreementId,
+        ...(webOrder ? { web_order: webOrder.orderNumber } : {})
       }
     };
 
@@ -22845,7 +22971,7 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
         type: "card_on_file",
         createdAt: new Date(paymentIntent.created * 1000).toISOString(),
         customerName: customerName || "",
-        customerEmail: customerEmail || "",
+        customerEmail: customerEmailOut,
         creatorCode: creatorCode || "",
         creatorName: creatorName || "",
         creatorEmail: creatorEmail || "",
@@ -22880,6 +23006,27 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
           salesOrder: salesOrder || ""
         });
       })().catch((noteErr) => console.error("Card-on-file Podium note failed:", noteErr.message));
+    }
+
+    if (paymentIntent.status === "succeeded" && webOrder) {
+      const recorded = await recordShopOrderCharge({
+        id: webOrder.id,
+        charge: {
+          paymentIntentId: paymentIntent.id,
+          amount: (paymentIntent.amount || 0) / 100,
+          salesOrder: salesOrder || "",
+          at: getPaymentIntentCreatedIso(paymentIntent),
+          byEmail: String(req.authUser?.email || creatorEmail || ""),
+          byName: String(req.authUser?.displayName || creatorName || "")
+        }
+      }).catch((recErr) => { console.error("Web order charge record failed:", recErr.message); return null; });
+      if (recorded) {
+        recordAudit({
+          ip: req.ip, actorUserId: req.authUser?.id || null,
+          action: "shop_order_charged", targetUserId: null,
+          detail: { orderNumber: webOrder.orderNumber, paymentIntentId: paymentIntent.id, amount: (paymentIntent.amount || 0) / 100, salesOrder: salesOrder || "", fromOrder: Boolean(webOrderId) }
+        }).catch(() => {});
+      }
     }
 
     if (paymentIntent.status === "succeeded" && resolvedDepositAgreementId) {
@@ -22920,7 +23067,8 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
     return res.json({
       success: true,
       status: paymentIntent.status,
-      paymentIntentId: paymentIntent.id
+      paymentIntentId: paymentIntent.id,
+      ...(webOrder ? { webOrderNumber: webOrder.orderNumber } : {})
     });
   } catch (err) {
     const declined = await describeCardDecline(err);

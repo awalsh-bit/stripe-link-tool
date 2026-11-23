@@ -148,7 +148,7 @@
             <select id="fBought"><option value="">Any (everyone)</option><option value="buyers">Bought appliances</option><option value="service">Had service only</option><option value="none">Nothing on file</option></select></div>
           <div><label>Last purchase between</label><div class="pair"><input type="date" id="fFrom" aria-label="Last purchase from" /><input type="date" id="fTo" aria-label="Last purchase to" /></div></div>
           <div><label>Lifetime sales ($, before tax)</label><div class="pair"><input type="number" id="fMin" min="0" step="100" placeholder="Min" aria-label="Lifetime sales at least" /><input type="number" id="fMax" min="0" step="100" placeholder="Max" aria-label="Lifetime sales at most" /></div></div>
-          <div><label for="fSp">Salesperson (ePASS)</label><select id="fSp"><option value="">Anyone</option></select></div>
+          <div><label for="fSp">Salesperson</label><select id="fSp" title="Customers this salesperson sold to on any finished sales order, plus any ePASS lists under them"><option value="">Anyone</option></select></div>
           <div><label for="fType">Account type</label><select id="fType"><option value="">Any</option></select></div>
           <div><label for="fSort">Sort</label>
             <select id="fSort"><option value="name">Name</option><option value="last">Last purchase, newest first</option><option value="revenue">Lifetime sales, highest first</option><option value="since">Newest customers first</option><option value="code">Customer #</option></select></div>
@@ -236,6 +236,16 @@
     }
     function fillSelect(sel, values, label) {
       sel.innerHTML = `<option value="">${esc(label)}</option>` + values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    }
+    // Salesperson list (11/20): everyone on a finished sales order, with a
+    // name where Agility knows it and how many customers they'd show. Those
+    // with a sale in the last two years come first.
+    function fillSalespeople(list) {
+      const opt = (p) => `<option value="${esc(p.code)}">${esc(p.name ? `${p.name} (${p.code})` : p.code)} · ${num(p.customers)}</option>`;
+      const recent = list.filter((p) => p.recent), earlier = list.filter((p) => !p.recent);
+      $("fSp").innerHTML = `<option value="">Anyone</option>`
+        + (recent.length ? `<optgroup label="Sold in the last two years">${recent.map(opt).join("")}</optgroup>` : "")
+        + (earlier.length ? `<optgroup label="Earlier">${earlier.map(opt).join("")}</optgroup>` : "");
     }
     function renderBrandList() {
       const q = $("fBrandFind").value.trim().toLowerCase();
@@ -425,7 +435,7 @@
         const m = await getJson("/api/customer-master/meta");
         state.meta = m;
         renderFresh(m);
-        fillSelect($("fSp"), m.salespeople, "Anyone");
+        fillSalespeople(m.salespeople || []);
         fillSelect($("fType"), m.accountTypes, "Any");
         renderBrandList(); brandSummary();
         $("addBtn").hidden = !m.canAddToEvent;

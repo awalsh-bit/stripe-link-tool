@@ -10,7 +10,7 @@ The catalog page carries the whole assortment, so it is slow to first paint. The
 
 | Section | Where it goes |
 |---|---|
-| Hero ("Shop what's in stock" / "Schedule service") | /shop.html · service.wilsonappliance.com/applianceservice.html |
+| Hero ("Shop Speed Queen" / "Shop all models", since 11/22; the summary line under the headline was removed the same day) | /shop.html?brand=Speed+Queen · /shop.html |
 | Stat strip (live model count · "days, not weeks") | `/api/shop/home-stats` |
 | Five one-click journeys: Outlet · Schedule service · Sub-Zero & Wolf · Visit the showroom · Call or text | /shop.html?outlet=1 · service host · service host /subzero · Google Maps · tel: |
 | Shop by department (6 photo tiles with live model counts, website order: Cooking, Coffee, Refrigeration, Kitchen Cleanup, Laundry, Outdoor) | /shop.html?dept=Cooking … Outdoor |

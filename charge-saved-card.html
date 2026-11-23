@@ -160,6 +160,21 @@
       color: var(--error-text);
     }
 
+    /* Opened from Online Shop Orders (11/20): which web order this charge is for. */
+    .web-order-note {
+      display: none;
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--primary-faint);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .web-order-note.show { display: block; }
+    .web-order-note.warn { background: #fef3c7; border-color: #f59e0b; color: #78350f; }
+    .web-order-note a { color: inherit; font-weight: 700; }
+
     .result {
       margin-top: 22px;
       border: 1px solid var(--border);
@@ -251,6 +266,7 @@
     <div id="internal-shell-header"></div>
     <div class="card">
       <form id="chargeForm">
+        <div id="webOrderNote" class="web-order-note" role="status"></div>
         <div class="grid">
   <div class="field">
     <label for="serviceOrderNumber">Sales / Service Order #</label>
@@ -424,6 +440,10 @@
     let latestCopyText = "";
     let hvacDepositRecordId = "";
     let depositAgreementId = "";
+    let webOrderId = "";            // opened from Online Shop Orders (11/20)
+    const webOrderNote = document.getElementById("webOrderNote");
+    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const shortDate = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     // Department that owns the charge (11/12) — same four as payment links
@@ -465,6 +485,7 @@
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
       statusBox.textContent = message;
+      statusBox.dataset.from = "";
     }
 
     // A bank decline: Stripe's dashboard-style explanation, then what it
@@ -485,6 +506,7 @@
     function clearStatus() {
       statusBox.className = "status";
       statusBox.textContent = "";
+      statusBox.dataset.from = "";
     }
 
     function clearResult() {
@@ -543,7 +565,10 @@
       const isValid = applyCreatorLookup();
       if (creatorCodeInput.value.trim() && !isValid) {
         showStatus("error", "Employee code not found. Please enter a valid employee code.");
-      } else {
+        statusBox.dataset.from = "code";
+      } else if (statusBox.dataset.from === "code") {
+        // Only take down the code error (11/20): the sign-in autofill fires this
+        // too, and used to wipe whatever a prefill had just said.
         clearStatus();
       }
     });
@@ -599,7 +624,16 @@
           data.clientName || data.customerName || "";
 
         setLookupResult(data);
-        showStatus("success", "Saved card found and fields auto-filled.");
+        if (data.webOrder) {
+          // A card saved at shop checkout: an Appliance charge unless chosen otherwise.
+          if (!descriptionInput.value.trim() && data.webOrder.orderNumber) descriptionInput.value = `Online order ${data.webOrder.orderNumber}`;
+          contextDepartment = "Appliance"; applyDepartment();
+          showStatus("success", data.webOrder.orderNumber
+            ? `Saved card found and fields auto-filled. This card was saved with online order ${data.webOrder.orderNumber}${data.webOrder.claimedByName ? `, claimed by ${data.webOrder.claimedByName}` : ""}; the charge will show on that order.`
+            : "Saved card found and fields auto-filled. This card was saved at online shop checkout.");
+        } else {
+          showStatus("success", "Saved card found and fields auto-filled.");
+        }
       } catch (err) {
         showStatus("error", err.message || "Lookup failed.");
       } finally {
@@ -627,7 +661,8 @@ const payload = {
   internalNotes: internalNotesInput.value.trim(),
   setupIntentId: setupIntentInput.value.trim(),
   hvacDepositRecordId,
-  depositAgreementId
+  depositAgreementId,
+  webOrderId
 };
 
 if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.salesOrder || !payload.description) {
@@ -677,11 +712,16 @@ if (!payload.department) {
         resultCopyText.innerHTML = `<span class="mono">${esc(copyText)}</span>`;
         resultBox.classList.add("show");
 
+        const onOrder = data.webOrderNumber ? ` Recorded on ${data.webOrderNumber}.` : "";
         try {
           await navigator.clipboard.writeText(copyText);
-          showStatus("success", "Charge succeeded. Confirmation copied to clipboard.");
+          showStatus("success", "Charge succeeded. Confirmation copied to clipboard." + onOrder);
         } catch {
-          showStatus("success", "Charge succeeded.");
+          showStatus("success", "Charge succeeded." + onOrder);
+        }
+        if (webOrderId && data.webOrderNumber) {
+          webOrderNote.className = "web-order-note show";
+          webOrderNote.innerHTML = `Charged ${esc(money(payload.amount))} to <strong>${esc(data.webOrderNumber)}</strong>. <a href="shop-orders.html">Back to Online Shop Orders</a>`;
         }
       } catch (err) {
         showStatus("error", err.message || "Charge failed.");
@@ -698,6 +738,9 @@ if (!payload.department) {
       clearLookupResult();
       hvacDepositRecordId = "";
       depositAgreementId = "";
+      webOrderId = "";
+      webOrderNote.className = "web-order-note";
+      webOrderNote.textContent = "";
       departmentChosenByHand = false;
       contextDepartment = "";
       applyDepartment();
@@ -734,8 +777,66 @@ if (!payload.department) {
       return true;
     }
 
+    // Web order hand-off (Andrew 11/20): "Charge card" on a claimed order in
+    // Online Shop Orders opens ?webOrder=<id>. The server checks it's the
+    // claimer's (or an executive's) and hands back the SetupIntent, the
+    // Stripe customer and card, the client and the order's estimated total.
+    // The ePASS ticket comes along when it's known (&ticket= from the order
+    // card, or the completed order's). Nothing is charged until they click.
+    async function loadWebOrderPrefillIfPresent(params) {
+      const id = params.get("webOrder");
+      if (!id) return false;
+      clearStatus();
+      clearLookupResult();
+      clearResult();
+      lookupBtn.disabled = true;
+      lookupBtn.textContent = "Loading...";
+      try {
+        const res = await fetch(`/api/shop-orders/${encodeURIComponent(id)}/charge-prefill`, { credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Unable to load the web order.");
+        webOrderId = data.orderId;
+        setupIntentInput.value = data.setupIntentId || "";
+        customerIdInput.value = data.customerId || "";
+        paymentMethodIdInput.value = data.paymentMethodId || "";
+        customerNameInput.value = data.customerName || "";
+        if (Number(data.amount) > 0) amountInput.value = Number(data.amount).toFixed(2);
+        descriptionInput.value = data.description || `Online order ${data.orderNumber}`;
+        const ticket = String(params.get("ticket") || "").trim().slice(0, 60) || data.salesOrder || "";
+        serviceOrderInput.value = ticket;
+        contextDepartment = data.department || "Appliance";
+        applyDepartment();
+        setLookupResult({ customerName: data.customerName, customerId: data.customerId, paymentMethodId: data.paymentMethodId, cardBrand: data.cardBrand, last4: data.last4 });
+
+        const card = data.cardBrand && data.last4 ? `${String(data.cardBrand).toUpperCase()} •••• ${data.last4}` : "the saved card";
+        const charges = Array.isArray(data.charges) ? data.charges : [];
+        const already = charges.reduce((a, c) => a + (Number(c.amount) || 0), 0);
+        const parts = [`<strong>Online order ${esc(data.orderNumber)}</strong>${data.claimedByName ? ` · claimed by ${esc(data.claimedByName)}` : ""} · ${esc(card)} · estimated total ${esc(money(data.amount))}.`];
+        if (charges.length) {
+          parts.push(`<div style="margin-top:6px"><strong>Already charged ${esc(money(already))}</strong>: ${charges.map((c) => `${esc(money(c.amount))}${c.at ? ` on ${esc(shortDate(c.at))}` : ""}${c.byName ? ` by ${esc(c.byName)}` : ""}`).join("; ")}. Change the amount to what's still owed, or don't charge again.</div>`);
+        }
+        parts.push(`<div style="margin-top:6px">The amount is the web order's estimated total. Check it against the ePASS ticket before charging.</div>`);
+        webOrderNote.className = "web-order-note show" + (charges.length ? " warn" : "");
+        webOrderNote.innerHTML = parts.join("");
+        if (!ticket) {
+          showStatus("success", `Loaded ${data.orderNumber}'s saved card. Enter the ePASS ticket # and check the amount, then charge.`);
+          serviceOrderInput.focus();
+        } else {
+          showStatus("success", `Loaded ${data.orderNumber}'s saved card for ePASS ${ticket}. Check the amount, then charge.`);
+        }
+      } catch (err) {
+        webOrderId = "";
+        showStatus("error", err.message || "Unable to load the web order.");
+      } finally {
+        lookupBtn.disabled = false;
+        lookupBtn.textContent = "Lookup saved card";
+      }
+      return true;
+    }
+
     async function loadHvacPrefillIfPresent() {
       const params = new URLSearchParams(window.location.search);
+      if (await loadWebOrderPrefillIfPresent(params)) return;
       if (loadBillingPrefillIfPresent(params)) return;
       const recordId = params.get("hvacRecordId");
 

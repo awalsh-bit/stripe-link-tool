@@ -4144,11 +4144,20 @@
     return { method: state.fulfillment.method === "pickup" ? "pickup" : "delivery", date: callsToSchedule() ? null : state.fulfillment.date, zip: state.zip || "" };
   }
 
+  // The words for the day the shopper picked. A delivery day can come from
+  // either list: laundry and freestanding-refrigerator carts pick from the
+  // same-day program's days (expressDates), which the standard list often
+  // doesn't hold. Looking only in the standard list made the order summary
+  // say "day TBD" for a day that was picked and sent (Andrew 11/23). A day on
+  // neither list (the lists were refreshed since) is still named by its date.
   function fulfillDayLabel() {
-    const pool = state.fulfillment.method === "pickup"
-      ? (state.fulfillOptions?.pickupDates || [])
-      : (state.fulfillOptions?.deliveryDates || []);
-    return pool.find((d) => d.date === state.fulfillment.date)?.label || "";
+    const o = state.fulfillOptions || {}, date = state.fulfillment.date;
+    if (!date || date === "later") return "";
+    const pool = state.fulfillment.method === "pickup" ? (o.pickupDates || []) : [...(o.expressDates || []), ...(o.deliveryDates || [])];
+    const hit = pool.find((d) => d.date === date);
+    if (hit?.label) return hit.label;
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" }) : "";
   }
 
   async function placeOrder() {

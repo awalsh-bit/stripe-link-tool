@@ -312,7 +312,7 @@ import {
 import { listShopClosedDays, addShopClosedDay, removeShopClosedDay, cleanClosedDay } from "./lib/shop-closed-days.js";
 import { placeOrgNode, removeOrgNode, addOrgDottedLine, removeOrgDottedLine, dottedLinesFor, loadOrgContext, reportsToState, syncOrgReportsTo, scheduleStateFor } from "./lib/org-chart-postgres.js";
 import { ticketKey, collectTicketRecords, buildTicketAudit, searchTicketRecords, mergeTicketHits } from "./lib/ticket-audit.js";
-import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails } from "./lib/important-dates-postgres.js";
+import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails, setImportantDateSignupClosed } from "./lib/important-dates-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, processCatalogueHistoryBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
@@ -12916,32 +12916,43 @@ app.get("/api/shop-orders/:id/charge-prefill", requirePagePermission("/charge-sa
   }
 });
 
-// INTERNAL: finish an order as an ePASS ticket — flips the web locks to Sold
-// under the ticket number so the hit list shows the final state.
+// Finish an order as an ePASS ticket: completed under the ticket number, the
+// web locks flipped to Sold under it so the hit list shows the final state,
+// the floor's new-order flags retired. One place for the Complete order
+// button and for a card charge that closes the order (11/24). Returns the
+// order, or null when it was already completed or canceled. Nothing here
+// contacts the client.
+async function finishShopOrderAsTicket(req, id, epassTicket, auditExtra = {}) {
+  const order = await completeShopOrder({ id, epassTicket });
+  if (!order) return null;
+  const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+  for (const item of order.items || []) {
+    await upgradeWebToSold({
+      itemId: item.id,
+      salesOrder: epassTicket,
+      byEmail: userEmail,
+      byName: req.authUser?.displayName || ""
+    }).catch(() => {});
+  }
+  recordAudit({
+    ip: req.ip, actorUserId: req.authUser?.id || null,
+    action: "shop_order_completed", targetUserId: null,
+    detail: { orderNumber: order.orderNumber, epassTicket, ...auditExtra }
+  }).catch(() => {});
+  retirePushedNotificationsByRef(`weborder:${order.orderNumber}`).catch(() => {});
+  return order;
+}
+
+// INTERNAL: the Complete order button. For an order that is finished without
+// charging its saved card through Agility (paid another way); charging the
+// card closes the order on its own.
 app.post("/api/shop-orders/:id/complete", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const epassTicket = String(req.body?.epassTicket || "").trim();
     if (!epassTicket) return res.status(400).json({ error: "Enter the ePASS ticket number." });
 
-    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
-    const order = await completeShopOrder({ id: req.params.id, epassTicket });
+    const order = await finishShopOrderAsTicket(req, req.params.id, epassTicket);
     if (!order) return res.status(409).json({ error: "This order can't be completed (already completed or canceled)." });
-
-    for (const item of order.items || []) {
-      await upgradeWebToSold({
-        itemId: item.id,
-        salesOrder: epassTicket,
-        byEmail: userEmail,
-        byName: req.authUser?.displayName || ""
-      }).catch(() => {});
-    }
-
-    recordAudit({
-      ip: req.ip, actorUserId: req.authUser?.id || null,
-      action: "shop_order_completed", targetUserId: null,
-      detail: { orderNumber: order.orderNumber, epassTicket }
-    }).catch(() => {});
-    retirePushedNotificationsByRef(`weborder:${order.orderNumber}`).catch(() => {});
 
     return res.json({ ok: true, order });
   } catch (err) {
@@ -19661,8 +19672,20 @@ app.post("/api/important-dates", requireImportantDates, async (req, res) => {
 app.put("/api/important-dates/:id", requireImportantDates, async (req, res) => {
   try {
     const date = await updateImportantDate(req.params.id, req.body || {}, importantDateActor(req).name || importantDateActor(req).email);
-    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "important_date_updated", targetUserId: null, detail: { id: date.id, title: date.title, date: date.date, kind: date.kind } }).catch(() => {});
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "important_date_updated", targetUserId: null, detail: { id: date.id, title: date.title, date: date.date, kind: date.kind, ...(date.signupEnabled ? { signupCloseDate: date.signupCloseDate || "" } : {}) } }).catch(() => {});
     return res.json({ ok: true, date });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+// Close a date's RSVP or sign-up by hand, or reopen it (Andrew 11/24: "I need
+// a close RSVP on important dates"). Closed: nobody can answer or change an
+// answer; the list stays readable. The last day to answer, which closes it
+// on its own, is saved with the date above.
+app.post("/api/important-dates/:id/signup-close", requireImportantDates, async (req, res) => {
+  try {
+    const closed = req.body?.closed !== false;
+    const out = await setImportantDateSignupClosed(req.params.id, closed, importantDateActor(req).name || importantDateActor(req).email);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: closed ? "important_date_signup_closed" : "important_date_signup_reopened", targetUserId: null, detail: { id: out.date.id, title: out.date.title, ...(out.clearedCloseDate ? { clearedCloseDate: out.clearedCloseDate } : {}) } }).catch(() => {});
+    return res.json({ ok: true, date: out.date, clearedCloseDate: out.clearedCloseDate });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
 });
 app.post("/api/important-dates/:id/archive", requireImportantDates, async (req, res) => {
@@ -23056,6 +23079,7 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
     }
     if (webOrder && !chargeCustomerEmail) chargeCustomerEmail = webOrder.customer?.email || "";
     const customerEmailOut = String(chargeCustomerEmail || "");
+    let webOrderClosed = null; // the order, when this charge completed it (11/24)
 
     const savedCardChargeConfig = {
       amount: amountInCents,
@@ -23152,6 +23176,20 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
           detail: { orderNumber: webOrder.orderNumber, paymentIntentId: paymentIntent.id, amount: (paymentIntent.amount || 0) / 100, salesOrder: salesOrder || "", fromOrder: Boolean(webOrderId) }
         }).catch(() => {});
       }
+      // The charge closes the order (Andrew 11/24: "Can this automatically
+      // close with the sales order number when the card is charged?"). The
+      // Sales / Service Order # on the charge becomes the order's ePASS
+      // ticket, exactly as if it had been typed next to Complete order.
+      // Only a claimed order, and only when the person charging is its
+      // claimer or an executive (the rule for charging from the order), so a
+      // charge found through the manual lookup by someone else is recorded
+      // but leaves the order open. An order that is already completed keeps
+      // its ticket: a later charge is a balance, recorded and nothing more.
+      const closeTicket = String(salesOrder || "").trim().slice(0, 60);
+      if (closeTicket && webOrder.status === "claimed" && !shopOrderChargeRefusal(req, webOrder)) {
+        webOrderClosed = await finishShopOrderAsTicket(req, webOrder.id, closeTicket, { byCharge: true, paymentIntentId: paymentIntent.id })
+          .catch((closeErr) => { console.error("Web order close on charge failed:", closeErr.message); return null; });
+      }
     }
 
     if (paymentIntent.status === "succeeded" && resolvedDepositAgreementId) {
@@ -23193,7 +23231,8 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       success: true,
       status: paymentIntent.status,
       paymentIntentId: paymentIntent.id,
-      ...(webOrder ? { webOrderNumber: webOrder.orderNumber } : {})
+      ...(webOrder ? { webOrderNumber: webOrder.orderNumber } : {}),
+      ...(webOrderClosed ? { webOrderCompleted: true, webOrderTicket: webOrderClosed.epassTicket || "" } : {})
     });
   } catch (err) {
     const declined = await describeCardDecline(err);

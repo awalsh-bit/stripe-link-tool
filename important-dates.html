@@ -51,6 +51,9 @@
     .rsvp-cols h4 { margin: 0 0 4px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
     .rsvp-cols h4 b { color: var(--text); font-size: 13px; }
     .only-sm { display: none; }
+    /* closed / last day to answer (11/24) */
+    .tag-closed { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #991b1b; }
+    .tag-until { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; }
     @media (max-width: 760px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .c3, .c4, .c6 { grid-column: span 12; } .check { margin-top: 0; } .hide-sm { display: none; } .only-sm { display: block; } .rsvp-cols { grid-template-columns: 1fr; }
       /* on a phone each date is a block, not a table row, so nothing runs off the side */
       #rows, #rows tr, #rows td { display: block; } thead { display: none; }
@@ -67,7 +70,7 @@
 
     <div class="surface">
       <h2 id="formTitle">Add an important date</h2>
-      <p class="section-note">Anything the whole company should see coming: paid holidays, early closings, all-store meetings, potlucks, parties. Everyone's dashboard shows the next <span id="windowDays">60</span> days in a small card above their notifications. Add a sign-up to let people list what they're bringing, or an RSVP to count who's coming.</p>
+      <p class="section-note">Anything the whole company should see coming: paid holidays, early closings, all-store meetings, potlucks, parties. Everyone's dashboard shows the next <span id="windowDays">60</span> days in a small card above their notifications. Add a sign-up to let people list what they're bringing, or an RSVP to count who's coming. When you need a final head count, give it a <strong>last day to answer</strong>, or use <strong>close RSVP</strong> on its row: after that nobody can answer or change an answer until you reopen it.</p>
       <form id="form" class="form" autocomplete="off">
         <input type="hidden" id="fId" />
         <div class="c6"><label>Title<input id="fTitle" type="text" maxlength="140" placeholder="Thanksgiving Potluck" required /></label></div>
@@ -89,6 +92,7 @@
           <option value="4">Up to 4</option>
           <option value="5">Up to 5</option>
         </select></label></div>
+        <div class="c3" id="fCloseWrap" style="display: none;"><label>Last day to answer (optional)<input id="fCloseBy" type="date" /></label></div>
         <div class="c6"><label>Sign-up link text (optional)<input id="fPrompt" type="text" maxlength="140" placeholder="What's everyone bringing?" /></label></div>
         <div class="c12 row">
           <button type="submit" id="saveBtn">Add date</button>
@@ -138,6 +142,7 @@
       $("fDetails").value = d ? d.details : "";
       $("fSignup").value = d && d.signupEnabled ? (d.signupMode === "rsvp" ? "rsvp" : "bring") : "";
       $("fGuestMax").value = String(d ? Math.min(5, d.signupGuestMax ?? 5) : 1); // a new RSVP starts at a plus-one
+      $("fCloseBy").value = d && d.signupEnabled ? d.signupCloseDate || "" : "";
       syncSignup();
       $("fPrompt").value = d ? d.signupPrompt : "";
       $("formTitle").textContent = d ? `Edit — ${d.title}` : "Add an important date";
@@ -149,11 +154,22 @@
     // The one-line tally for a date's sign-up, and its two links. Used in the
     // Sign-up sheet column and, on a phone (where that column is hidden),
     // under the title.
-    function sheetSummary(d) {
+    // Open or closed, and until when (11/24). Closed by hand names who; closed by its last day names the day.
+    const shortDay = (iso) => parse(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    function closeTag(d) {
+      if (d.signupClosed) {
+        const how = d.signupClosedHow === "date" && d.signupCloseDate ? `the last day to answer was ${shortDay(d.signupCloseDate)}`
+          : [d.signupClosedBy ? "by " + d.signupClosedBy : "", d.signupClosedAt ? "on " + new Date(d.signupClosedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""].filter(Boolean).join(" ");
+        return ` <span class="tag-closed" title="Nobody can answer or change an answer. Reopen to let them.">Closed</span> <span class="mut">${esc(how)}</span>`;
+      }
+      return d.signupCloseDate ? ` <span class="tag-until" title="After this day nobody can answer or change an answer.">${d.signupCloseDate === todayIso() ? "closes tonight" : "open through " + esc(shortDay(d.signupCloseDate))}</span>` : "";
+    }
+    function sheetSummary(d) { return sheetTally(d) + closeTag(d); }
+    function sheetTally(d) {
       if (d.signupMode !== "rsvp") return `${d.signupCount} signed up`;
       return `RSVP · <strong>${d.rsvp.yes} coming</strong>${d.rsvp.people > d.rsvp.yes ? ` (${d.rsvp.people} people)` : ""} · ${d.rsvp.no} no${d.rsvp.waiting == null ? "" : ` · <strong>${d.rsvp.waiting} no answer</strong>`} <span class="mut">· ${d.signupGuestMax === 0 ? "no guests" : "up to +" + d.signupGuestMax}</span>${d.rsvp.over ? ` <span style="color:var(--warn-ink, #b45309); font-weight:700;" title="Answered before the guest limit was lowered. Their answers are unchanged — ask them to update, or remove the line.">· ${d.rsvp.over} over the limit</span>` : ""}`;
     }
-    const sheetLinks = (d) => `<button type="button" class="link" data-sheet="${d.id}">${d.signupMode === "rsvp" ? "view names" : "view"}</button> · <button type="button" class="link" data-csv="${d.id}" title="Download the ${d.signupMode === "rsvp" ? "RSVP answers, and who hasn't answered," : "sign-up sheet"} as a spreadsheet">export CSV</button>`;
+    const sheetLinks = (d) => `<button type="button" class="link" data-sheet="${d.id}">${d.signupMode === "rsvp" ? "view names" : "view"}</button> · <button type="button" class="link" data-csv="${d.id}" title="Download the ${d.signupMode === "rsvp" ? "RSVP answers, and who hasn't answered," : "sign-up sheet"} as a spreadsheet">export CSV</button> · <button type="button" class="link" data-close="${d.id}" data-closed="${d.signupClosed ? 1 : 0}" title="${d.signupClosed ? "Let people answer and change their answers again" : "Stop taking answers: nobody can answer or change an answer until you reopen it"}">${d.signupClosed ? "reopen" : d.signupMode === "rsvp" ? "close RSVP" : "close sign-up"}</button>`;
 
     function render() {
       const today = todayIso();
@@ -185,6 +201,17 @@
       }));
       $("rows").querySelectorAll("[data-sheet]").forEach((b) => b.addEventListener("click", () => { const id = Number(b.dataset.sheet); if (openSheet === id) closeSheet(); else { closeSheet(); showSheet(id); } }));
       $("rows").querySelectorAll("[data-csv]").forEach((b) => b.addEventListener("click", () => exportCsv(Number(b.dataset.csv))));
+      // Close by hand, or reopen (11/24). Reopening a sheet whose last day has passed clears that day, or it would close again at once.
+      $("rows").querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", async () => {
+        const d = dates.find((x) => x.id === Number(b.dataset.close)); if (!d) return;
+        const rsvp = d.signupMode === "rsvp", closing = !d.signupClosed;
+        if (closing && !window.confirm(`Close the ${rsvp ? "RSVP" : "sign-up"} for "${d.title}"?\n\nNobody will be able to answer or change ${rsvp ? "their answer" : "the list"}. Everyone can still see ${rsvp ? "who's coming" : "it"}, and you can reopen it.`)) return;
+        try {
+          const out = await api(`/api/important-dates/${d.id}/signup-close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ closed: closing }) });
+          setStatus(closing ? `Closed. "${d.title}" isn't taking ${rsvp ? "answers" : "sign-ups"} any more.` : `Reopened. "${d.title}" is taking ${rsvp ? "answers" : "sign-ups"} again.${out.clearedCloseDate ? ` Its last day to answer (${shortDay(out.clearedCloseDate)}) had passed, so it was cleared. Edit the date to set a new one.` : ""}`);
+          await load();
+        } catch (err) { setStatus(err.message, "error"); }
+      }));
     }
 
     // Export a date's RSVP answers (or its bring-list) as a CSV that opens
@@ -269,7 +296,7 @@
     $("form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const id = $("fId").value;
-      const body = { title: $("fTitle").value, kind: $("fKind").value, time: $("fTime").value, date: $("fDate").value, endDate: $("fEnd").value, details: $("fDetails").value, signupEnabled: !!$("fSignup").value, signupMode: $("fSignup").value === "rsvp" ? "rsvp" : "bring", signupGuestMax: Number($("fGuestMax").value), signupPrompt: $("fPrompt").value };
+      const body = { title: $("fTitle").value, kind: $("fKind").value, time: $("fTime").value, date: $("fDate").value, endDate: $("fEnd").value, details: $("fDetails").value, signupEnabled: !!$("fSignup").value, signupMode: $("fSignup").value === "rsvp" ? "rsvp" : "bring", signupGuestMax: Number($("fGuestMax").value), signupPrompt: $("fPrompt").value, signupCloseDate: $("fSignup").value ? $("fCloseBy").value : "" };
       try {
         $("saveBtn").disabled = true;
         await api(id ? `/api/important-dates/${id}` : "/api/important-dates", { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -284,13 +311,15 @@
     function syncSignup() {
       const m = $("fSignup").value;
       $("fGuestWrap").style.display = m === "rsvp" ? "" : "none";
+      $("fCloseWrap").style.display = m ? "" : "none";
       const g = Number($("fGuestMax").value);
-      $("formNote").textContent = m === "rsvp" ? `Everyone will see an RSVP link on the dashboard: coming or not, ${g === 0 ? "no guests" : g === 1 ? "with or without a plus-one" : `up to ${g} guests`}, an optional note. One answer each — they can change it.` : m === "bring" ? "Everyone will see a link on the dashboard to add what they're bringing." : "";
+      $("formNote").textContent = m === "rsvp" ? `Everyone will see an RSVP link on the dashboard: coming or not, ${g === 0 ? "no guests" : g === 1 ? "with or without a plus-one" : `up to ${g} guests`}, an optional note. One answer each — they can change it${$("fCloseBy").value ? ` through ${shortDay($("fCloseBy").value)}, then it closes` : ""}.` : m === "bring" ? `Everyone will see a link on the dashboard to add what they're bringing${$("fCloseBy").value ? `, through ${shortDay($("fCloseBy").value)}` : ""}.` : "";
       $("fPrompt").placeholder = m === "rsvp" ? "RSVP — are you coming?" : "What's everyone bringing?";
       $("fPrompt").disabled = !m;
     }
     $("fSignup").addEventListener("change", syncSignup);
     $("fGuestMax").addEventListener("change", syncSignup);
+    $("fCloseBy").addEventListener("change", syncSignup);
     load();
   </script>
 </body>

@@ -712,7 +712,10 @@ if (!payload.department) {
         resultCopyText.innerHTML = `<span class="mono">${esc(copyText)}</span>`;
         resultBox.classList.add("show");
 
-        const onOrder = data.webOrderNumber ? ` Recorded on ${data.webOrderNumber}.` : "";
+        // A charge on a claimed web order closes it under this Sales / Service Order # (11/24)
+        const onOrder = data.webOrderNumber
+          ? (data.webOrderCompleted ? ` Recorded on ${data.webOrderNumber}, which is now completed under ${data.webOrderTicket || payload.salesOrder}.` : ` Recorded on ${data.webOrderNumber}.`)
+          : "";
         try {
           await navigator.clipboard.writeText(copyText);
           showStatus("success", "Charge succeeded. Confirmation copied to clipboard." + onOrder);
@@ -721,7 +724,7 @@ if (!payload.department) {
         }
         if (webOrderId && data.webOrderNumber) {
           webOrderNote.className = "web-order-note show";
-          webOrderNote.innerHTML = `Charged ${esc(money(payload.amount))} to <strong>${esc(data.webOrderNumber)}</strong>. <a href="shop-orders.html">Back to Online Shop Orders</a>`;
+          webOrderNote.innerHTML = `Charged ${esc(money(payload.amount))} to <strong>${esc(data.webOrderNumber)}</strong>.${data.webOrderCompleted ? ` The order is completed under ePASS <strong>${esc(data.webOrderTicket || payload.salesOrder)}</strong>; nothing more to do on it.` : ""} <a href="shop-orders.html">Back to Online Shop Orders</a>`;
         }
       } catch (err) {
         showStatus("error", err.message || "Charge failed.");
@@ -816,6 +819,8 @@ if (!payload.department) {
           parts.push(`<div style="margin-top:6px"><strong>Already charged ${esc(money(already))}</strong>: ${charges.map((c) => `${esc(money(c.amount))}${c.at ? ` on ${esc(shortDate(c.at))}` : ""}${c.byName ? ` by ${esc(c.byName)}` : ""}`).join("; ")}. Change the amount to what's still owed, or don't charge again.</div>`);
         }
         parts.push(`<div style="margin-top:6px">The amount is the web order's estimated total. Check it against the ePASS ticket before charging.</div>`);
+        // Charging a claimed order closes it under the number typed here (Andrew 11/24), so that number has to be right
+        if (data.status === "claimed") parts.push(`<div style="margin-top:6px"><strong>Charging completes ${esc(data.orderNumber)}</strong> under the Sales / Service Order # below. Make sure it's the ePASS ticket for this order.</div>`);
         webOrderNote.className = "web-order-note show" + (charges.length ? " warn" : "");
         webOrderNote.innerHTML = parts.join("");
         if (!ticket) {

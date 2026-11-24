@@ -50,3 +50,24 @@ On a phone the dates now stack as blocks instead of a sideways-scrolling table, 
 Only the builder page shows who hasn't answered. The sheet everyone opens from the dashboard is unchanged: it lists answers, never who is missing. Nobody is sent a reminder.
 
 `GET /api/important-dates/:id/signups` adds `notAnswered` (`[{ name, email }]`, or `null` if the roster couldn't be read) for people who hold the builder page, on RSVP dates only; `GET /api/important-dates` adds `rsvp.waiting` to each RSVP date. `listRsvpAnswerEmails()` in `lib/important-dates-postgres.js`. No new tables or columns.
+
+## Closing an RSVP or sign-up (11/24)
+
+*Andrew: "I need a close RSVP on important dates".* A head count is only final once people can no longer change it. There are two ways to close a date's RSVP or bring-list, and a date can use either or both.
+
+- **Last day to answer.** An optional date in the builder, shown once a sign-up is chosen. People can answer through that day; from the next morning it is closed. It can't be later than the event.
+- **close RSVP** (or **close sign-up**), a link on the date's row beside *view names* and *export CSV*. It closes at once, after a confirmation, and the row shows a red **Closed** tag with who closed it and when.
+
+While it is closed:
+
+- Nobody can answer, change an answer, add a line, or take their own off. The server refuses it; the pages only keep in step.
+- Everyone can still open the list from the dashboard and see who is coming. The link reads **RSVPs closed (14 coming)**, and the sheet says it is closed. Someone who never answered sees "you: no answer".
+- Whoever holds the Important Dates page can still remove a line, export the CSV and see who hasn't answered.
+
+**reopen** on the row lets people answer again. If the last day to answer has already passed, reopening clears it (and says so), because otherwise the sheet would close again at once. Edit the date to set a new last day.
+
+Before it closes, a date with a last day shows it: the dashboard link reads "RSVP — are you coming? (14 coming · answer by Sat, Dec 5)" and the sheet has a line above the buttons. On the day itself both say it is the last day. The builder row shows **open through Sat, Dec 5**.
+
+Nothing is sent to anyone when a sheet closes or reopens, and nobody is reminded that a last day is coming.
+
+Storage: `important_dates.signup_close_date` (the last day), `signup_closed_at` and `signup_closed_by` (the close by hand). Each date now carries `signupCloseDate`, `signupClosed`, `signupClosedHow` (`hand` | `date` | empty), `signupClosedAt` and `signupClosedBy`. The last day is judged in store time. `POST /api/important-dates/:id/signup-close` with `{ closed: true | false }` closes or reopens (the builder page's grant); the last day is saved with the date. Saving a date from a page that doesn't send the last day leaves it as it was. Switching a date's sign-up off clears both. Audit actions: `important_date_signup_closed`, `important_date_signup_reopened`. Dates made before this are open with no last day.

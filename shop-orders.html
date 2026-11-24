@@ -673,7 +673,9 @@
         btn.type = "button";
         btn.className = "ws-btn charge";
         btn.textContent = (order.cardCharges || []).length ? "Charge card again" : "Charge card";
-        btn.title = "Open Charge Saved Card with this order's saved card filled in. Nothing is charged until you check the amount and click Charge.";
+        btn.title = order.status === "claimed"
+          ? "Open Charge Saved Card with this order's saved card filled in. Nothing is charged until you check the amount and click Charge. Charging completes the order under the ticket # used on the charge."
+          : "Open Charge Saved Card with this order's saved card filled in. Nothing is charged until you check the amount and click Charge.";
         btn.addEventListener("click", () => {
           const ticket = ticketInput ? ticketInput.value.trim() : "";
           location.href = `charge-saved-card.html?webOrder=${encodeURIComponent(order.id)}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}`;
@@ -770,6 +772,7 @@
           complete.type = "button";
           complete.className = "ws-btn primary";
           complete.textContent = "Complete order";
+          complete.title = "Close the order under the ePASS ticket # without charging its saved card here. Charging the card closes the order on its own.";
           complete.addEventListener("click", (e) => {
             const epassTicket = ticket.value.trim();
             if (!epassTicket) { setWsStatus("Enter the ePASS ticket number to complete " + order.orderNumber + ".", "error"); return; }

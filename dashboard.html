@@ -1391,6 +1391,8 @@
         #datesList .date-link { flex: 0 0 auto; margin-left: auto; text-align: right; }
         #datesList .date-sheet-link { border: none; background: none; padding: 0; color: var(--primary, #166534); font-weight: 700; font-size: 12.5px; cursor: pointer; text-decoration: underline; font-family: inherit; }
         #datesList .date-sheet-link .n { font-weight: 600; color: #6b7280; }
+        /* closed (11/24): still opens the list, but reads as finished */
+        #datesList .date-sheet-link.closed { color: #6b7280; }
         @media (max-width: 600px) {
           #datesList { gap: 10px !important; margin-top: 8px; }
           #datesList .date-row { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; border: 1px solid #dbe1ea; border-radius: 14px; padding: 12px 14px; background: #fff; font-size: 14px; }
@@ -1403,6 +1405,7 @@
           #datesList .date-link { margin: 4px 0 0; text-align: left; }
           #datesList .date-sheet-link { display: flex; width: 100%; min-height: 46px; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; padding: 11px 14px; border: 1.5px solid var(--primary, #166534); border-radius: 11px; background: rgba(22, 101, 52, 0.07); font-size: 14.5px; text-decoration: none; }
           #datesList .date-sheet-link:active { background: rgba(22, 101, 52, 0.16); }
+          #datesList .date-sheet-link.closed { border-color: #dbe1ea; background: #f8fafc; }
         }
       </style>
       <div class="card" id="datesCard" hidden style="padding-bottom: 10px;">
@@ -1426,6 +1429,8 @@
           </div>
           <p style="font-size: 13.5px; color: #374151; margin: 12px 0 8px;" id="sheetPrompt"></p>
           <div id="sheetRows" style="border-top: 1px solid #eef1f6;"></div>
+          <!-- Closed, or the last day to answer (11/24). Shown/hidden by display, like the forms. -->
+          <div id="sheetNotice" style="display: none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45;"></div>
           <form id="sheetForm" style="display: flex; gap: 8px; margin-top: 12px;">
             <input id="sheetItem" type="text" maxlength="140" placeholder="I'm bringing…" style="flex: 1; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit;" />
             <button type="submit" style="border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary, #166534); color: #fff; cursor: pointer; font-family: inherit; white-space: nowrap;">Add</button>
@@ -3912,6 +3917,8 @@
       const KIND = {};
       const parse = (d) => { const [y, m, day] = String(d).split("-").map(Number); return new Date(y, m - 1, day); };
       const today = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+      const shortDay = (iso) => parse(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const daysTo = (iso) => Math.round((parse(iso) - today()) / 86400000);
       function whenText(d) {
         const start = parse(d.date);
         const fmt = (x) => x.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -3940,7 +3947,12 @@
         if (!dates.length) { card.hidden = true; return; }
         list.innerHTML = dates.map((d) => {
           const k = KIND[d.kind] || { label: d.kind, color: "#374151" };
-          const sheetLink = d.signupEnabled ? `<button type="button" class="date-sheet-link" data-id="${d.id}">${esc(d.signupPrompt || (d.signupMode === "rsvp" ? "RSVP — are you coming?" : "What's everyone bringing?"))} <span class="n">(${d.signupMode === "rsvp" ? `${d.rsvp?.yes || 0} coming` : d.signupCount})</span></button>` : "";
+          // Closed (by hand, or its last day to answer has passed): the link still opens the list. Open with a last day: say it.
+          const tally = d.signupMode === "rsvp" ? `${d.rsvp?.yes || 0} coming` : d.signupCount;
+          const lastDay = !d.signupClosed && d.signupCloseDate ? (daysTo(d.signupCloseDate) === 0 ? "last day to answer" : `${d.signupMode === "rsvp" ? "answer" : "sign up"} by ${shortDay(d.signupCloseDate)}`) : "";
+          const sheetLink = !d.signupEnabled ? ""
+            : d.signupClosed ? `<button type="button" class="date-sheet-link closed" data-id="${d.id}">${d.signupMode === "rsvp" ? "RSVPs closed" : "Sign-up closed"} <span class="n">(${tally})</span></button>`
+            : `<button type="button" class="date-sheet-link" data-id="${d.id}">${esc(d.signupPrompt || (d.signupMode === "rsvp" ? "RSVP — are you coming?" : "What's everyone bringing?"))} <span class="n">(${tally}${lastDay ? " · " + esc(lastDay) : ""})</span></button>`;
           return `<div class="date-row">
             <div class="date-when">${whenHtml(d)}</div>
             <div class="date-main">
@@ -3973,7 +3985,7 @@
         msg.textContent = "Saving…";
         const r = await fetch(`/api/important-dates/${sheetId}/signups`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ response: b.dataset.rsvp, guests: Number(rsvpGuests.value) || 0, item: rsvpNote.value.trim() }) });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) { msg.textContent = j.error || "Couldn't save that."; return; }
+        if (!r.ok) { msg.textContent = j.error || "Couldn't save that."; if (/closed/i.test(j.error || "")) { await openSheet(sheetId, true); msg.textContent = ""; load(); } return; }
         rsvpTouched = false; msg.textContent = b.dataset.rsvp === "yes" ? "Got it — see you there!" : "Got it — thanks for letting us know.";
         await openSheet(sheetId, true); load();
       });
@@ -3982,15 +3994,25 @@
         document.getElementById("sheetWhen").textContent = whenText(d.date);
         const rsvp = d.date.signupMode === "rsvp";
         sheetMode = rsvp ? "rsvp" : "bring";
-        document.getElementById("sheetForm").style.display = rsvp ? "none" : "flex";
-        rsvpForm.style.display = rsvp ? "block" : "none";
+        // Closed (11/24): the list stays, the forms go, and only the builder page's holders can remove a line.
+        const closed = Boolean(d.date.signupClosed);
+        document.getElementById("sheetForm").style.display = rsvp || closed ? "none" : "flex";
+        rsvpForm.style.display = rsvp && !closed ? "block" : "none";
+        const notice = document.getElementById("sheetNotice");
+        if (closed) {
+          notice.style.display = "block"; notice.style.background = "#f8fafc"; notice.style.border = "1px solid #dbe1ea"; notice.style.color = "#374151";
+          notice.innerHTML = `<strong>${rsvp ? "RSVPs are closed" : "Sign-ups are closed"}</strong>${d.date.signupClosedHow === "date" && d.date.signupCloseDate ? ` (the last day to answer was ${esc(shortDay(d.date.signupCloseDate))})` : ""}. ${d.canManage ? `You can reopen ${rsvp ? "them" : "it"} on <a href="important-dates.html" style="color: var(--primary, #166534); font-weight: 700;">Important Dates</a>.` : `Ask HR if ${rsvp ? "your answer" : "your line"} needs to change.`}`;
+        } else if (d.date.signupCloseDate) {
+          notice.style.display = "block"; notice.style.background = "#fffbeb"; notice.style.border = "1px solid #fde68a"; notice.style.color = "#92400e";
+          notice.textContent = daysTo(d.date.signupCloseDate) === 0 ? `Today is the last day to ${rsvp ? "answer" : "sign up"}.` : `The last day to ${rsvp ? "answer" : "sign up"} is ${shortDay(d.date.signupCloseDate)}.`;
+        } else { notice.style.display = "none"; notice.textContent = ""; }
         if (rsvp) {
           // One answer each: coming or not, guests, a note. Show the tally and
           // put this person's current answer back in the form.
           const mine = d.signups.find((s) => s.mine);
           const yes = d.signups.filter((s) => s.response === "yes"), no = d.signups.filter((s) => s.response === "no");
           const people = yes.reduce((n, s) => n + 1 + (s.guests || 0), 0);
-          document.getElementById("sheetPrompt").innerHTML = `${esc(d.date.signupPrompt || "Are you coming? Let us know either way — you can change your answer any time.")}<br><strong>${yes.length} coming</strong>${people > yes.length ? ` (${people} people with guests)` : ""} · ${no.length} can't make it${mine ? ` · <span style="color: var(--primary, #166534); font-weight: 700;">you: ${mine.response === "yes" ? "coming" + (mine.guests ? " +" + mine.guests : "") : "can't make it"}</span>` : ""}`;
+          document.getElementById("sheetPrompt").innerHTML = `${esc(closed ? "Here's who answered." : d.date.signupPrompt || "Are you coming? Let us know either way — you can change your answer any time.")}<br><strong>${yes.length} coming</strong>${people > yes.length ? ` (${people} people with guests)` : ""} · ${no.length} can't make it${mine ? ` · <span style="color: var(--primary, #166534); font-weight: 700;">you: ${mine.response === "yes" ? "coming" + (mine.guests ? " +" + mine.guests : "") : "can't make it"}</span>` : closed ? ` · <span style="color: #6b7280; font-weight: 700;">you: no answer</span>` : ""}`;
           rsvpForm.querySelectorAll("[data-rsvp]").forEach((b) => { const on = mine && mine.response === b.dataset.rsvp; b.style.background = on || (!mine && b.dataset.rsvp === "yes") ? "var(--primary, #166534)" : "#fff"; b.style.color = on || (!mine && b.dataset.rsvp === "yes") ? "#fff" : "#374151"; b.style.borderColor = on || (!mine && b.dataset.rsvp === "yes") ? "var(--primary, #166534)" : "#dbe1ea"; b.textContent = (b.dataset.rsvp === "yes" ? "I'll be there" : "Can't make it") + (on ? " ✓" : ""); });
           // Guests: only as many as this date allows (set in the builder); none = the picker goes away.
           const gmax = Math.max(0, Number(d.date.signupGuestMax ?? 5));
@@ -4001,20 +4023,20 @@
           if (!rsvpTouched) rsvpNote.value = mine?.item || "";
           rows.innerHTML = [...yes, ...no].map((s) => `<div style="display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; font-size: 13.5px;">
               <div style="flex: 1;"><strong>${esc(s.name || s.email)}</strong><span style="color: ${s.response === "yes" ? "#166534" : "#6b7280"};"> — ${s.response === "yes" ? "coming" + (s.guests ? ` +${s.guests} guest${s.guests === 1 ? "" : "s"}` : "") : "can't make it"}</span>${s.item ? `<span style="color: #6b7280;"> · ${esc(s.item)}</span>` : ""}</div>
-              ${s.mine || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">${s.mine ? "Clear" : "Remove"}</button>` : ""}
-            </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">No answers yet — be the first.</div>`;
+              ${(s.mine && !closed) || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">${s.mine && !closed ? "Clear" : "Remove"}</button>` : ""}
+            </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">${closed ? "Nobody answered." : "No answers yet — be the first."}</div>`;
         } else {
-        document.getElementById("sheetPrompt").textContent = d.date.signupPrompt || "What's everyone bringing? Add your line below — you can remove it any time.";
+        document.getElementById("sheetPrompt").textContent = closed ? "Here's the list." : d.date.signupPrompt || "What's everyone bringing? Add your line below — you can remove it any time.";
         rows.innerHTML = d.signups.map((s) => `<div style="display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; font-size: 13.5px;">
             <div style="flex: 1;"><strong>${esc(s.item)}</strong><span style="color: #6b7280;"> — ${esc(s.name || s.email)}</span></div>
-            ${s.mine || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">Remove</button>` : ""}
-          </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">Nobody has signed up yet — be the first.</div>`;
+            ${(s.mine && !closed) || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">Remove</button>` : ""}
+          </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">${closed ? "Nobody signed up." : "Nobody has signed up yet — be the first."}</div>`;
         }
         rows.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
           msg.textContent = "";
           const r = await fetch(`/api/important-dates/${sheetId}/signups/${b.dataset.rm}`, { method: "DELETE", credentials: "same-origin" });
           const j = await r.json().catch(() => ({}));
-          if (!r.ok) { msg.textContent = j.error || "Couldn't remove that."; return; }
+          if (!r.ok) { msg.textContent = j.error || "Couldn't remove that."; if (/closed/i.test(j.error || "")) { await openSheet(sheetId, true); msg.textContent = ""; load(); } return; }
           await openSheet(sheetId, true); load();
         }));
       }
@@ -4035,7 +4057,7 @@
         msg.textContent = "Adding…";
         const r = await fetch(`/api/important-dates/${sheetId}/signups`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item }) });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) { msg.textContent = j.error || "Couldn't add that."; return; }
+        if (!r.ok) { msg.textContent = j.error || "Couldn't add that."; if (/closed/i.test(j.error || "")) { await openSheet(sheetId, true); msg.textContent = ""; load(); } return; }
         input.value = ""; msg.textContent = "Added — thank you!";
         await openSheet(sheetId, true); load();
       });

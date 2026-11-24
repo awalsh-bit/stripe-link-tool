@@ -18,10 +18,24 @@ At checkout the shop saves the shopper's card with Stripe (a SetupIntent, "SETI"
    - the employee code, from the sign-in, as always
 4. **A note at the top** names the order, its claimer, the card and the estimated total.
 5. **Check the amount** against the ePASS ticket, fill in the ticket # if it's empty, and click **Charge saved card**. Nothing is charged before that click.
-6. **After the charge**, the page says it was recorded on the order and links back to Online Shop Orders.
+6. **After the charge**, the page says it was recorded on the order, that the order is completed under the ticket #, and links back to Online Shop Orders.
+   - The order is **completed** under the Sales / Service Order # used on the charge (see below). It leaves the Open list and sits under **Completed**.
    - The order shows a green **Charged $X** tag.
    - Each charge is listed in the order's details: amount, when, who, and the ticket #.
    - The button becomes **Charge card again**.
+
+## Charging closes the order
+
+*Added 11/24. Andrew, looking at a claimed order that had been charged and was still open: "Can this automatically close with the sales order number when the card is charged?"*
+
+Before, a charged order stayed open until someone typed the ticket # a second time and pressed **Complete order**. Now a successful charge on a **claimed** order completes it, under the **Sales / Service Order #** entered on the charge. It is the same completion as the button: the order's ePASS ticket is set, its units go from the web lock to **Sold** under that ticket on the hit list, and the new-order flags on the floor's dashboards are cleared. Nothing is sent to the client.
+
+- **Any amount closes it.** The charge names the ticket, so the order is finished as that ticket whether the amount is the estimated total, the ticket's own total, or part of it. A balance can still be charged afterward with **Charge card again**; that is recorded and the order's ticket is left alone.
+- **The number has to be right.** It becomes the order's ePASS ticket and the Sold-under number on the hit list. Charge Saved Card says so above the form before the charge: "Charging completes WEB-1234 under the Sales / Service Order # below."
+- **Who.** The order's claimer or an executive, the same people who can charge from the order. The order stays credited to its claimer.
+- **Schedule by hand orders close too.** The tag and the delivery note stay on the completed order, but it is no longer on the Open list. Set the delivery day from the ePASS ticket.
+- **Complete order is still there** for an order that is finished without charging its saved card here (paid another way).
+- The audit entry is the usual `shop_order_completed`, with `byCharge: true` and the payment.
 
 ## Who can charge
 
@@ -51,6 +65,7 @@ Clicking **Charge saved card** twice with exactly the same details is one charge
 - **Lookup saved card on Charge Saved Card.**
   - Pasting a web order's SETI still fills the card. The page also says which online order the card was saved with, and who claimed it.
   - A charge made that way is still recorded on the order, matched by the SetupIntent.
+  - It closes the order only when the person charging is the order's claimer or an executive. Anyone else's charge is recorded and the order stays open for its claimer.
   - **Fixed along the way:** before, looking up a shop card there also filed a blank request in the service queue. Shop cards no longer touch the service queue. Service cards work exactly as before.
 - **The public service confirmation page** checks card status by SETI without a sign-in. For a shop card it now gets only the brand and last four, not the Stripe customer or card IDs.
 
@@ -64,7 +79,7 @@ The charge is an ordinary card-on-file charge: it appears on the payments dashbo
 
 ## Checked before delivery
 
-The real `server.js` ran against a local test database with made-up orders and users. Stripe was answered by a local stand-in, so nothing reached Stripe. 56 of 56 checks passed, and the earlier 17 Charge Saved Card department checks still pass.
+The real `server.js` ran against a local test database with made-up orders and users. Stripe was answered by a local stand-in, so nothing reached Stripe. 56 of 56 checks passed, and the earlier 17 Charge Saved Card department checks still pass. With the 11/24 change it is 74 of 74, and the 17 still pass.
 
 - **Prefill:**
   - The claimer gets the SETI, customer, card, client, total and Appliance.
@@ -77,6 +92,14 @@ The real `server.js` ran against a local test database with made-up orders and u
   - Sending the same charge twice recorded one.
   - A different Stripe customer against the order was refused, and so was another person's order.
   - An ordinary service charge was unchanged.
+- **Closing by charge (11/24):**
+  - The claimer's charge completed the order under the charge's ticket #, once, still credited to the claimer; the audit entry says it was by the charge.
+  - The claimer charging through the manual lookup closed it too, and its unit went to Sold under the ticket on the hit list.
+  - A charge by someone who isn't the claimer was recorded and left the order open.
+  - An executive charging someone's order closed it and left it theirs.
+  - A charge on an already completed order was recorded and its ticket was not changed.
+  - Complete order still closed an uncharged order, and a completed order could not be completed again.
+  - On the pages: the note warned before charging, the charge said the order was completed under the number, and the order had moved from Open to Completed with **Charge card again**.
 - **The service lookup:**
   - A shop card filled the IDs and named its order, filed nothing in the service queue, and showed only brand and last four when signed out.
   - A service card still filed its request as before.
@@ -103,7 +126,9 @@ The real `server.js` ran against a local test database with made-up orders and u
     - Accepts `webOrderId`, held to the same rule, and requires `customerId` to match the order's Stripe customer.
     - Without `webOrderId`, a `setupIntentId` that belongs to a shop order is matched to it.
     - Either way it adds `web_order` to the metadata, defaults the client's email from the order, records the charge on the order and audits `shop_order_charged`.
-    - The response adds `webOrderNumber`.
+    - 11/24: a succeeded charge on a `claimed` order that passes `shopOrderChargeRefusal` then calls `finishShopOrderAsTicket` with the charge's sales order # (trimmed, 60 characters).
+    - The response adds `webOrderNumber`, and `webOrderCompleted` with `webOrderTicket` when the charge closed the order.
+  - **`finishShopOrderAsTicket(req, id, epassTicket, auditExtra)`** (11/24): `completeShopOrder`, `upgradeWebToSold` per unit, the `shop_order_completed` audit and `retirePushedNotificationsByRef`. `POST /api/shop-orders/:id/complete` and the charge both use it.
   - **`GET /api/service/setup-intent-result/:id`:**
     - A SetupIntent with `metadata.source === "online_shop"` returns before the service-queue code.
     - Full IDs go to a signed-in user with Charge Saved Card. The session is read directly, because the path skips sign-in on the service host.

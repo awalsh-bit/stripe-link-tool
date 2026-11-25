@@ -398,6 +398,8 @@ import {
 } from "./lib/deliveries-postgres.js";
 import {
   saveInstallDamagePhoto,
+  appendInstallDamageUpload, installDamageUploadStatus, installDamageUploadIdOk, claimInstallDamageReport, finishInstallDamageReport,
+  releaseInstallDamageReport, incompleteInstallDamageUploads, fileInstallDamageUploads, INSTALL_DAMAGE_UPLOAD_MAX_PIECE,
   saveMaintenancePhoto,
   getInstallDamagePhoto,
   saveCustomerRequestPhoto,
@@ -22735,11 +22737,62 @@ app.get("/api/install-damage/route-orders", requirePagePermission("/install-dama
   }
 });
 
+// Photos in pieces (Andrew 11/25: installers on Android "need near full
+// service to get it to go through"). The form sends each photo on its own,
+// a small piece at a time, starting as soon as it is taken; the report goes
+// last and only names them. See lib/install-damage-postgres.js ("Uploads in
+// pieces") and docs/company/cosmetic-damage-form.md.
+//
+// PUT  /api/install-damage/upload/:id   the next piece (raw bytes). Headers:
+//        X-Report-Key  the phone's id for the report
+//        X-Photo-Kind  tag | damage
+//        X-Total       the whole photo's size in bytes
+//        X-Offset      where this piece starts
+//      200 { received, total, done } when it was added (or was a question:
+//      an empty body); 409 with the same when it didn't start where the
+//      photo so far ends, so the phone carries on from `received`.
+// GET  /api/install-damage/upload-status?ids=a,b   { uploads: { id: { received, total, done, filed } } }
+const installDamagePieceBody = express.raw({ type: () => true, limit: INSTALL_DAMAGE_UPLOAD_MAX_PIECE + 1024 });
+app.put("/api/install-damage/upload/:id", requirePagePermission("/install-damage.html"), installDamagePieceBody, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const id = String(req.params.id || ""), reportKey = String(req.headers["x-report-key"] || "");
+    if (!installDamageUploadIdOk(id) || !installDamageUploadIdOk(reportKey)) return res.status(400).json({ error: "Bad upload id." });
+    const out = await appendInstallDamageUpload({
+      id, reportKey,
+      kind: String(req.headers["x-photo-kind"] || "damage"),
+      contentType: "image/jpeg",
+      total: req.headers["x-total"], offset: req.headers["x-offset"],
+      chunk: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
+      ownerEmail: req.authUser?.email || ""
+    });
+    return res.status(out.ok ? 200 : 409).json({ ...(out.ok ? {} : { error: "That piece doesn't start where the photo so far ends." }), received: out.received, total: out.total, done: out.done, filed: out.filed });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to take that piece." });
+  }
+});
+app.get("/api/install-damage/upload-status", requirePagePermission("/install-damage.html"), async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const uploads = await installDamageUploadStatus(String(req.query.ids || "").split(","));
+    for (const u of Object.values(uploads)) delete u.reportKey;
+    return res.json({ uploads });
+  } catch (err) {
+    console.error("Install-damage upload status failed:", err.message);
+    return res.status(500).json({ error: "Unable to read the uploads." });
+  }
+});
+
 app.post(
   "/api/install-damage",
   requirePagePermission("/install-damage.html"),
   installDamageUpload.fields([{ name: "tagPhoto", maxCount: 1 }, { name: "damagePhotos", maxCount: 3 }]),
   async (req, res) => {
+    // A report from the current form carries the phone's own id for it
+    // (reportKey) and names photos that were uploaded in pieces beforehand
+    // (photoUploads). A form still open from before 11/25 sends neither and
+    // attaches its photos here, as it always did.
+    let claimedKey = "";
     try {
       const b = req.body || {};
       const invoice = String(b.invoiceNumber || "").trim().toUpperCase().slice(0, 30);
@@ -22754,10 +22807,31 @@ app.post(
         return res.status(400).json({ error: "A customer name or invoice number is required." });
       }
 
+      const reportKey = String(b.reportKey || "").trim();
+      let uploadIds = [];
+      if (reportKey) {
+        if (!installDamageUploadIdOk(reportKey)) return res.status(400).json({ error: "Bad report id." });
+        try { uploadIds = (JSON.parse(String(b.photoUploads || "[]")) || []).map((u) => String(u?.id || u || "")).filter(installDamageUploadIdOk).slice(0, 4); } catch { uploadIds = []; }
+        // Every photo the report names has to be all here first. Checked before the key is taken, so the phone can finish them and send again.
+        const incomplete = await incompleteInstallDamageUploads(reportKey, uploadIds);
+        if (incomplete.length) return res.status(409).json({ error: "The photos haven't finished uploading.", incomplete });
+        // The same report sent again (the answer to the first send never reached the phone): one queue entry, and the phone is told it's filed.
+        const claim = await claimInstallDamageReport(reportKey);
+        if (!claim.fresh) {
+          if (claim.cardId) return res.json({ success: true, ok: true, id: claim.cardId, duplicate: true });
+          return res.status(409).json({ error: "This report is being filed right now. Try again in a moment.", busy: true });
+        }
+        claimedKey = reportKey;
+        // Taking over a send that died after its entry was written: don't write a second one.
+        const already = (await readServiceCards()).find((c) => c?.installDamage?.reportKey === reportKey);
+        if (already) { await finishInstallDamageReport(reportKey, already.id); claimedKey = ""; return res.json({ success: true, ok: true, id: already.id, duplicate: true }); }
+      }
+
       const reportRef = `dmg_${Date.now()}`;
       const tagFile = req.files?.tagPhoto?.[0] || null;
       const damageFiles = req.files?.damagePhotos || [];
       const photoIds = [];
+      if (reportKey && uploadIds.length) photoIds.push(...await fileInstallDamageUploads(reportKey, uploadIds, reportRef));
       for (const [kind, file] of [["tag", tagFile], ...damageFiles.map((f) => ["damage", f])]) {
         if (!file || !file.buffer?.length) continue;
         try {
@@ -22818,17 +22892,18 @@ app.post(
         consent: false,
         source: "install_damage",
         installer,
-        installDamage: { installer, issueType, damageLocation, invoice, photos: photoIds },
+        installDamage: { installer, issueType, damageLocation, invoice, photos: photoIds, ...(reportKey ? { reportKey } : {}) },
         cardBrand: "",
         last4: ""
       };
       serviceCards.unshift(row);
       await writeServiceCards(serviceCards);
+      if (reportKey) { await finishInstallDamageReport(reportKey, row.id).catch((e) => console.error("Install-damage report key finish failed:", e.message)); claimedKey = ""; }
 
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
         action: "install_damage_submitted", targetUserId: null,
-        detail: { serviceCardId: row.id, invoice, customerName: row.customerName, installer, issueType, photoCount: photoIds.length }
+        detail: { serviceCardId: row.id, invoice, customerName: row.customerName, installer, issueType, photoCount: photoIds.length, ...(reportKey ? { inPieces: true } : {}) }
       }).catch(() => {});
 
       // No email copy — the Service Request Queue is the single home for
@@ -22838,6 +22913,7 @@ app.post(
       return res.json({ success: true, ok: true, id: row.id, reportRef, photoCount: photoIds.length });
     } catch (err) {
       console.error("Install-damage submit failed:", err.message);
+      if (claimedKey) await releaseInstallDamageReport(claimedKey).catch(() => {}); // the phone's next try can file it
       return res.status(500).json({ error: "Unable to submit the damage report." });
     }
   }

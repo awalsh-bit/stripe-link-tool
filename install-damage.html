@@ -558,6 +558,38 @@
     z-index:50;
   }
   .toast.show{opacity:1; transform:translateY(0);}
+
+  /* ---------- sending on a weak signal (11/25) ---------- */
+  /* on each photo: how far along its own upload is */
+  .photo-up{
+    position:absolute; top:8px; left:8px;   /* top left: Retake / Remove is bottom right, "Main" top right */
+    background:rgba(0,0,0,0.6); color:#fff;
+    border-radius:999px; padding:6px 10px;
+    font-size:12px; font-weight:700;
+  }
+  .photo-up.done{background:rgba(22,101,52,0.88);}
+  .photo-up:empty{display:none;}
+  /* reports saved on the phone that haven't reached dispatch yet */
+  .outbox-row{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin:0 0 10px; padding:11px 13px; border-radius:var(--radius-sm);
+    background:var(--warning-soft); color:var(--warning);
+    font-size:13.5px; font-weight:600; line-height:1.4;
+  }
+  .outbox-row.sent{background:var(--surface-2); color:var(--accent);}
+  .outbox-row.bad{background:var(--danger-soft); color:var(--danger);}
+  .outbox-row .ob-text{flex:1 1 180px; min-width:0;}
+  .outbox-row button{
+    flex:0 0 auto; border:1.5px solid currentColor; background:transparent; color:inherit;
+    border-radius:999px; padding:8px 13px; font:inherit; font-size:13px; font-weight:700; cursor:pointer;
+  }
+  .send-progress{width:100%; max-width:320px; height:8px; border-radius:999px; background:var(--border); overflow:hidden; margin:14px auto 0;}
+  .send-progress i{display:block; height:100%; width:0; background:var(--accent); border-radius:999px; transition:width .4s ease;}
+  .send-hint{font-size:13px; color:var(--text-muted); max-width:320px; line-height:1.5; margin-top:12px;}
+  .success-check.waiting{background:var(--warning-soft);}
+  .success-check.waiting svg{stroke:var(--warning);}
+  .success-check.bad{background:var(--danger-soft);}
+  .success-check.bad svg{stroke:var(--danger);}
 </style>
 </head>
 <body data-shell-label="Cosmetic Damage Form" data-shell-icon="service">
@@ -579,6 +611,7 @@
   </div>
 
   <div id="configBanner"></div>
+  <div id="outboxBar" aria-live="polite"></div>
 
   <main>
 
@@ -731,9 +764,12 @@
         <div class="success-check">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
         </div>
-        <div class="success-title">Report sent</div>
+        <div class="success-title" id="successTitle">Report sent</div>
         <div class="success-sub" id="successSub">Dispatch has been notified and this will show up in the service request queue shortly.</div>
+        <div class="send-progress" id="sendProgress" style="display:none;"><i></i></div>
+        <div class="send-hint" id="sendHint" style="display:none;"></div>
         <div class="success-ref" id="successRef"></div>
+        <button class="btn btn-ghost" id="sendNowBtn" type="button" style="display:none; margin-top:18px; max-width:260px;">Try again now</button>
         <button class="btn btn-primary" id="anotherBtn" style="margin-top:28px; max-width:260px;">Report another</button>
       </div>
     </section>
@@ -948,6 +984,259 @@ function blobToBase64(blob){
     r.readAsDataURL(blob);
   });
 }
+
+/* ============================= OUTBOX =============================
+   Getting a report to dispatch on a weak signal (Andrew 11/25: installers
+   on Android "need near full service to get it to go through").
+
+   The form used to send everything - four photos, a megabyte or two - in
+   one request when Send was tapped. On one or two bars that request stalls
+   or drops, and each retry started again from nothing. If it failed
+   outright, the report was parked in the browser's small text storage, and
+   a second parked report could overflow it and be lost without a word.
+
+   Now:
+   1. Each photo starts uploading the moment it is taken, on its own, in
+      small pieces, while the installer fills in the rest of the form. A
+      piece that fails is the only thing sent again. The piece size follows
+      the signal: smaller when it struggles, larger when it flows.
+   2. Send saves the report on the phone first (IndexedDB, which holds
+      photos properly and has room for many), then finishes the photos and
+      files the report, which by then is a few hundred bytes.
+   3. It keeps trying while the form is open, and whenever the form is
+      opened again it picks up where it stopped. Nothing is re-entered and
+      nothing is sent twice: the server keeps how much of each photo it has,
+      and files a report once however many times it is sent.
+   =================================================================== */
+const OUTBOX = (() => {
+  const UPLOAD_URL = "/api/install-damage/upload/";
+  const DB_NAME = "wilsonDamageOutbox", DB_VERSION = 1;
+  const MIN_PIECE = 8 * 1024, MAX_PIECE = 256 * 1024;
+  let pieceBytes = 24 * 1024;                // follows the signal
+  let pieceCap = MAX_PIECE;                  // after a piece is lost: don't go back above that size at once, creep up to it
+  const jobs = new Map();                    // photo id -> { id, reportKey, kind, blob, size, sent, done, synced, dropped, bad }
+  const reports = new Map();                 // report key -> { key, fields, photoIds, status: "ready" | "sent" | "error", label, submittedAt, sentAt, cardId, error }
+  let dbPromise = null, memoryOnly = false;  // memoryOnly: this browser wouldn't keep it, so it only sends while the page stays open
+  let pumping = false, pumpAgain = false, retryTimer = null, fails = 0, signedOut = false, lastError = "";
+  const RETRY_MS = [1000, 1000, 1000, 2000, 2000, 3000, 5000, 8000, 12000, 20000, 30000];
+  const listeners = new Set();
+  const changed = () => listeners.forEach((fn) => { try { fn(); } catch (e) {} });
+
+  const newId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12)).replace(/[^A-Za-z0-9_-]/g, "");
+
+  /* ---- the phone's copy (IndexedDB) ---- */
+  function openDb(){
+    if (memoryOnly) return Promise.reject(new Error("memory only"));
+    if (!dbPromise) dbPromise = new Promise((resolve, reject) => {
+      let req;
+      try { req = indexedDB.open(DB_NAME, DB_VERSION); } catch (e) { reject(e); return; }
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" }); if (!db.objectStoreNames.contains("reports")) db.createObjectStore("reports", { keyPath: "key" }); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error("storage unavailable"));
+      req.onblocked = () => reject(new Error("storage blocked"));
+    }).catch((e) => { memoryOnly = true; dbPromise = null; throw e; });
+    return dbPromise;
+  }
+  async function idb(store, mode, work){
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, mode); let out;
+      tx.oncomplete = () => resolve(out); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error || new Error("storage write failed"));
+      const r = work(tx.objectStore(store)); if (r) r.onsuccess = () => { out = r.result; };
+    });
+  }
+  const dbPut = (store, value) => idb(store, "readwrite", (s) => s.put(value));
+  const dbDel = (store, key) => idb(store, "readwrite", (s) => s.delete(key)).catch(() => {});
+  const dbAll = (store) => idb(store, "readonly", (s) => s.getAll());
+
+  /* ---- photos ---- */
+  // A photo was just taken: give it an id and start sending it.
+  function track(photo, kind, reportKey){
+    if (!photo || !photo.blob || photo.upId) return;
+    photo.upId = newId();
+    jobs.set(photo.upId, { id: photo.upId, reportKey, kind: kind === "tag" ? "tag" : "damage", blob: photo.blob, size: photo.blob.size, sent: 0, done: false, synced: true, dropped: false, bad: "", photo });
+    changed(); pump();
+  }
+  // Retaken or removed before Send: stop sending it.
+  function untrack(photo){
+    const job = photo && photo.upId ? jobs.get(photo.upId) : null;
+    if (job && !isFiled(job.reportKey)) { job.dropped = true; jobs.delete(job.id); }
+    changed();
+  }
+  const isFiled = (key) => reports.has(key);
+
+  /* ---- Send ---- */
+  // Save the report on the phone, then get it to dispatch. Resolves once it is saved (not once it is sent).
+  async function submit(reportKey, fields, photos, label){
+    const photoIds = photos.map((p) => p.upId).filter(Boolean);
+    const report = { key: reportKey, fields, photoIds, status: "ready", label: label || "", submittedAt: Date.now(), sentAt: 0, cardId: "", error: "" };
+    reports.set(reportKey, report);
+    let kept = true;
+    try {
+      for (const id of photoIds) { const j = jobs.get(id); if (j) await dbPut("photos", { id: j.id, reportKey, kind: j.kind, blob: j.blob, size: j.size }); }
+      await dbPut("reports", report);
+    } catch (e) { kept = false; memoryOnly = true; }
+    changed(); pump();
+    return { kept };
+  }
+
+  /* ---- the sender ---- */
+  function fetchT(url, opts, ms){
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+    return fetch(url, { ...opts, signal: ctl.signal, credentials: "same-origin", cache: "no-store" }).finally(() => clearTimeout(t));
+  }
+  class Stop extends Error {}     // nothing more can be done right now (signed out): wait for the person
+  function nextJob(){
+    const ready = [...reports.values()].filter((r) => r.status === "ready").sort((a, b) => a.submittedAt - b.submittedAt);
+    for (const r of ready) for (const id of r.photoIds) { const j = jobs.get(id); if (j && !j.done && !j.bad) return j; }
+    for (const j of jobs.values()) if (!j.done && !j.bad && !j.dropped && !isFiled(j.reportKey)) return j;   // the form in progress
+    return null;
+  }
+  function nextReport(){
+    // every photo it names is up (a photo this phone no longer holds is left to the server to judge)
+    return [...reports.values()].filter((r) => r.status === "ready").sort((a, b) => a.submittedAt - b.submittedAt)
+      .find((r) => r.photoIds.every((id) => { const j = jobs.get(id); return !j || j.done; })) || null;
+  }
+  // One piece of one photo. An empty piece just asks how much has arrived (a photo picked back up after the form was reopened).
+  async function sendPiece(job){
+    const asking = !job.synced;
+    const piece = asking ? new Blob([]) : job.blob.slice(job.sent, Math.min(job.size, job.sent + pieceBytes));
+    const started = performance.now();
+    let res;
+    try {
+      res = await fetchT(UPLOAD_URL + encodeURIComponent(job.id), { method: "PUT", body: piece,
+        headers: { "Content-Type": "application/octet-stream", "X-Report-Key": job.reportKey, "X-Photo-Kind": job.kind, "X-Total": String(job.size), "X-Offset": String(job.sent) } },
+        12000 + Math.round(piece.size / 2));   // 12 s, plus a second for every 2 KB
+    } catch (e) {
+      // Lost on the way (dropped, or too slow to finish in time). A lost piece is lost whole, so the next ones are a quarter smaller.
+      // The same piece is simply tried again: if it had in fact arrived and only the answer was lost, the server
+      // says how far the photo really is and the next piece starts there.
+      // Only the first loss in a row shrinks them: the tries that fail while the signal is simply gone say nothing about size.
+      if (piece.size && fails === 0) { pieceBytes = Math.max(MIN_PIECE, Math.floor(Math.min(pieceBytes, piece.size) * 0.75)); pieceCap = pieceBytes; }
+      throw new Error("No connection just now");
+    }
+    if (res.status === 401 || res.status === 403) { signedOut = true; throw new Stop(); }
+    let data = {}; try { data = await res.json(); } catch (e) {}
+    if (res.status === 200 || res.status === 409) {
+      if (job.dropped) return;
+      job.synced = true;
+      if (Number.isFinite(Number(data.received))) job.sent = Math.max(0, Math.min(job.size, Number(data.received)));
+      job.done = Boolean(data.done) || job.sent >= job.size;
+      if (!asking && res.status === 200 && piece.size) {
+        // Follow the signal: aim for pieces that take about four seconds, moving half way there each time so one odd
+        // piece doesn't swing it, and after a loss growing back by a third at a time. On a link that keeps dropping
+        // that settles on pieces small enough to fit between the drops; on a steady one it grows to few, large pieces.
+        const took = Math.max(50, performance.now() - started);
+        const fits = (piece.size / took) * 4000;
+        pieceCap = Math.min(MAX_PIECE, Math.round(pieceCap * 1.3));
+        pieceBytes = Math.max(MIN_PIECE, Math.min(pieceCap, Math.round((pieceBytes + fits) / 2)));
+      }
+      return;
+    }
+    if (res.status === 400 && !job.renamed) {
+      // The server won't take this photo under this id (the id is already in use). Once: send it afresh under a new one.
+      const old = job.id; job.renamed = true; job.id = newId(); job.sent = 0; job.synced = true;
+      jobs.delete(old); jobs.set(job.id, job);
+      if (job.photo) job.photo.upId = job.id;
+      for (const r of reports.values()) { const i = r.photoIds.indexOf(old); if (i >= 0) { r.photoIds[i] = job.id; dbPut("reports", r).catch(() => {}); } }
+      dbDel("photos", old); if (isFiled(job.reportKey)) dbPut("photos", { id: job.id, reportKey: job.reportKey, kind: job.kind, blob: job.blob, size: job.size }).catch(() => {});
+      return;
+    }
+    if (res.status === 400) { job.bad = data.error || "The server wouldn't take a photo."; const r = reports.get(job.reportKey); if (r) { r.status = "error"; r.error = job.bad; dbPut("reports", r).catch(() => {}); } return; }
+    throw new Error("Dispatch didn't answer (" + res.status + ")");
+  }
+  async function fileReport(r){
+    const fd = new FormData();
+    Object.entries(r.fields).forEach(([k, v]) => fd.append(k, v == null ? "" : String(v)));
+    fd.append("reportKey", r.key);
+    fd.append("photoUploads", JSON.stringify(r.photoIds.map((id) => ({ id, kind: (jobs.get(id) || {}).kind || "damage" }))));
+    let res;
+    try { res = await fetchT(CONFIG.SUBMIT_URL, { method: "POST", body: fd, headers: CONFIG.SUBMIT_AUTH_HEADER ? { Authorization: CONFIG.SUBMIT_AUTH_HEADER } : {} }, 25000); }
+    catch (e) { throw new Error("No connection just now"); }
+    if (res.status === 401 || res.status === 403) { signedOut = true; throw new Stop(); }
+    let data = {}; try { data = await res.json(); } catch (e) {}
+    if (res.ok) {
+      r.status = "sent"; r.sentAt = Date.now(); r.cardId = data.id || ""; r.error = "";
+      for (const id of r.photoIds) { jobs.delete(id); dbDel("photos", id); }
+      dbPut("reports", r).catch(() => {});
+      return;
+    }
+    if (res.status === 409 && Array.isArray(data.incomplete)) {
+      // The server doesn't have all of a photo after all: ask it how far each one got and finish them. A photo this phone no longer holds can't be finished.
+      if (data.incomplete.some((id) => !jobs.get(id)) || (r.refiled = (r.refiled || 0) + 1) > 3) { r.status = "error"; r.error = "A photo for this report is no longer on this phone. Take the photos again in a new report."; dbPut("reports", r).catch(() => {}); return; }
+      for (const id of data.incomplete) { const j = jobs.get(id); j.done = false; j.synced = false; }
+      return;
+    }
+    if (res.status === 409) throw new Error("Dispatch is still filing it");
+    if (res.status === 400) { r.status = "error"; r.error = data.error || "Dispatch couldn't file this report."; dbPut("reports", r).catch(() => {}); return; }
+    throw new Error("Dispatch didn't answer (" + res.status + ")");
+  }
+  async function pump(){
+    if (pumping) { pumpAgain = true; return; }
+    pumping = true; clearTimeout(retryTimer); retryTimer = null;
+    try {
+      for (;;) {
+        pumpAgain = false;
+        const job = nextJob();
+        if (job) { await sendPiece(job); fails = 0; lastError = ""; signedOut = false; changed(); continue; }
+        const r = nextReport();
+        if (r) { await fileReport(r); fails = 0; lastError = ""; signedOut = false; changed(); continue; }
+        if (!pumpAgain) break;
+      }
+    } catch (e) {
+      if (!(e instanceof Stop)) { fails++; lastError = e.message || "No connection just now"; }
+    } finally { pumping = false; }
+    changed();
+    // After a failure: quick tries first (a dropped signal is often back in a second or two), then slower, then every 30 s.
+    if (waiting() && !signedOut) retryTimer = setTimeout(pump, RETRY_MS[Math.min(Math.max(fails, 1), RETRY_MS.length) - 1]);
+    else if (waiting()) retryTimer = setTimeout(pump, 30000);
+  }
+  // anything still to send: a saved report, or a photo of the form in progress
+  const waiting = () => [...reports.values()].some((r) => r.status === "ready") || [...jobs.values()].some((j) => !j.done && !j.bad && !j.dropped);
+
+  /* ---- what the screen shows ---- */
+  function progressOf(key){
+    const r = reports.get(key); if (!r) return null;
+    if (r.status === "sent") return { status: "sent", sent: 1, total: 1, pct: 100, cardId: r.cardId };
+    let sent = 0, total = 0;
+    for (const id of r.photoIds) { const j = jobs.get(id); if (j) { sent += j.done ? j.size : j.sent; total += j.size; } }
+    return { status: r.status, sent, total, pct: total ? Math.min(99, Math.floor((sent / total) * 100)) : 99, error: r.error };
+  }
+  const photoState = (id) => { const j = jobs.get(id); return j ? { sent: j.sent, size: j.size, done: j.done, pct: j.size ? Math.floor((j.sent / j.size) * 100) : 0 } : null; };
+  const summary = () => ({ signedOut, memoryOnly, lastError, fails, reports: [...reports.values()].map((r) => ({ key: r.key, label: r.label, status: r.status, submittedAt: r.submittedAt, sentAt: r.sentAt, error: r.error, ...progressOf(r.key) })) });
+
+  /* ---- start: pick up what an earlier visit left ---- */
+  async function start(){
+    try {
+      const [savedReports, savedPhotos] = [await dbAll("reports"), await dbAll("photos")];
+      const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      for (const r of savedReports || []) {
+        if (r.status === "sent" && r.sentAt < dayAgo) { dbDel("reports", r.key); continue; }   // yesterday's sent ones are tidied away
+        if (!reports.has(r.key)) reports.set(r.key, r);
+      }
+      for (const p of savedPhotos || []) {
+        const r = reports.get(p.reportKey);
+        if (!r || r.status === "sent") { dbDel("photos", p.id); continue; }
+        if (!jobs.has(p.id)) jobs.set(p.id, { id: p.id, reportKey: p.reportKey, kind: p.kind, blob: p.blob, size: p.size || p.blob.size, sent: 0, done: false, synced: false, dropped: false, bad: "" });
+      }
+    } catch (e) { /* nothing saved, or this browser keeps nothing: carry on in memory */ }
+    changed(); pump();
+  }
+  // Try again now: the signal came back, the form came back to the front, or someone tapped Send now.
+  function kick(){ fails = 0; signedOut = false; clearTimeout(retryTimer); retryTimer = null; pump(); }
+  async function retryReport(key){ const r = reports.get(key); if (r && r.status === "error") { r.status = "ready"; r.error = ""; for (const id of r.photoIds) { const j = jobs.get(id); if (j) { j.bad = ""; j.synced = false; } } await dbPut("reports", r).catch(() => {}); } kick(); }
+  async function discard(key){ const r = reports.get(key); if (!r) return; for (const id of r.photoIds) { jobs.delete(id); dbDel("photos", id); } reports.delete(key); await dbDel("reports", key); changed(); }
+
+  window.addEventListener("online", kick);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && waiting()) kick(); });
+  window.addEventListener("pageshow", () => { if (waiting()) kick(); });
+
+  return { newId, track, untrack, submit, start, kick, retryReport, discard, progressOf, photoState, summary, waiting, onChange: (fn) => listeners.add(fn), get memoryOnly(){ return memoryOnly; } };
+})();
+
+// This form's own id for the report it is building. Every photo it takes is
+// uploaded under it, and the server files a report once per id.
+state.reportKey = OUTBOX.newId();
 
 /* ============================= CONFIG BANNER ============================= */
 function renderConfigBanner(){
@@ -1361,7 +1650,9 @@ async function handlePhotoInput(file, targetSlotEl, onDone){
   targetSlotEl.innerHTML = '<div class="lookup-status loading" style="position:absolute; inset:0; justify-content:center; border-radius:12px;"><span class="spinner"></span> Processing…</div>';
   try{
     const { blob, url } = await compressImage(file);
-    onDone({ blob, url });
+    const photo = { blob, url };
+    OUTBOX.track(photo, "tag", state.reportKey);   // starts uploading now, while the rest of the form is filled in
+    onDone(photo);
   } catch(e){
     showToast("Couldn't process that photo — try again");
   }
@@ -1381,7 +1672,20 @@ function renderPhotoSlot(slotEl, photo, retakeHandler, badgeText, buttonText = "
   retake.type = "button";
   retake.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); retakeHandler(); });
   slotEl.appendChild(retake);
+  // how far along this photo's own upload is (it starts as soon as the photo is taken)
+  const up = el("div", "photo-up");
+  up._photo = photo;
+  slotEl.appendChild(up);
+  refreshPhotoBadges();
 }
+function refreshPhotoBadges(){
+  document.querySelectorAll(".photo-up").forEach((node)=>{
+    const st = node._photo && node._photo.upId ? OUTBOX.photoState(node._photo.upId) : null;
+    node.classList.toggle("done", Boolean(st && st.done));
+    node.textContent = !st ? "" : st.done ? "\u2713 Uploaded" : st.sent > 0 ? "Uploading " + st.pct + "%" : "Waiting to upload";
+  });
+}
+OUTBOX.onChange(refreshPhotoBadges);
 
 $("#tagInput").addEventListener("change", (e)=>{
   const file = e.target.files[0];
@@ -1393,6 +1697,7 @@ $("#tagInput").addEventListener("change", (e)=>{
 });
 function resetTagSlotMarkup(){}
 function resetTagSlot(){
+  OUTBOX.untrack(state.tagPhoto);
   state.tagPhoto = null;
   const slot = $("#tagSlot");
   slot.classList.remove("filled");
@@ -1431,7 +1736,7 @@ async function addDamageFiles(fileList){
   }
   let failed = 0;
   for(const file of files.slice(0, room)){
-    try{ state.damagePhotos.push(await compressImage(file)); }
+    try{ const photo = await compressImage(file); OUTBOX.track(photo, "damage", state.reportKey); state.damagePhotos.push(photo); }
     catch(e){ failed++; }
   }
   if(failed) showToast(failed === 1 ? "Couldn't process one photo — try again" : "Couldn't process " + failed + " photos — try again");
@@ -1440,6 +1745,7 @@ async function addDamageFiles(fileList){
 
 function removeDamagePhoto(i){
   const gone = state.damagePhotos.splice(i, 1)[0];
+  OUTBOX.untrack(gone);
   if(gone && gone.url) { try{ URL.revokeObjectURL(gone.url); } catch(e){} }
   renderDamagePhotos();
 }
@@ -1649,25 +1955,28 @@ async function submitReport(){
     return;
   }
 
-  if(!navigator.onLine){
-    await queueForLater(targets.map(t=>t.key));
-    finishSubmit(true, null, "queued");
-    btn.disabled = false;
-    return;
-  }
-
-  const fd = await buildFormData();
-  const results = await Promise.all(targets.map(t=>postToTarget(t, fd)));
-  const failedKeys = targets.filter((t,i)=>!results[i]).map(t=>t.key);
-  const anySucceeded = results.some(Boolean);
-
-  if(failedKeys.length) await queueForLater(failedKeys);
-
-  const mode = failedKeys.length === 0 ? undefined : (anySucceeded ? "partial" : "queued");
-  finishSubmit(true, null, mode);
+  // Save it on the phone, then get it to dispatch (11/25). The photos have
+  // been uploading since they were taken; whatever is left goes up in small
+  // pieces and the report itself is filed last. finishSubmit shows how far
+  // along it is and changes to "Report sent" when dispatch has it.
+  btn.textContent = "Saving…";
+  const photos = [state.tagPhoto, ...state.damagePhotos].filter(Boolean);
+  photos.forEach((p)=> OUTBOX.track(p, p === state.tagPhoto ? "tag" : "damage", state.reportKey));   // any that isn't already on its way
+  const fields = {
+    source: "install_damage_report", submittedAt: new Date().toISOString(),
+    invoiceNumber: state.invoice, jobSource: state.jobSource || "manual", installer: state.installer,
+    customerName: state.customerName, address: state.address, applianceType: state.applianceType,
+    issueType: state.issueType, damageLocation: state.damageLocation, problem: state.problem
+  };
+  await OUTBOX.submit(state.reportKey, fields, photos, state.invoice || state.customerName || "this job");
+  finishSubmit(true, null, "outbox");
   btn.disabled = false;
 }
 
+// ---- Reports parked by the form as it was before 11/25 ----
+// Those sat in the browser's text storage ("wilsonDamageQueue") with their
+// photos. flushQueue still sends any that are left, the old way, in one
+// request each. Nothing new is added to that queue.
 async function queueForLater(pendingTargets){
   try{
     const tag64 = state.tagPhoto ? await blobToBase64(state.tagPhoto.blob) : null;
@@ -1731,6 +2040,13 @@ function finishSubmit(ok, ref, mode){
   $("#configBanner").style.display = "none";
   $("#stepTitle").textContent = "";
   $("#stepSub").textContent = "";
+  if(mode === "outbox"){
+    sentKey = state.reportKey;
+    holdAwake();
+    renderSendStatus();
+    renderOutboxBar();   // this report is on this screen now, so it comes off the bar
+    return;
+  }
   if(mode === "queued"){
     $("#successSub").textContent = "Couldn't reach dispatch right now (no signal, or the connection's down) — this is saved on your phone and will send automatically as soon as it can.";
     $("#successRef").textContent = "Saved locally";
@@ -1743,6 +2059,112 @@ function finishSubmit(ok, ref, mode){
   }
 }
 
+// ---- How far along the report on the success screen is ----
+let sentKey = "";
+function renderSendStatus(){
+  if(!sentKey) return;
+  const p = OUTBOX.progressOf(sentKey), sum = OUTBOX.summary();
+  if(!p) return;
+  const check = document.querySelector(".success-check"), bar = $("#sendProgress"), hint = $("#sendHint"), now = $("#sendNowBtn"), another = $("#anotherBtn");
+  const kb = (n)=> n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+  check.classList.remove("waiting", "bad");
+  another.disabled = false; another.textContent = "Report another";
+  if(p.status === "sent"){
+    $("#successTitle").textContent = "Report sent";
+    $("#successSub").textContent = "Dispatch has been notified and this will show up in the service request queue shortly.";
+    $("#successRef").textContent = "Sent to dispatch";
+    bar.style.display = "none"; hint.style.display = "none"; now.style.display = "none";
+    return;
+  }
+  if(p.status === "error"){
+    check.classList.add("bad");
+    $("#successTitle").textContent = "Not sent";
+    $("#successSub").textContent = p.error || "Dispatch couldn't file this report.";
+    $("#successRef").textContent = "Saved on this phone";
+    bar.style.display = "none"; hint.style.display = "none";
+    now.style.display = "block"; now.textContent = "Try again";
+    return;
+  }
+  check.classList.add("waiting");
+  bar.style.display = "block"; bar.firstElementChild.style.width = p.pct + "%";
+  hint.style.display = "block"; now.style.display = "block";
+  $("#successTitle").textContent = "Report saved";
+  $("#successRef").textContent = sum.memoryOnly ? "Not sent yet" : "Saved on this phone";
+  if(sum.signedOut){
+    $("#successSub").textContent = "You've been signed out of Agility, so it can't be sent yet.";
+    hint.textContent = sum.memoryOnly ? "Sign in to Agility in another tab, then come back here and tap Try again now." : "Sign in again and it sends by itself. Nothing needs re-entering.";
+    now.textContent = sum.memoryOnly ? "Try again now" : "Sign in";
+  } else {
+    const stuck = sum.fails > 0;
+    $("#successSub").textContent = (stuck ? "Waiting for signal… " : "Sending to dispatch… ") + p.pct + "%" + (p.total ? " (" + kb(p.sent) + " of " + kb(p.total) + ")" : "");
+    hint.textContent = sum.memoryOnly
+      ? "Keep this screen open until it says Report sent. This phone's browser couldn't save a copy, so closing the page would lose it."
+      : "On a weak signal this can take a few minutes. Keep this form open and it keeps trying. If you close it, it picks up where it left off the next time you open this form. Nothing needs re-entering.";
+    now.textContent = "Try again now";
+  }
+  if(sum.memoryOnly){ another.disabled = true; another.textContent = "Sending… keep this open"; }
+}
+OUTBOX.onChange(renderSendStatus);
+$("#sendNowBtn").addEventListener("click", ()=>{
+  const p = OUTBOX.progressOf(sentKey), sum = OUTBOX.summary();
+  if(p && p.status === "error"){ OUTBOX.retryReport(sentKey); return; }
+  if(sum.signedOut && !sum.memoryOnly){ window.location.reload(); return; }   // the saved report is picked up again after sign-in
+  holdAwake();
+  OUTBOX.kick();
+});
+
+// ---- Keep the screen awake while a saved report is going out ----
+// A phone that goes to sleep stops sending. While a report is saved but not
+// yet at dispatch, and this form is the page showing, the screen is held on
+// for up to ten minutes from Send (or from the last tap on a send button),
+// and let go the moment nothing is waiting. Chrome on Android supports
+// this; where it isn't supported nothing happens.
+let wakeLock = null, wakeBusy = false, wakeUntil = 0, wakeTimer = null;
+function holdAwake(){ wakeUntil = Date.now() + 10 * 60 * 1000; clearTimeout(wakeTimer); wakeTimer = setTimeout(syncWakeLock, 10 * 60 * 1000 + 500); syncWakeLock(); }
+async function syncWakeLock(){
+  if(wakeBusy || !("wakeLock" in navigator)) return;
+  const sum = OUTBOX.summary();
+  const need = !document.hidden && !sum.signedOut && Date.now() < wakeUntil && sum.reports.some((r)=> r.status === "ready");
+  wakeBusy = true;
+  try{
+    if(need && !wakeLock){ const w = await navigator.wakeLock.request("screen"); wakeLock = w; w.addEventListener("release", ()=>{ if(wakeLock === w) wakeLock = null; }); }
+    else if(!need && wakeLock){ const w = wakeLock; wakeLock = null; await w.release(); }
+  } catch(e){ wakeLock = null; }
+  wakeBusy = false;
+}
+OUTBOX.onChange(syncWakeLock);
+document.addEventListener("visibilitychange", syncWakeLock);
+
+// ---- Reports from earlier that haven't reached dispatch yet ----
+// A bar at the top of the form, whatever step is showing. The report on the
+// success screen is left out: that screen already says where it stands.
+function renderOutboxBar(){
+  const host = $("#outboxBar"); if(!host) return;
+  const sum = OUTBOX.summary();
+  const waitingOnes = sum.reports.filter((r)=> r.key !== sentKey && r.status === "ready");
+  const badOnes = sum.reports.filter((r)=> r.key !== sentKey && r.status === "error");
+  // "reached dispatch" is said only for a report this bar was showing as waiting, not for one the installer just watched go
+  waitingOnes.forEach((r)=> renderOutboxBar._shown.add(r.key));
+  const justSent = sum.reports.filter((r)=> r.key !== sentKey && r.status === "sent" && renderOutboxBar._shown.has(r.key) && Date.now() - r.sentAt < 10000);
+  host.innerHTML = "";
+  const row = (cls, text, buttons)=>{
+    const d = el("div", "outbox-row" + (cls ? " " + cls : ""));
+    d.appendChild(el("div", "ob-text", text));
+    (buttons || []).forEach(([label, fn])=>{ const b = el("button", null, label); b.type = "button"; b.addEventListener("click", fn); d.appendChild(b); });
+    host.appendChild(d);
+  };
+  if(waitingOnes.length && sum.signedOut){
+    row("", "You've been signed out of Agility. Sign in to send " + (waitingOnes.length === 1 ? "the saved report for " + waitingOnes[0].label : waitingOnes.length + " saved reports") + ".", [["Sign in", ()=> window.location.reload()]]);
+  } else {
+    waitingOnes.forEach((r)=> row("", "Saved report for " + r.label + ": " + (sum.fails > 0 ? "waiting for signal, " : "sending, ") + r.pct + "%", [["Send now", ()=>{ holdAwake(); OUTBOX.kick(); }]]));
+  }
+  badOnes.forEach((r)=> row("bad", "The report for " + r.label + " wasn't sent: " + (r.error || "dispatch couldn't file it."), [["Try again", ()=> OUTBOX.retryReport(r.key)], ["Delete", ()=>{ if(window.confirm("Delete the saved report for " + r.label + "? It hasn't reached dispatch.")) OUTBOX.discard(r.key); }]]));
+  justSent.forEach((r)=> row("sent", "\u2713 The saved report for " + r.label + " reached dispatch."));
+  if(justSent.length){ clearTimeout(renderOutboxBar._t); renderOutboxBar._t = setTimeout(renderOutboxBar, 10500); }
+}
+renderOutboxBar._shown = new Set();
+OUTBOX.onChange(renderOutboxBar);
+
 $("#anotherBtn").addEventListener("click", ()=>{
   window.location.reload();
 });
@@ -1751,6 +2173,7 @@ $("#anotherBtn").addEventListener("click", ()=>{
 renderConfigBanner();
 goToStep(1);
 flushQueue();
+OUTBOX.start().then(()=>{ if(OUTBOX.summary().reports.some((r)=> r.status === "ready")) holdAwake(); });   // pick up any report an earlier visit saved but couldn't finish sending
 </script>
 </body>
 </html>

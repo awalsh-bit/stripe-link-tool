@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Trade Partners</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    /* Trade Partners (Andrew 11/27): the rebate flyer as a sales tool, the link a builder registers with, and the
+       registrations to review. See docs/sales/trade-partners.md.
+       The flyer's own faces (Archivo, Inter: open licence, kept in fonts/) are used only inside the flyer. */
+    @font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; src: url("fonts/archivo-latin-wdth-normal.woff2") format("woff2-variations"); }
+    @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("fonts/inter-latin-wght-normal.woff2") format("woff2-variations"); }
+
+    :root { --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f7f8fc; }
+    /* Colour scheme: brand colour comes only from the shell's --primary variables. For the dark scheme every neutral
+       grey is written var(--name, light grey): light schemes use the grey as written, dark supplies the name. */
+    html[data-theme="dark"] { --soft-2: #1e293b; --hair: #273246; --ink-2: #cbd5e1; }
+    html[data-theme="dark"] .note { color: var(--muted) !important; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px 20px 48px; }
+    button, input, select, textarea { font-family: inherit; }
+    [hidden] { display: none !important; }
+    .wrap { max-width: 1160px; margin: 0 auto; }
+    .surface { background: var(--surface, #fff); border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 4px; font-size: 16px; } h4 { margin: 18px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 78ch; }
+    .mut { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    button { border: none; border-radius: 10px; padding: 10px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; min-height: 40px; }
+    button.quiet { background: var(--soft-2, #eef2f7); color: var(--text); } button.danger { background: #fee2e2; color: #991b1b; } button:disabled { opacity: .6; cursor: default; }
+    button.link { background: none; color: var(--primary); padding: 0; min-height: 0; font-size: 13px; text-decoration: underline; }
+    button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input[type="text"], input[type="search"], textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; background: var(--surface, #fff); color: var(--text); }
+    textarea { min-height: 64px; resize: vertical; }
+    .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    a { color: var(--primary); }
+
+    /* the counts across the top */
+    .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; max-width: 560px; }
+    .tile { border: 1.5px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+    .tile b { display: block; font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; } .tile span { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .tile.waiting b { color: var(--primary); }
+
+    /* the flyer beside what to do with it */
+    .tool { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 14px; }
+    .flyer-box { position: relative; width: 100%; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #fff; box-shadow: 0 6px 18px rgba(15, 23, 42, .08); }
+    .flyer-box > .sheet { width: 816px; height: 1056px; transform-origin: 0 0; }
+    .linkbox { display: flex; gap: 8px; align-items: stretch; } .linkbox input { margin-top: 0; font-size: 13px; min-width: 0; } .linkbox button { white-space: nowrap; }
+    .how { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.5; } .how li { margin-bottom: 4px; }
+
+    /* registrations */
+    .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 14px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tabs button { background: var(--soft-2, #eef2f7); color: var(--text); border-radius: 999px; padding: 8px 14px; font-weight: 600; }
+    .tabs button[aria-pressed="true"] { background: var(--primary); color: #fff; }
+    .bar input[type="search"] { flex: 1 1 200px; max-width: 320px; margin-top: 0; }
+    .reg { border: 1.5px solid var(--border); border-radius: 14px; margin-bottom: 10px; }
+    .reg > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; border-radius: 14px; }
+    .reg > summary::-webkit-details-marker { display: none; }
+    .reg .co { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+    .reg .sub { grid-column: 1 / -1; font-size: 13.5px; color: var(--ink-2, #4b5563); overflow-wrap: anywhere; }
+    .reg .when { font-size: 12.5px; color: var(--muted); white-space: nowrap; text-align: right; }
+    .tp-pill { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px; padding: 2px 9px; white-space: nowrap; vertical-align: 2px; margin-left: 6px; }
+    .tp-pill.new { background: #dbeafe; color: #1e40af; } .tp-pill.approved { background: #dcfce7; color: #166534; } .tp-pill.declined { background: #fee2e2; color: #991b1b; } .tp-pill.dup { background: #fef3c7; color: #92400e; }
+    .reg .body { padding: 2px 16px 16px; border-top: 1px solid var(--hair, #f1f5f9); }
+    .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 22px; margin: 14px 0 0; }
+    .facts div { min-width: 0; } .facts dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); } .facts dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+    .facts .wide { grid-column: 1 / -1; } .facts dd.pre { white-space: pre-wrap; }
+    .log { margin: 0; padding: 0; list-style: none; } .log li { font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid var(--hair, #f1f5f9); overflow-wrap: anywhere; } .log li:last-child { border-bottom: none; }
+    .log b { font-weight: 700; } .log .at { color: var(--muted); font-size: 12px; } .log .txt { display: block; white-space: pre-wrap; margin-top: 2px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+    .panel { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--surface-2, #f8fafc); border: 1px solid var(--border); }
+    .panel .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; } .panel .row > div { flex: 1 1 180px; min-width: 0; }
+    .found { margin: 8px 0 0; padding: 0; list-style: none; max-height: 220px; overflow: auto; }
+    .found button { display: block; width: 100%; text-align: left; background: var(--surface, #fff); color: var(--text); border: 1px solid var(--border); margin-bottom: 4px; font-weight: 500; }
+    .found button b { font-weight: 700; }
+    .rowmsg { font-size: 13px; margin-top: 8px; } .rowmsg.error { color: #b91c1c; } .rowmsg.ok { color: #166534; }
+    html[data-theme="dark"] .rowmsg.error { color: #fca5a5; } html[data-theme="dark"] .rowmsg.ok { color: #86efac; }
+    .empty { padding: 26px 10px; text-align: center; color: var(--muted); font-size: 14px; }
+    #printHost { display: none; }
+
+    .flyer-col { min-width: 0; }
+    @media (max-width: 900px) { .tool { grid-template-columns: minmax(0, 1fr); } .flyer-col { max-width: 520px; } }
+    @media (max-width: 760px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .facts { grid-template-columns: 1fr 1fr; } .reg > summary { grid-template-columns: 1fr; } .reg .when { text-align: left; } }
+    @media (max-width: 460px) { .facts { grid-template-columns: 1fr; } .linkbox { flex-direction: column; } }
+
+    /* Printing this page prints the flyer and nothing else: one letter sheet, edge to edge, colours as designed. */
+    @media print {
+      @page { size: letter; margin: 0; }
+      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; min-height: 0 !important; }
+      body > * { display: none !important; }
+      body > #printHost { display: block !important; width: 816px; height: 1056px; overflow: hidden; }
+      #printHost, #printHost * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body data-shell-label="Trade Partners" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Trade Partners</h2>
+      <p class="section-note">The builder rebate program: the flyer to hand or send, the link a builder registers with, and the registrations to review. The flyer lives here and is not on the website. Nothing on this page emails or texts a builder; that part is yours.</p>
+      <div class="tiles" id="tiles" hidden>
+        <div class="tile waiting"><b id="nNew">0</b><span>Waiting for review</span></div>
+        <div class="tile"><b id="nApproved">0</b><span>Approved</span></div>
+        <div class="tile"><b id="nDeclined">0</b><span>Declined</span></div>
+      </div>
+      <div id="status" class="status" role="status"></div>
+    </div>
+
+    <div class="surface" id="toolCard" hidden>
+      <h3 id="flyerTitle">The flyer and the link</h3>
+      <p class="mut" id="flyerNote">The flyer is drawn from the program's terms, so it always matches what a builder agrees to when they register.</p>
+      <div class="tool">
+        <div class="flyer-col">
+          <div class="flyer-box" id="flyerBox" aria-label="Trade Partner Rebate Program flyer"><div class="sheet" id="flyerSheet"></div></div>
+        </div>
+        <div>
+          <button type="button" id="printBtn">Print or save as PDF</button>
+          <p class="mut" style="margin: 8px 0 0;">One letter page. To email it, choose <b>Save as PDF</b> as the printer and attach the file.</p>
+
+          <h4>Registration link</h4>
+          <div class="linkbox"><input type="text" id="linkField" readonly aria-label="Registration link" /><button type="button" class="quiet" id="copyBtn">Copy link</button></div>
+          <p class="mut" id="linkNote" style="margin: 8px 0 0;">This is your own link: a registration that comes through it shows your name. It isn't posted anywhere, so a builder only has it when one of us sends it.</p>
+
+          <h4>How it goes</h4>
+          <ol class="how">
+            <li>Walk the builder through the flyer, then send them your link.</li>
+            <li>They register their company. You get a notification, and it shows under Registrations below.</li>
+            <li>An executive approves or declines it here.</li>
+            <li>You call or email the builder with the answer. Nothing is sent for you.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h3>Registrations</h3>
+      <p class="mut" id="decideNote" style="margin: 0;"></p>
+      <div class="bar">
+        <div class="tabs" id="tabs" role="group" aria-label="Show">
+          <button type="button" data-tab="new" aria-pressed="true">Waiting</button>
+          <button type="button" data-tab="approved" aria-pressed="false">Approved</button>
+          <button type="button" data-tab="declined" aria-pressed="false">Declined</button>
+          <button type="button" data-tab="all" aria-pressed="false">All</button>
+        </div>
+        <input type="search" id="search" placeholder="Find a company or a person" aria-label="Find a company or a person" />
+      </div>
+      <div id="list"><div class="empty">Loading.</div></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    function setStatus(text, kind) { const el = $("status"); el.className = "status" + (text ? " show " + (kind || "ok") : ""); el.textContent = text || ""; }
+    async function api(path, init) {
+      const r = await fetch(path, { credentials: "same-origin", ...(init || {}) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw Object.assign(new Error(j.error || "Request failed."), { body: j, status: r.status });
+      return j;
+    }
+    const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const when = (isoText, withTime) => {
+      const d = new Date(isoText); if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric", ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}) });
+    };
+    const phone = (d) => { const s = String(d || ""); return s.length === 10 ? `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6)}` : s; };
+
+    let DATA = { registrations: [], counts: {}, canDecide: false, noteMax: 500 };
+    let tab = "new", query = "";
+    const openIds = new Set();      // which registrations are unfolded (kept across redraws)
+    const panels = new Map();       // id -> "approve" | "decline" | "account"
+    const picked = new Map();       // id -> { code, name } chosen in the ePASS search
+    const drafts = new Map();       // id -> note being typed
+    const messages = new Map();     // id -> { text, kind }
+
+    // ----- the flyer ---------------------------------------------------------------------------------------------
+    // One letter sheet, 816 x 1056 (8.5 x 11 in at 96 to the inch), styled inline so the same markup is the preview
+    // and the printed page. Every number and sentence that can change comes from the program terms.
+    // It is always mounted in a shadow root (mountFlyer), which keeps the page's own styles out of it: the dark
+    // scheme recolours every heading, table and pill on a page, and the flyer must look the same in any scheme.
+    function mountFlyer(host) {
+      const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+      root.innerHTML = flyerHtml(DATA.program);
+    }
+    function flyerHtml(p) {
+      const display = "font-family: Archivo, Inter, sans-serif; font-stretch: 112%;";
+      const eq = (label, big, small, flex) => `
+        <div style="flex: ${flex} 1 0; border: 1.5px solid #17181A; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #5E6166">${esc(label)}</div>
+          <div style="${display} font-size: 36px; font-weight: 800; line-height: 1.05">${esc(big)}</div>
+          <div style="font-size: 12px; line-height: 1.4; color: #3F4246">${esc(small)}</div>
+        </div>`;
+      const plus = (ch) => `<div style="align-self: center; font-family: Archivo, Inter, sans-serif; font-size: 26px; font-weight: 700; color: #8A6A3A" aria-hidden="true">${ch}</div>`;
+      const boxes = [eq("Volume tier", p.baseRange, "Based on your annual net appliance purchases", 1)];
+      if (p.selectBrands) boxes.push(plus("+"), eq("Select brands", p.selectBrands.rate, p.selectBrands.brands.join(", "), 1.25));
+      if (p.payment) boxes.push(plus("+"), eq(p.payment.label, p.payment.rate, p.payment.detail, 1));
+      const th = (text, align, pad) => `<th style="text-align: ${align}; padding: ${pad}; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5E6166">${text}</th>`;
+      const rows = p.tiers.map((t, i) => `
+          <tr style="border-bottom: ${i === p.tiers.length - 1 ? "1.5px solid #17181A" : "1px solid #C9C6C0"}">
+            <td style="padding: 9px 8px 9px 0; font-weight: 700">${esc(t.name)}</td>
+            <td style="padding: 11px 8px">${esc(t.range)}</td>
+            <td style="padding: 9px 8px; text-align: right; font-weight: 600">${esc(t.base)}</td>
+            <td style="padding: 9px 0 9px 8px; text-align: right; color: #8A6A3A; font-weight: 700">${esc(t.withBonuses)}</td>
+          </tr>`).join("");
+      const example = p.example ? `
+        <div style="flex: 0 0 262px; background: #F4F2EE; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px">
+          <h2 style="margin: 0; ${display} font-size: 15px; font-weight: 700; letter-spacing: 0.02em; color: #17181A">What it looks like</h2>
+          <p style="margin: 0; font-size: 12px; line-height: 1.45; color: #3F4246">${esc(p.example.intro)}</p>
+          <div style="display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.35">
+            ${p.example.lines.map((l, i) => `<div style="display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: ${i === p.example.lines.length - 1 ? "1.5px solid #17181A" : "1px solid #C9C6C0"}"><span>${esc(l.label)}</span><span style="font-weight: 600">${esc(l.amount)}</span></div>`).join("")}
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0 0"><span style="font-weight: 700">Annual rebate</span><span style="${display} font-size: 24px; font-weight: 800; color: #8A6A3A">${esc(p.example.total)}</span></div>
+          </div>
+        </div>` : "";
+      const step = (n, head, text) => `
+        <div style="display: flex; gap: 10px">
+          <div style="${display} font-size: 22px; font-weight: 800; color: #8A6A3A; line-height: 1">${n}</div>
+          <div style="font-size: 12.5px; line-height: 1.4"><strong>${head}</strong> ${esc(text)}</div>
+        </div>`;
+      const terms = p.terms.map((t, i) => `<p style="margin: 0 0 ${i === p.terms.length - 1 ? 0 : 4}px">${i === 0 ? "<strong>Terms.</strong> " : ""}${esc(t)}</p>`).join("");
+      const reach = [p.contact.phone, p.contact.website].filter(Boolean).map(esc).join(" · ");
+      return `
+<div style="width: 816px; height: 1056px; box-sizing: border-box; padding: 40px 48px 36px; background: #ffffff; font: normal 400 16px/normal Inter, system-ui, sans-serif; letter-spacing: normal; text-transform: none; text-align: left; white-space: normal; color: #17181A; display: flex; flex-direction: column; gap: 16px; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact">
+  <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 14px; border-bottom: 1.5px solid #17181A">
+    <img src="logo-black.png" alt="${esc(p.contact.company)}" style="width: 210px; height: 69px; display: block">
+    <div style="text-align: right; ${display} font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; line-height: 1.5; color: #5E6166">Trade Partner Program<br><span style="color: #8A6A3A">${esc(p.year)} Program Year</span></div>
+  </div>
+  <div style="background: #1B1C1E; color: #ffffff; padding: 24px 32px; display: flex; flex-direction: column; gap: 8px">
+    <div style="${display} font-size: 12px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #D4B483">${esc(p.name)}</div>
+    <h1 style="margin: 0; ${display} font-weight: 800; font-size: 54px; line-height: 1.0; letter-spacing: -0.01em; color: #ffffff">Earn up to <span style="color: #D4B483">${esc(p.maxRate)}</span> back.</h1>
+    <p style="margin: 4px 0 0; font-size: 16px; line-height: 1.5; color: #D9DADC; max-width: 640px">An annual cash rebate for the builders who spec, buy and build with ${esc(p.contact.company)}. The more you build with us, the more you earn.</p>
+  </div>
+  <div style="display: flex; align-items: stretch; gap: 10px">
+    ${boxes.join("")}
+    ${plus("=")}
+    <div style="flex: 0.9 1 0; background: #8A6A3A; color: #ffffff; padding: 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #F3EBDD">Up to</div>
+      <div style="${display} font-size: 40px; font-weight: 800; line-height: 1.05">${esc(p.maxRate)}</div>
+      <div style="font-size: 12px; line-height: 1.4; color: #F3EBDD">back every year</div>
+    </div>
+  </div>
+  <div style="display: flex; gap: 20px; align-items: stretch">
+    <div style="flex: 1 1 0; display: flex; flex-direction: column; gap: 10px">
+      <h2 style="margin: 0; ${display} font-size: 18px; font-weight: 700; letter-spacing: 0.02em; color: #17181A">Rebate tiers</h2>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.35; color: #17181A">
+        <thead><tr style="border-bottom: 1.5px solid #17181A">${th("Tier", "left", "6px 8px 6px 0")}${th("Annual net purchases", "left", "6px 8px")}${th("Base", "right", "6px 8px")}${th("With bonuses", "right", "6px 0 6px 8px")}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="margin: 0; font-size: 12px; line-height: 1.45; color: #3F4246">Hit a tier and your rate applies to every qualifying dollar that year, from the first one.</p>
+    </div>
+    ${example}
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; border-top: 1.5px solid #17181A; padding-top: 14px">
+    ${step("01", "Register.", "Your Wilson consultant sends your registration link. We review it and confirm your account.")}
+    ${step("02", "Build.", "Appliance invoices billed to your account, paid and posted by December 31, count toward your tier.")}
+    ${step("03", "Get paid.", `Your rebate is paid by check or ACH${p.payout ? " in " + p.payout : ""}.`)}
+  </div>
+  <div style="columns: 2; column-gap: 24px; font-size: 12px; line-height: 1.4; color: #4A4D52">${terms}</div>
+  <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #F4F2EE; padding: 12px 16px; font-size: 12px; line-height: 1.4">
+    <div><strong>${esc(p.contact.company)}</strong>${p.contact.address ? " · " + esc(p.contact.address) : ""}</div>
+    <div style="font-weight: 600; color: #17181A; white-space: nowrap">${reach}</div>
+  </div>
+</div>`;
+    }
+    function fitFlyer() {
+      const box = $("flyerBox"), sheet = $("flyerSheet");
+      const scale = box.clientWidth / 816;
+      if (!(scale > 0)) return;
+      sheet.style.transform = `scale(${scale})`;
+      box.style.height = Math.round(1056 * scale) + "px";
+    }
+    function drawTool() {
+      const p = DATA.program;
+      $("toolCard").hidden = !p;
+      if (!p) return;
+      $("flyerTitle").textContent = `The ${p.year} flyer and the link`;
+      mountFlyer($("flyerSheet"));
+      fitFlyer();
+      $("linkField").value = DATA.myLink || DATA.link || "";
+      if (!/[?&]rep=/.test($("linkField").value)) $("linkNote").textContent = "It isn't posted anywhere, so a builder only has it when one of us sends it.";
+      if (!p.registrationOpen) $("linkNote").textContent = `Registration for ${p.year} is switched off: a builder who opens the link is asked to call instead.`;
+    }
+    // Printing: the flyer is copied into a box of its own at the top level of the page, and the print rules above
+    // show that box alone. It is filled just before the print window opens, however printing was started.
+    function fillPrintHost() {
+      if (!DATA.program) return;
+      let host = $("printHost");
+      if (!host) { host = document.createElement("div"); host.id = "printHost"; document.body.appendChild(host); }
+      mountFlyer(host);
+    }
+    window.addEventListener("beforeprint", fillPrintHost);
+    $("printBtn").addEventListener("click", async () => {
+      fillPrintHost();
+      try { await document.fonts.ready; } catch {}
+      window.print();
+    });
+    $("copyBtn").addEventListener("click", async () => {
+      const field = $("linkField"), btn = $("copyBtn");
+      let ok = false;
+      try { await navigator.clipboard.writeText(field.value); ok = true; }
+      catch { field.focus(); field.select(); try { ok = document.execCommand("copy"); } catch {} }
+      btn.textContent = ok ? "Copied" : "Select and copy";
+      setTimeout(() => { btn.textContent = "Copy link"; }, 2200);
+    });
+    $("linkField").addEventListener("focus", (e) => e.target.select());
+    if (window.ResizeObserver) new ResizeObserver(fitFlyer).observe($("flyerBox")); else window.addEventListener("resize", fitFlyer);
+
+    // ----- registrations ------------------------------------------------------------------------------------------
+    const STATUS_WORD = { new: "Waiting", approved: "Approved", declined: "Declined" };
+    const LOG_WORD = { note: "Note", approved: "Approved", declined: "Declined", reopened: "Reopened for review", account: "ePASS account" };
+    const byId = (id) => DATA.registrations.find((r) => r.id === Number(id));
+    function matches(r) {
+      if (tab !== "all" && r.status !== tab) return false;
+      if (!query) return true;
+      const hay = [r.company, r.firstName, r.lastName, r.email, r.phone, r.city, r.ref, r.repName, r.consultant, r.epassCode, r.epassName].join(" ").toLowerCase();
+      return query.split(/\s+/).every((w) => hay.includes(w));
+    }
+    function fact(label, value, cls) { return value ? `<div class="${cls || ""}"><dt>${esc(label)}</dt><dd class="${cls === "wide pre" ? "pre" : ""}">${value}</dd></div>` : ""; }
+    function regHtml(r) {
+      const dup = r.duplicateOf ? byId(r.duplicateOf) : null;
+      const where = [r.city, r.state].filter(Boolean).join(", ");
+      const sub = [r.businessTypeLabel, where, `${r.firstName} ${r.lastName}`.trim(), r.repName ? `link from ${r.repName}` : ""].filter(Boolean).map(esc).join(" · ");
+      const prefer = { call: "prefers a call", text: "prefers a text", email: "prefers email" }[r.contactPref] || "";
+      const site = r.website ? (/^https?:\/\//i.test(r.website) ? r.website : "https://" + r.website) : "";
+      const address = [r.street, [r.city, r.state].filter(Boolean).join(", "), r.zip].filter(Boolean).join(" · ");
+      const decided = r.status === "new" ? "" : `${STATUS_WORD[r.status]} ${esc(when(r.decidedAt))}${r.decidedByName ? " by " + esc(r.decidedByName) : ""}`;
+      const account = r.epassCode ? `<b>${esc(r.epassCode)}</b>${r.epassName ? " " + esc(r.epassName) : ""}` : (r.status === "approved" ? "Not set yet. The rebate is worked out on this account, so set it before year end." : "");
+      const panel = panels.get(r.id), pick = picked.get(r.id), msg = messages.get(r.id);
+      const accountPicker = (button, action) => `
+            <label for="q-${r.id}" style="margin-top: 8px;">Find their ePASS account by name or number</label>
+            <div class="row"><div><input type="text" id="q-${r.id}" data-search="${r.id}" autocomplete="off" placeholder="${esc(r.company)}" /></div><button type="button" class="quiet" data-find="${r.id}">Find</button></div>
+            <ul class="found" id="found-${r.id}"></ul>
+            <div class="rowmsg" id="pick-${r.id}">${pick ? `Account: <b>${esc(pick.code)}</b> ${esc(pick.name)} <button type="button" class="link" data-unpick="${r.id}">clear</button>` : (action === "approve" ? "No account picked. You can approve now and set it later." : "")}</div>
+            <div class="actions"><button type="button" data-${action}="${r.id}">${button}</button><button type="button" class="quiet" data-cancel="${r.id}">Cancel</button></div>`;
+      let actions = "";
+      if (DATA.canDecide) {
+        if (panel === "approve") actions = `<div class="panel"><b>Approve ${esc(r.company)} for ${esc(r.programYear)}</b>${accountPicker("Approve", "approve")}</div>`;
+        else if (panel === "account") actions = `<div class="panel"><b>ePASS account for ${esc(r.company)}</b>${accountPicker("Save account", "saveacct")}</div>`;
+        else if (panel === "decline") actions = `<div class="panel"><b>Decline ${esc(r.company)}</b>
+            <label for="why-${r.id}" style="margin-top: 8px;">Reason (for us only; the builder is not sent anything)</label><textarea id="why-${r.id}" maxlength="300"></textarea>
+            <div class="actions"><button type="button" class="danger" data-decline="${r.id}">Decline</button><button type="button" class="quiet" data-cancel="${r.id}">Cancel</button></div></div>`;
+        else if (r.status === "new") actions = `<div class="actions"><button type="button" data-open-panel="approve" data-id="${r.id}">Approve</button><button type="button" class="quiet" data-open-panel="decline" data-id="${r.id}">Decline</button></div>`;
+        else if (r.status === "approved") actions = `<div class="actions"><button type="button" class="quiet" data-open-panel="account" data-id="${r.id}">${r.epassCode ? "Change ePASS account" : "Set ePASS account"}</button><button type="button" class="quiet" data-reopen="${r.id}">Put back to waiting</button></div>`;
+        else actions = `<div class="actions"><button type="button" class="quiet" data-reopen="${r.id}">Put back to waiting</button></div>`;
+      }
+      const log = (r.log || []).slice().reverse().map((e) => `<li><b>${esc(LOG_WORD[e.kind] || e.kind)}</b> <span class="at">${esc(when(e.at, true))}${e.byName ? " · " + esc(e.byName) : ""}</span>${e.text ? `<span class="txt">${esc(e.text)}</span>` : ""}</li>`).join("");
+      return `
+      <details class="reg" data-reg="${r.id}" ${openIds.has(r.id) ? "open" : ""}>
+        <summary>
+          <span class="co">${esc(r.company)}<span class="tp-pill ${r.status}">${STATUS_WORD[r.status]}</span>${dup ? `<span class="tp-pill dup">Possible duplicate</span>` : ""}</span>
+          <span class="when">${esc(r.ref)} · ${esc(when(r.createdAt))}</span>
+          <span class="sub">${sub}</span>
+        </summary>
+        <div class="body">
+          <dl class="facts">
+            ${fact("Contact", `${esc(r.firstName)} ${esc(r.lastName)}${r.title ? ", " + esc(r.title) : ""}`)}
+            ${fact("Phone", `<a href="tel:+1${esc(r.phone)}">${esc(phone(r.phone))}</a>${prefer ? ` <span class="mut">(${prefer})</span>` : ""}`)}
+            ${fact("Email", `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`)}
+            ${fact("Business", esc(r.businessTypeLabel))}
+            ${fact("Address", esc(address))}
+            ${fact("Website", site ? `<a href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(r.website)}</a>` : "")}
+            ${fact("Appliances in a typical year", esc(r.annualEstimate))}
+            ${fact("Homes or projects a year", esc(r.projectsPerYear))}
+            ${fact("Years in business", esc(r.yearsInBusiness))}
+            ${fact("Buys from Wilson today", esc(r.buysNowLabel))}
+            ${fact("Their Wilson consultant", esc(r.consultant))}
+            ${fact("Link sent by", esc(r.repName))}
+            ${fact("In their words", esc(r.notes), "wide pre")}
+            ${fact("Decision", decided + (r.status === "declined" && r.declineReason ? `<br><span class="mut">${esc(r.declineReason)}</span>` : ""), "wide")}
+            ${fact("ePASS account", account, "wide")}
+            ${dup ? fact("Possible duplicate", `${esc(dup.company)} (${esc(dup.ref)}, ${STATUS_WORD[dup.status].toLowerCase()}) registered ${esc(when(dup.createdAt))} with the same company name or email.`, "wide") : ""}
+          </dl>
+          ${msg ? `<div class="rowmsg ${msg.kind}" role="status">${esc(msg.text)}</div>` : ""}
+          ${actions}
+          <h4>Notes and history</h4>
+          ${log ? `<ul class="log">${log}</ul>` : `<p class="mut" style="margin: 0;">Nothing yet.</p>`}
+          <label for="note-${r.id}" style="margin-top: 12px;">Add a note (for us only)</label>
+          <textarea id="note-${r.id}" data-note="${r.id}" maxlength="${DATA.noteMax}">${esc(drafts.get(r.id) || "")}</textarea>
+          <div class="actions" style="margin-top: 8px;"><button type="button" class="quiet" data-save-note="${r.id}">Save note</button></div>
+        </div>
+      </details>`;
+    }
+    function draw() {
+      const c = DATA.counts || {};
+      $("nNew").textContent = c.new || 0; $("nApproved").textContent = c.approved || 0; $("nDeclined").textContent = c.declined || 0;
+      $("tiles").hidden = false;
+      $("decideNote").textContent = DATA.canDecide
+        ? "Approving puts the company in the program for the year. Nothing is sent to the builder either way, so let them know yourself."
+        : "Anyone with this page can read these and add notes. Approving or declining is done by an executive.";
+      document.querySelectorAll("#tabs button").forEach((b) => {
+        const t = b.dataset.tab;
+        b.setAttribute("aria-pressed", String(t === tab));
+        const n = t === "all" ? DATA.registrations.length : (c[t] || 0);
+        b.textContent = `${{ new: "Waiting", approved: "Approved", declined: "Declined", all: "All" }[t]} (${n})`;
+      });
+      const rows = DATA.registrations.filter(matches);
+      const emptyText = query ? "Nothing matches that."
+        : tab === "new" ? "No registrations are waiting. Send a builder your link to get one started."
+        : tab === "approved" ? "No approved trade partners yet."
+        : tab === "declined" ? "Nothing has been declined."
+        : "No registrations yet. Send a builder your link to get one started.";
+      $("list").innerHTML = rows.length ? rows.map(regHtml).join("") : `<div class="empty">${emptyText}</div>`;
+    }
+    function replace(reg) {
+      const i = DATA.registrations.findIndex((r) => r.id === reg.id);
+      if (i >= 0) DATA.registrations[i] = reg;
+      const counts = { new: 0, approved: 0, declined: 0 };
+      DATA.registrations.forEach((r) => { if (counts[r.status] != null) counts[r.status]++; });
+      DATA.counts = counts;
+    }
+    function say(id, text, kind) { messages.set(id, { text, kind: kind || "ok" }); }
+    async function act(id, run, okText) {
+      try {
+        const out = await run();
+        if (out && out.registration) replace(out.registration);
+        panels.delete(id); picked.delete(id);
+        say(id, okText, "ok");
+        // a decided registration leaves the Waiting list: follow it, so the confirmation stays on screen
+        const r = byId(id); if (r && tab !== "all" && r.status !== tab) tab = r.status;
+      } catch (err) {
+        if (err.body && err.body.registration) replace(err.body.registration);
+        say(id, err.message, "error");
+      }
+      openIds.add(id);
+      draw();
+    }
+
+    $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (!b) return; tab = b.dataset.tab; draw(); });
+    $("search").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); draw(); });
+    $("list").addEventListener("toggle", (e) => {
+      const d = e.target.closest && e.target.closest("details[data-reg]"); if (!d) return;
+      const id = Number(d.dataset.reg); if (d.open) openIds.add(id); else openIds.delete(id);
+    }, true);
+    $("list").addEventListener("input", (e) => { const t = e.target.closest("textarea[data-note]"); if (t) drafts.set(Number(t.dataset.note), t.value); });
+    $("list").addEventListener("keydown", (e) => {
+      const q = e.target.closest("input[data-search]");
+      if (q && e.key === "Enter") { e.preventDefault(); find(Number(q.dataset.search)); }
+    });
+    async function find(id) {
+      const box = $("found-" + id), q = $("q-" + id).value.trim() || byId(id).company;
+      box.innerHTML = `<li class="mut">Looking.</li>`;
+      try {
+        const out = await api("/api/trade-partners/epass-search?q=" + encodeURIComponent(q));
+        box.innerHTML = out.customers.length
+          ? out.customers.map((c) => `<li><button type="button" data-pick="${id}" data-code="${esc(c.code)}" data-name="${esc(c.name)}"><b>${esc(c.code)}</b> ${esc(c.name)}${c.city ? ` <span class="mut">· ${esc(c.city)}${c.state ? ", " + esc(c.state) : ""}</span>` : ""}</button></li>`).join("")
+          : `<li class="mut">No ePASS customer matches "${esc(q)}". Try fewer words, or the account number.</li>`;
+      } catch (err) { box.innerHTML = `<li class="rowmsg error">${esc(err.message)}</li>`; }
+    }
+    $("list").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      const d = b.dataset;
+      if (d.openPanel) { const id = Number(d.id); panels.set(id, d.openPanel); messages.delete(id); picked.delete(id); openIds.add(id); draw(); const first = $(d.openPanel === "decline" ? "why-" + id : "q-" + id); if (first) first.focus(); return; }
+      if (d.cancel) { const id = Number(d.cancel); panels.delete(id); picked.delete(id); draw(); return; }
+      if (d.find) return void find(Number(d.find));
+      if (d.pick) { const id = Number(d.pick); picked.set(id, { code: d.code, name: d.name }); $("found-" + id).innerHTML = ""; $("pick-" + id).innerHTML = `Account: <b>${esc(d.code)}</b> ${esc(d.name)} <button type="button" class="link" data-unpick="${id}">clear</button>`; return; }
+      if (d.unpick) { const id = Number(d.unpick); picked.delete(id); $("pick-" + id).textContent = ""; return; }
+      if (d.approve) {
+        const id = Number(d.approve), r = byId(id), pick = picked.get(id) || {};
+        b.disabled = true;
+        return void act(id, () => post(`/api/trade-partners/${id}/decision`, { decision: "approve", epassCode: pick.code || "", epassName: pick.name || "" }),
+          `Approved. Nothing was sent to ${r.firstName}: call or email to let them know.`);
+      }
+      if (d.saveacct) {
+        const id = Number(d.saveacct), pick = picked.get(id);
+        if (!pick) { say(id, "Find and pick the account first.", "error"); openIds.add(id); draw(); return; }
+        b.disabled = true;
+        return void act(id, () => post(`/api/trade-partners/${id}/account`, { epassCode: pick.code, epassName: pick.name }), `ePASS account set to ${pick.code}.`);
+      }
+      if (d.decline) {
+        const id = Number(d.decline), r = byId(id), reason = $("why-" + id).value;
+        b.disabled = true;
+        return void act(id, () => post(`/api/trade-partners/${id}/decision`, { decision: "decline", reason }), `Declined. Nothing was sent to ${r.firstName}.`);
+      }
+      if (d.reopen) { const id = Number(d.reopen); b.disabled = true; return void act(id, () => post(`/api/trade-partners/${id}/decision`, { decision: "reopen" }), "Back in the waiting list."); }
+      if (d.saveNote) {
+        const id = Number(d.saveNote), text = (drafts.get(id) || "").trim();
+        if (!text) { say(id, "Type the note first.", "error"); openIds.add(id); draw(); return; }
+        b.disabled = true;
+        return void act(id, async () => { const out = await post(`/api/trade-partners/${id}/note`, { text }); drafts.delete(id); return out; }, "Note saved.");
+      }
+    });
+
+    // An address ending in a reference (trade-partners.html#TP-ABC123, as a colleague might send it) opens that one.
+    function openFromHash() {
+      let want = ""; try { want = decodeURIComponent(location.hash.slice(1)).toUpperCase(); } catch {}
+      const hit = want ? DATA.registrations.find((r) => r.ref === want) : null;
+      if (!hit) return false;
+      tab = "all"; query = ""; $("search").value = ""; openIds.add(hit.id);
+      draw();
+      const el = document.querySelector(`details[data-reg="${hit.id}"]`);
+      if (el) el.scrollIntoView({ block: "start" });
+      return true;
+    }
+    window.addEventListener("hashchange", openFromHash);
+    async function load() {
+      try {
+        DATA = await api("/api/trade-partners");
+        if (DATA.programError) setStatus(DATA.programError, "error");
+        drawTool();
+        if (!(DATA.counts.new > 0) && DATA.registrations.length) tab = "all";
+        if (!openFromHash()) draw();
+      } catch (err) {
+        setStatus(err.message, "error");
+        $("list").innerHTML = `<div class="empty">The registrations couldn't be loaded.</div>`;
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

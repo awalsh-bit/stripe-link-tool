@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Trade Partner registration (Andrew 11/27). Unlisted: a builder gets this address from the Wilson team. No page
+       links here, it is not in the sitemap, and search engines are told not to list it (here and in the response
+       header). No advertising or analytics tags on this page: it takes a company's contact details and nothing
+       about it is reported anywhere. See docs/sales/trade-partners.md. -->
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+  <title>Trade Partner Registration | Wilson AC &amp; Appliance</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/familjen-grotesk-latin-wght-normal.woff2" crossorigin>
+  <style>
+    /* wilsonappliance.com's own faces and colours, as on the shop pages. */
+    @font-face { font-family: "Familjen Grotesk"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("/fonts/familjen-grotesk-latin-wght-normal.woff2") format("woff2-variations"); }
+    @font-face { font-family: "Public Sans"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/public-sans-latin-wght-normal.woff2") format("woff2-variations"); }
+    :root {
+      --ink: #24211E; --ink-2: #3a3530; --ivory: #F2F1EE; --ivory-2: #EDEAE4; --paper: #FFFFFF;
+      --brass: #9A6427; --accent: #67533E; --accent-dark: #52412F; --muted: #655E56; --line: #DDD8D0;
+      --bad: #9B2C1F; --bad-bg: #FBEDEA; --good: #21692C; --r: 6px;
+      --display: "Familjen Grotesk", "Public Sans", system-ui, sans-serif;
+      --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { font-family: var(--sans); color: var(--ink); background: var(--ivory); -webkit-font-smoothing: antialiased; line-height: 1.5; font-size: 16px; }
+    a { color: inherit; }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    [hidden] { display: none !important; }
+    .wrap { width: min(1120px, 100% - 40px); margin: 0 auto; }
+
+    .top { background: var(--paper); border-bottom: 1px solid var(--line); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; }
+    .top img { display: block; height: 44px; width: auto; }
+    .top .call { font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; color: var(--ink-2); }
+    .top .call span { color: var(--muted); font-weight: 500; }
+
+    main { padding: 44px 0 64px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: start; }
+    /* beside a long form the introduction stays in view (wide screens only; it is switched off below) */
+    .grid > section:first-child { position: sticky; top: 28px; }
+    .eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+    h1 { font-family: var(--display); font-weight: 600; letter-spacing: -.015em; font-size: clamp(34px, 4.6vw, 48px); line-height: 1.04; margin-top: 12px; text-wrap: balance; }
+    .lede { margin-top: 16px; font-size: 17px; color: var(--ink-2); max-width: 46ch; }
+
+    .steps { list-style: none; margin-top: 30px; display: grid; gap: 0; border-top: 1px solid var(--line); }
+    .steps li { display: grid; grid-template-columns: 38px 1fr; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .steps .n { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--brass); font-variant-numeric: tabular-nums; }
+    .steps b { display: block; font-weight: 700; }
+    .steps span.d { display: block; color: var(--muted); font-size: 14.5px; }
+
+    .rates { margin-top: 30px; }
+    .rates h2, .card h2 { font-family: var(--display); font-weight: 600; font-size: 20px; letter-spacing: -.005em; }
+    .rates table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+    .rates th { text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 6px 8px 6px 0; border-bottom: 1.5px solid var(--ink); }
+    .rates td { padding: 9px 8px 9px 0; border-bottom: 1px solid var(--line); }
+    .rates td.r, .rates th.r { text-align: right; padding-right: 0; }
+    .rates p { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 28px; }
+    .card > p.sub { color: var(--muted); font-size: 14.5px; margin-top: 4px; }
+    fieldset { border: 0; margin-top: 26px; min-width: 0; }
+    legend { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--muted); padding: 0; margin-bottom: 4px; }
+    .fields { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-top: 8px; }
+    .f { grid-column: span 6; min-width: 0; } .f.half { grid-column: span 3; } .f.third { grid-column: span 2; } .f.two3 { grid-column: span 4; } .f.st { grid-column: span 1; }
+    label { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+    label .opt { font-weight: 400; color: var(--muted); }
+    input[type="text"], input[type="email"], input[type="tel"], input[type="number"], select, textarea {
+      display: block; width: 100%; margin-top: 5px; padding: 11px 12px; background: var(--paper);
+      border: 1px solid #B9B2A7; border-radius: var(--r); font-size: 16px; line-height: 1.3; min-height: 46px;
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .choices label { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #B9B2A7; border-radius: 999px; font-weight: 500; font-size: 14.5px; cursor: pointer; min-height: 44px; }
+    .choices input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+    .choices label:has(input:checked) { border-color: var(--accent); background: var(--ivory); font-weight: 600; }
+    .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+    .terms { margin-top: 28px; padding: 18px 20px; background: var(--ivory); border-radius: var(--r); }
+    .terms h3 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--muted); }
+    .terms p { margin-top: 8px; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+    .agree { display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start; margin-top: 18px; font-size: 14.5px; font-weight: 500; color: var(--ink); cursor: pointer; }
+    .agree input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--accent); }
+    .agree input[aria-invalid="true"] { outline: 2px solid var(--bad); outline-offset: 2px; }
+
+    .error { display: none; margin-top: 18px; padding: 12px 14px; border-radius: var(--r); background: var(--bad-bg); color: var(--bad); font-size: 14.5px; font-weight: 600; }
+    .error.show { display: block; }
+    .send { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 26px; min-height: 50px; border: 1px solid var(--accent); border-radius: var(--r); background: var(--accent); color: #fff; font-weight: 600; font-size: 16px; cursor: pointer; }
+    .btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .btn[disabled] { opacity: .6; cursor: default; }
+    .send p { font-size: 13.5px; color: var(--muted); flex: 1 1 220px; }
+
+    .done h2 { font-size: 28px; line-height: 1.1; }
+    .done p { margin-top: 12px; color: var(--ink-2); }
+    .done .ref { margin-top: 20px; padding: 14px 16px; background: var(--ivory); border-radius: var(--r); font-size: 14.5px; }
+    .done .ref b { font-family: var(--display); font-size: 20px; letter-spacing: .04em; display: block; margin-top: 2px; }
+    .notice p { color: var(--ink-2); margin-top: 8px; }
+
+    footer { border-top: 1px solid var(--line); padding: 22px 0 34px; font-size: 13px; color: var(--muted); }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; }
+    footer a { text-decoration: none; } footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; gap: 30px; }
+      .grid > section:first-child { position: static; }
+      main { padding: 30px 0 48px; }
+    }
+    @media (max-width: 560px) {
+      .wrap { width: min(1120px, 100% - 32px); }
+      .card { padding: 20px 16px; }
+      .f.half, .f.third, .f.two3 { grid-column: span 6; }
+      .f.zip, .f.st { grid-column: span 3; }
+      .top img { height: 36px; }
+      .top .call span { display: none; }
+      .btn { width: 100%; }
+    }
+    @media (prefers-reduced-motion: no-preference) { .btn { transition: background .15s, border-color .15s; } }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <img src="/logo-black.png" alt="Wilson AC &amp; Appliance" width="133" height="44">
+      <a class="call" id="callTop" href="tel:+15128940907"><span>Questions? </span>512-894-0907</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap grid">
+      <section aria-labelledby="pageTitle">
+        <p class="eyebrow">Trade Partner Program · <span data-year>2027</span></p>
+        <h1 id="pageTitle">Register your company.</h1>
+        <p class="lede">An annual rebate program for the builders, remodelers and designers who build with Wilson AC &amp; Appliance. Tell us about your company, and a Wilson consultant will follow up with you personally.</p>
+        <ol class="steps">
+          <li><span class="n">01</span><div><b>Register</b><span class="d">Send us the form on this page. It takes about three minutes.</span></div></li>
+          <li><span class="n">02</span><div><b>We confirm your account</b><span class="d">We review every registration and confirm your trade partner account with you directly.</span></div></li>
+          <li><span class="n">03</span><div><b>Build with Wilson</b><span class="d">Qualifying appliance purchases billed to your account count through December 31, <span data-year>2027</span>.</span></div></li>
+          <li><span class="n">04</span><div><b>Receive your rebate</b><span class="d" id="payoutLine">Paid by check or ACH after the program year closes.</span></div></li>
+        </ol>
+        <div class="rates" id="rates" hidden></div>
+      </section>
+
+      <section class="card" aria-live="polite">
+        <!-- shown until the program's details arrive -->
+        <div class="notice" id="loading"><h2>Trade partner registration</h2><p>One moment.</p></div>
+
+        <!-- registration closed, or the details couldn't be read -->
+        <div class="notice" id="unavailable" hidden><h2 id="unavailableTitle">Registration isn't available right now</h2><p id="unavailableText">Please call us at 512-894-0907 and we'll take care of you.</p></div>
+
+        <form id="regForm" novalidate hidden>
+          <h2>Trade partner registration</h2>
+          <p class="sub">Everything is required unless it says optional.</p>
+
+          <fieldset>
+            <legend>Your company</legend>
+            <div class="fields">
+              <div class="f two3"><label for="company">Company name</label><input type="text" id="company" name="company" autocomplete="organization" maxlength="120" required></div>
+              <div class="f third"><label for="businessType">Type of business</label><select id="businessType" name="businessType" required><option value="">Choose one</option></select></div>
+              <div class="f"><label for="street">Business address <span class="opt">(optional)</span></label><input type="text" id="street" name="street" autocomplete="address-line1" maxlength="160"></div>
+              <div class="f half"><label for="city">City</label><input type="text" id="city" name="city" autocomplete="address-level2" maxlength="80" required></div>
+              <div class="f st"><label for="state">State</label><input type="text" id="state" name="state" autocomplete="address-level1" maxlength="2" value="TX" required></div>
+              <div class="f zip third"><label for="zip">ZIP code</label><input type="text" id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" required></div>
+              <div class="f"><label for="website">Website <span class="opt">(optional)</span></label><input type="text" id="website" name="website" inputmode="url" autocomplete="url" autocapitalize="none" maxlength="120"></div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Who we should reach</legend>
+            <div class="fields">
+              <div class="f half"><label for="firstName">First name</label><input type="text" id="firstName" name="firstName" autocomplete="given-name" maxlength="60" required></div>
+              <div class="f half"><label for="lastName">Last name</label><input type="text" id="lastName" name="lastName" autocomplete="family-name" maxlength="60" required></div>
+              <div class="f"><label for="title">Title <span class="opt">(optional)</span></label><input type="text" id="title" name="title" autocomplete="organization-title" maxlength="80"></div>
+              <div class="f half"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="email" autocapitalize="none" maxlength="160" required></div>
+              <div class="f half"><label for="phone">Phone</label><input type="tel" id="phone" name="phone" autocomplete="tel" maxlength="20" required></div>
+              <div class="f">
+                <label id="prefLabel">Best way to reach you <span class="opt">(optional)</span></label>
+                <div class="choices" role="radiogroup" aria-labelledby="prefLabel">
+                  <label><input type="radio" name="contactPref" value="call"> Call</label>
+                  <label><input type="radio" name="contactPref" value="text"> Text</label>
+                  <label><input type="radio" name="contactPref" value="email"> Email</label>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>About your work (optional)</legend>
+            <div class="fields">
+              <div class="f half"><label for="annualEstimate">Appliance purchases in a typical year</label><select id="annualEstimate" name="annualEstimate"><option value="">Choose one</option></select></div>
+              <div class="f half"><label for="projectsPerYear">Homes or projects a year</label><select id="projectsPerYear" name="projectsPerYear"><option value="">Choose one</option></select></div>
+              <div class="f third"><label for="yearsInBusiness">Years in business</label><input type="text" id="yearsInBusiness" name="yearsInBusiness" inputmode="numeric" maxlength="3"></div>
+              <div class="f two3"><label for="buysNow">Do you buy from Wilson today?</label><select id="buysNow" name="buysNow"><option value="">Choose one</option><option value="account">Yes, on a Wilson account</option><option value="no_account">Yes, without an account</option><option value="not_yet">Not yet</option></select></div>
+              <div class="f"><label for="consultant">Your Wilson sales consultant, if you have one</label><input type="text" id="consultant" name="consultant" maxlength="80"></div>
+              <div class="f"><label for="notes">Anything we should know?</label><textarea id="notes" name="notes" maxlength="600"></textarea></div>
+            </div>
+          </fieldset>
+
+          <!-- Not for people: left empty by anyone using the page. -->
+          <div class="hp" aria-hidden="true"><label for="fax">Fax</label><input type="text" id="fax" name="fax" tabindex="-1" autocomplete="off"></div>
+
+          <div class="terms">
+            <h3>Program terms</h3>
+            <div id="terms"></div>
+          </div>
+          <label class="agree"><input type="checkbox" id="agree" name="agree"><span>I'm authorized to register this company, and I agree to the <span data-year>2027</span> program terms above.</span></label>
+
+          <div class="error" id="formError" role="alert"></div>
+          <div class="send">
+            <button class="btn" type="submit" id="sendBtn">Send registration</button>
+            <p>We review each registration and contact you directly.</p>
+          </div>
+        </form>
+
+        <div class="done" id="thanks" hidden tabindex="-1">
+          <p class="eyebrow">Registration received</p>
+          <h2 id="thanksTitle">Thank you.</h2>
+          <p id="thanksText">We have your registration. A Wilson consultant will be in touch personally to confirm your trade partner account.</p>
+          <div class="ref" id="thanksRef" hidden>Your reference<b id="thanksRefCode"></b></div>
+          <p>Questions in the meantime? Call <a id="callThanks" href="tel:+15128940907">512-894-0907</a>.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div>Wilson AC &amp; Appliance · Dripping Springs, Texas</div>
+      <div><a id="callFoot" href="tel:+15128940907">512-894-0907</a> · <a href="https://wilsonappliance.com" rel="noopener">wilsonappliance.com</a></div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+      var $ = function (id) { return document.getElementById(id); };
+      var esc = function (v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+      var form = $("regForm"), errorBox = $("formError"), sendBtn = $("sendBtn");
+      // "?rep=" says which Wilson consultant sent the link. It is a short code, never a name or an address.
+      var rep = (new URLSearchParams(location.search).get("rep") || "").toLowerCase();
+      if (!/^[0-9a-f]{10}$/.test(rep)) rep = "";
+
+      function show(which) {
+        ["loading", "unavailable", "regForm", "thanks"].forEach(function (id) { $(id).hidden = id !== which; });
+      }
+      function unavailable(title, text) {
+        if (title) $("unavailableTitle").textContent = title;
+        if (text) $("unavailableText").textContent = text;
+        show("unavailable");
+      }
+      function setPhone(phone) {
+        var digits = String(phone || "").replace(/\D/g, "");
+        if (digits.length !== 10) return;
+        ["callTop", "callThanks", "callFoot"].forEach(function (id) {
+          var a = $(id); a.href = "tel:+1" + digits;
+          if (id === "callTop") a.innerHTML = "<span>Questions? </span>" + esc(phone); else a.textContent = phone;
+        });
+      }
+      function fill(select, values) {
+        values.forEach(function (v) {
+          var o = document.createElement("option");
+          if (typeof v === "string") { o.value = v; o.textContent = v; } else { o.value = v.key; o.textContent = v.label; }
+          select.appendChild(o);
+        });
+      }
+      function drawRates(r) {
+        if (!r || !r.tiers || !r.tiers.length) return;
+        var extra = [];
+        if (r.selectBrands) extra.push(esc(r.selectBrands.rate) + " on " + esc(r.selectBrands.brands.join(", ")));
+        if (r.payment) extra.push(esc(r.payment.rate) + " on invoices paid by " + esc(String(r.payment.label).toLowerCase()) + " within terms");
+        $("rates").innerHTML = "<h2>Earn up to " + esc(r.maxRate) + " back</h2>" +
+          '<table><thead><tr><th scope="col">Tier</th><th scope="col">Annual net purchases</th><th scope="col" class="r">Rebate</th></tr></thead><tbody>' +
+          r.tiers.map(function (t) { return "<tr><td><b>" + esc(t.name) + "</b></td><td>" + esc(t.range) + '</td><td class="r">' + esc(t.base) + "</td></tr>"; }).join("") +
+          "</tbody></table>" + (extra.length ? "<p>Plus " + extra.join(", and ") + ".</p>" : "");
+        $("rates").hidden = false;
+      }
+
+      fetch("/api/trade-partner/program", { headers: { Accept: "application/json" } })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          var p = res.j || {};
+          if (!res.ok) return unavailable("", p.error || "");
+          document.querySelectorAll("[data-year]").forEach(function (el) { el.textContent = p.year; });
+          setPhone(p.contact && p.contact.phone);
+          if (p.payout) $("payoutLine").textContent = "Paid by check or ACH in " + p.payout + ".";
+          $("terms").innerHTML = (p.terms || []).map(function (t) { return "<p>" + esc(t) + "</p>"; }).join("");
+          drawRates(p.rates);
+          if (!p.registrationOpen) return unavailable("Registration for " + p.year + " is closed", "Please call us at " + ((p.contact && p.contact.phone) || "512-894-0907") + " and we'll take care of you.");
+          fill($("businessType"), p.businessTypes || []);
+          fill($("annualEstimate"), p.estimateRanges || []);
+          fill($("projectsPerYear"), p.projectRanges || []);
+          show("regForm");
+        })
+        .catch(function () { unavailable("", ""); });
+
+      function clearErrors() {
+        errorBox.classList.remove("show"); errorBox.textContent = "";
+        form.querySelectorAll('[aria-invalid="true"]').forEach(function (el) { el.removeAttribute("aria-invalid"); });
+      }
+      function fail(message, field) {
+        errorBox.textContent = message; errorBox.classList.add("show");
+        var el = field ? form.elements[field] : null;
+        if (el && el.focus) { el.setAttribute("aria-invalid", "true"); el.focus(); }
+        else errorBox.scrollIntoView({ block: "center" });
+      }
+      // The same checks the server makes, so a slip is caught before anything is sent.
+      function firstProblem(d) {
+        if (d.company.length < 2) return ["company", "Please enter your company's name."];
+        if (!d.businessType) return ["businessType", "Please choose the kind of business."];
+        if (!d.city) return ["city", "Please enter your city."];
+        if (!/^[A-Za-z]{2}$/.test(d.state)) return ["state", "Please enter your state as two letters (TX)."];
+        if (!/^\d{5}$/.test(d.zip)) return ["zip", "Please enter your 5-digit ZIP code."];
+        if (!d.firstName) return ["firstName", "Please enter your first name."];
+        if (!d.lastName) return ["lastName", "Please enter your last name."];
+        if (!/^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]{2,}$/.test(d.email)) return ["email", "Please enter a valid email address."];
+        var digits = d.phone.replace(/\D/g, ""); if (digits.length === 11 && digits.charAt(0) === "1") digits = digits.slice(1);
+        if (digits.length !== 10) return ["phone", "Please enter a 10-digit phone number."];
+        if (d.yearsInBusiness && !/^\d{1,3}$/.test(d.yearsInBusiness)) return ["yearsInBusiness", "Years in business should be a whole number."];
+        if (!d.agree) return ["agree", "Please confirm you agree to the program terms."];
+        return null;
+      }
+
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        if (sendBtn.disabled) return;
+        clearErrors();
+        var v = function (name) { return String(form.elements[name].value || "").trim(); };
+        var pref = form.querySelector('input[name="contactPref"]:checked');
+        var data = {
+          company: v("company"), businessType: v("businessType"), street: v("street"), city: v("city"), state: v("state").toUpperCase(), zip: v("zip"), website: v("website"),
+          firstName: v("firstName"), lastName: v("lastName"), title: v("title"), email: v("email"), phone: v("phone"), contactPref: pref ? pref.value : "",
+          annualEstimate: v("annualEstimate"), projectsPerYear: v("projectsPerYear"), yearsInBusiness: v("yearsInBusiness"), buysNow: v("buysNow"), consultant: v("consultant"), notes: v("notes"),
+          agree: $("agree").checked, fax: form.elements.fax.value, rep: rep
+        };
+        var problem = firstProblem(data);
+        if (problem) return fail(problem[1], problem[0]);
+        sendBtn.disabled = true; sendBtn.textContent = "Sending";
+        fetch("/api/trade-partner/register", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(data) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              sendBtn.disabled = false; sendBtn.textContent = "Send registration";
+              return fail(res.j.error || "We couldn't take your registration just now. Please call 512-894-0907.", res.j.field || "");
+            }
+            $("thanksTitle").textContent = "Thank you, " + data.firstName + ".";
+            $("thanksText").textContent = "We have " + data.company + "'s registration. A Wilson consultant will be in touch personally to confirm your trade partner account.";
+            if (res.j.reference) { $("thanksRefCode").textContent = res.j.reference; $("thanksRef").hidden = false; }
+            show("thanks");
+            $("thanks").focus({ preventScroll: true });
+            $("thanks").scrollIntoView({ block: "start" });
+          })
+          .catch(function () {
+            sendBtn.disabled = false; sendBtn.textContent = "Send registration";
+            fail("We couldn't reach Wilson just now. Check your connection and send it again.", "");
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -313,6 +313,8 @@ import { listShopClosedDays, addShopClosedDay, removeShopClosedDay, cleanClosedD
 import { placeOrgNode, removeOrgNode, addOrgDottedLine, removeOrgDottedLine, dottedLinesFor, loadOrgContext, reportsToState, syncOrgReportsTo, scheduleStateFor } from "./lib/org-chart-postgres.js";
 import { ticketKey, collectTicketRecords, buildTicketAudit, searchTicketRecords, mergeTicketHits } from "./lib/ticket-audit.js";
 import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails, setImportantDateSignupClosed } from "./lib/important-dates-postgres.js";
+import { loadTradeProgram, tradeProgramFull, tradeProgramPublic } from "./lib/trade-program.js";
+import { TRADE_NOTE_MAX, cleanTradeRegistration, createTradeRegistration, getTradeRegistration, listTradeRegistrations, addTradeRegistrationNote, decideTradeRegistration, setTradeRegistrationAccount } from "./lib/trade-partners-postgres.js";
 import { PAGE_FEEDBACK_MAX, PAGE_FEEDBACK_PER_10_MIN, PAGE_FEEDBACK_PER_DAY, cleanPageFeedback, cleanPagePath, recentPageFeedback, savePageFeedback, setPageFeedbackNotified, listPageFeedback } from "./lib/page-feedback-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
@@ -851,6 +853,7 @@ const SHOP_PUBLIC_PATHS = new Set([
   "/shop.html",
   "/shop-home.html",
   "/about", // About Wilson (11/20): the history, Why Wilson, reviews, visit
+  "/trade-partner", // Trade Partner registration (11/27): unlisted - no page links to it, it is not in the sitemap, and it is sent noindex
   "/public-shell.css",
   "/fonts/roboto-latin-wght-normal.woff2",
   "/fonts/roboto-latin-wght-italic.woff2",
@@ -871,6 +874,8 @@ const SHOP_PUBLIC_PATHS = new Set([
 const SHOP_PUBLIC_API_PREFIXES = [
   "/showroom", // web-sized showroom photos for the landing page (originals live in showroom-photos/, which is denied)
   "/api/shop/home-stats",
+  // Trailing slash matters: the internal API lives at /api/trade-partners and must NOT match this public prefix.
+  "/api/trade-partner/", // the registration page's two calls: the program's rules, and filing a registration
   "/api/shop/reviews-summary", // the review rating the shop header shows (data/about-wilson.json, 11/20)
   "/api/shop/stock", // the public website's "in stock at Wilson?" lookup (CORS-allowed partner origins)
   "/api/shop/handoff", // website -> shop cart handoff (POST makes a token, GET reads it)
@@ -964,6 +969,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/receipt-report.html",
   "/builder-prospects.html",
   "/builder-prospect-manager.html",
+  "/trade-partners.html",
   "/dispatch-work.html",
   "/fleet.html",
   "/hr-phone-screen.html",
@@ -1133,7 +1139,8 @@ const JOB_CODE_PRESETS = {
       "/index.html",
       "/terminal.html",
       "/charge-saved-card.html",
-      "/paid-order-detail.html"
+      "/paid-order-detail.html",
+      "/trade-partners.html"
     ]
   },
   repair_tech: {
@@ -1240,6 +1247,7 @@ const PAGE_LABELS = {
   "/receipt-report.html": "Card Receipt Report",
   "/builder-prospects.html": "Builder Prospect List",
   "/builder-prospect-manager.html": "Builder Prospect Manager",
+  "/trade-partners.html": "Trade Partners",
   "/dispatch-work.html": "Dispatch Work",
   "/fleet.html": "Fleet Management",
   "/hr-phone-screen.html": "Phone Screen",
@@ -1454,6 +1462,7 @@ const PAGE_CATEGORIES = [
       "/lead-report.html",
       "/builder-prospects.html",
       "/builder-prospect-manager.html",
+      "/trade-partners.html",
       "/quote-follow-up.html",
       "/epass-uploads.html",
       "/aging-inventory.html",
@@ -5820,6 +5829,186 @@ app.post("/api/builder-prospects/rematch", requireBuilderManager, async (req, re
   } catch (err) {
     console.error("Builder rematch failed:", err.message);
     return res.status(500).json({ error: "Unable to run the match." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Trade Partners (Andrew 11/27: the rebate flyer "would not be available to
+// the public for download, this would be in the Agility user side as a
+// builder sales tool with a public registration process and approval process
+// on our side"). See docs/sales/trade-partners.md.
+//
+//   /trade-partners.html   Agility, page grant (Sales Tools). The flyer, drawn
+//                          from data/trade-program.json, to print or save as
+//                          a PDF; the registration link to send a builder;
+//                          and the registrations, to review.
+//   /trade-partner         The registration page, on the shop host, no login.
+//                          Unlisted: nothing links to it, it is not in the
+//                          sitemap or named in robots.txt, and it is sent
+//                          noindex. It carries the program's rules, not its
+//                          rates (unless the terms file switches them on).
+//
+// Approving or declining is for executives: it commits Wilson to a rebate.
+// Everyone with the page can read the registrations and add notes.
+// Nothing here emails or texts the builder. The page thanks them on screen;
+// the team is told on My Notifications and makes the call themselves.
+// ---------------------------------------------------------------------------
+const TRADE_PAGE = "/trade-partners.html";
+const TRADE_DATA_DIR = path.join(__dirname, "data");
+const requireTradePage = requirePagePermission(TRADE_PAGE);
+const tradeMe = (req) => {
+  const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+  return { email, name: String(req.authUser?.displayName || "").trim() || email };
+};
+const tradeAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+// "My link": the registration link with a short code for the person who sent
+// it (the first ten characters of their Agility account id, which means
+// nothing outside Agility), so a registration says whose builder it is.
+const tradeRepCode = (userId) => { const c = String(userId || "").replace(/[^0-9a-f]/gi, "").slice(0, 10).toLowerCase(); return c.length === 10 ? c : ""; };
+const tradeRegisterLink = (code = "") => `https://${SHOP_PUBLIC_HOST}/trade-partner${code ? `?rep=${code}` : ""}`;
+async function tradeRepFromCode(code) {
+  const c = String(code || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{10}$/.test(c)) return null;
+  const users = await listUsersWithAccess().catch(() => []);
+  const hits = users.filter((u) => u.status === "active" && u.email && tradeRepCode(u.id) === c);
+  return hits.length === 1 ? { email: String(hits[0].email).toLowerCase(), name: String(hits[0].displayName || "").trim() || String(hits[0].email) } : null;
+}
+// One notification each for the executives and everyone holding the Trade
+// Partners page, so each closes their own. Retired when it is decided.
+async function pushTradeRegistrationFlags(reg) {
+  const users = await listUsersWithAccess();
+  const seen = new Set();
+  let sent = 0;
+  for (const u of users) {
+    const email = String(u.email || "").trim().toLowerCase();
+    if (u.status !== "active" || !email || seen.has(email)) continue;
+    if (!(u.isExecutive || (Array.isArray(u.grantedPages) && u.grantedPages.includes(TRADE_PAGE)))) continue;
+    seen.add(email);
+    const from = !reg.repEmail ? "" : reg.repEmail === email ? " They registered with your link." : ` Sent the link by ${reg.repName}.`;
+    await createPushedNotification({
+      severity: "green", typeLabel: "Trade partner registration", refId: `tradereg:${reg.id}`,
+      title: `${reg.company} — ${reg.firstName} ${reg.lastName}`,
+      body: `${reg.businessTypeLabel} in ${reg.city}, ${reg.state}.${from} Review it on the Trade Partners page.`,
+      audienceEmail: email, byEmail: "tradepartner", byName: "Trade Partner registration"
+    });
+    sent++;
+  }
+  return sent;
+}
+
+// The registration page. Sent noindex on every host, and never cached for long, so a change to the page reaches builders.
+app.get("/trade-partner", (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-cache");
+  return res.sendFile(path.join(__dirname, "trade-partner.html"), (err) => { if (err && !res.headersSent) res.status(404).send("Not found."); });
+});
+app.get("/api/trade-partner/program", async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(tradeProgramPublic(await loadTradeProgram(TRADE_DATA_DIR)));
+  } catch (err) {
+    console.error("Trade program unavailable:", err.message);
+    return res.status(503).json({ error: "The program details aren't available right now. Please call 512-894-0907." });
+  }
+});
+app.post("/api/trade-partner/register", rateLimit("trade-partner-register", 12, 60 * 60 * 1000), async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    // Honeypot: a box people never see. A program that fills it in is thanked and nothing is kept.
+    if (String(req.body?.fax || "").trim()) return res.json({ ok: true, reference: "" });
+    const program = await loadTradeProgram(TRADE_DATA_DIR);
+    if (!program.registrationOpen) return res.status(403).json({ error: `Registration for the ${program.year} program is closed. Please call ${program.contact.phone || "512-894-0907"}.` });
+    let data;
+    try { data = cleanTradeRegistration(req.body, program); }
+    catch (err) { if (err.userFacing) return res.status(400).json({ error: err.message, field: err.field || "" }); throw err; }
+    const rep = await tradeRepFromCode(req.body?.rep);
+    const { registration, repeat } = await createTradeRegistration(data, { rep });
+    if (!repeat) {
+      let notified = 0;
+      try { notified = await pushTradeRegistrationFlags(registration); }
+      catch (err) { console.error("Trade partner notifications failed:", err.message); }
+      recordAudit({ ip: req.ip, actorUserId: null, action: "trade_partner_registered", targetUserId: null, detail: { id: registration.id, ref: registration.ref, company: registration.company, programYear: registration.programYear, rep: registration.repEmail, duplicateOf: registration.duplicateOf, notified } }).catch(() => {});
+    }
+    return res.json({ ok: true, reference: registration.ref });
+  } catch (err) {
+    console.error("Trade partner registration failed:", err.message);
+    return res.status(500).json({ error: "We couldn't take your registration just now. Please call 512-894-0907." });
+  }
+});
+
+// Agility side.
+app.get("/api/trade-partners", requireTradePage, async (req, res) => {
+  try {
+    let program = null, programError = "";
+    try { program = tradeProgramFull(await loadTradeProgram(TRADE_DATA_DIR)); }
+    catch (err) { console.error("Trade program unavailable:", err.message); programError = "The program terms file can't be read, so the flyer and the registration page are off until it is fixed."; }
+    const registrations = await listTradeRegistrations();
+    const counts = { new: 0, approved: 0, declined: 0 };
+    for (const r of registrations) if (counts[r.status] != null) counts[r.status]++;
+    return res.json({
+      program, programError,
+      link: tradeRegisterLink(), myLink: tradeRegisterLink(req.authUser?.kind === "db" ? tradeRepCode(req.authUser.id) : ""),
+      canDecide: isExecutiveUser(req.authUser), noteMax: TRADE_NOTE_MAX,
+      registrations, counts
+    });
+  } catch (err) {
+    console.error("Trade partners list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the registrations." });
+  }
+});
+app.post("/api/trade-partners/:id/note", requireTradePage, async (req, res) => {
+  try {
+    const updated = await addTradeRegistrationNote(req.params.id, req.body?.text, tradeMe(req));
+    if (!updated) return res.status(404).json({ error: "Registration not found." });
+    tradeAudit(req, "trade_partner_note", { id: updated.id, company: updated.company });
+    return res.json({ ok: true, registration: updated });
+  } catch (err) {
+    if (err.userFacing) return res.status(400).json({ error: err.message });
+    console.error("Trade partner note failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the note." });
+  }
+});
+app.post("/api/trade-partners/:id/decision", requireTradePage, async (req, res) => {
+  try {
+    if (!isExecutiveUser(req.authUser)) return res.status(403).json({ error: "Approving or declining a registration is for executives." });
+    const decision = String(req.body?.decision || "");
+    if (!["approve", "decline", "reopen"].includes(decision)) return res.status(400).json({ error: "Unknown decision." });
+    const before = await getTradeRegistration(req.params.id);
+    if (!before) return res.status(404).json({ error: "Registration not found." });
+    const updated = await decideTradeRegistration(before.id, { decision, reason: req.body?.reason, epassCode: req.body?.epassCode, epassName: req.body?.epassName }, tradeMe(req));
+    if (!updated) return res.status(409).json({ error: "Someone already did that. Reload to see where it stands.", registration: await getTradeRegistration(before.id) });
+    // decided: the "new registration" notifications have done their job
+    if (decision !== "reopen") retirePushedNotificationsByRef(`tradereg:${updated.id}`).catch(() => {});
+    tradeAudit(req, { approve: "trade_partner_approved", decline: "trade_partner_declined", reopen: "trade_partner_reopened" }[decision], { id: updated.id, ref: updated.ref, company: updated.company, programYear: updated.programYear, epassCode: updated.epassCode, reason: updated.declineReason });
+    return res.json({ ok: true, registration: updated });
+  } catch (err) {
+    if (err.userFacing) return res.status(400).json({ error: err.message });
+    console.error("Trade partner decision failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the decision." });
+  }
+});
+app.post("/api/trade-partners/:id/account", requireTradePage, async (req, res) => {
+  try {
+    if (!isExecutiveUser(req.authUser)) return res.status(403).json({ error: "Setting the ePASS account is for executives." });
+    const updated = await setTradeRegistrationAccount(req.params.id, { epassCode: req.body?.epassCode, epassName: req.body?.epassName }, tradeMe(req));
+    if (!updated) return res.status(404).json({ error: "Registration not found." });
+    tradeAudit(req, "trade_partner_account_set", { id: updated.id, company: updated.company, epassCode: updated.epassCode });
+    return res.json({ ok: true, registration: updated });
+  } catch (err) {
+    if (err.userFacing) return res.status(400).json({ error: err.message });
+    console.error("Trade partner account failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the account." });
+  }
+});
+// Finding the builder's ePASS account for the approval: Agility's own copy of the customer list (nothing asks the ePASS server).
+app.get("/api/trade-partners/epass-search", requireTradePage, async (req, res) => {
+  try {
+    if (!isExecutiveUser(req.authUser)) return res.status(403).json({ error: "Executive access is required." });
+    const found = await searchEpassCustomerMaster(String(req.query.q || "").slice(0, 80), { limit: 12 });
+    return res.json({ customers: found.map((c) => ({ code: c.code, name: c.name || [c.firstName, c.lastName].filter(Boolean).join(" "), city: c.city, state: c.state })) });
+  } catch (err) {
+    console.error("Trade partner ePASS search failed:", err.message);
+    return res.status(500).json({ error: "Unable to search ePASS customers." });
   }
 });
 

@@ -1,0 +1,43 @@
+{
+  "_about": "Trade Partner Rebate Program terms (Andrew 11/27). The one source for the flyer on the Trade Partners page in Agility and for the registration page at /trade-partner. Change a number or a sentence here and both follow. See docs/sales/trade-partners.md.",
+
+  "programYear": 2027,
+  "name": "Trade Partner Rebate Program",
+
+  "registrationOpen": true,
+  "showRatesOnRegistration": false,
+
+  "tiers": [
+    { "name": "Partner", "min": 25000, "rate": 1.0 },
+    { "name": "Preferred", "min": 100000, "rate": 1.5 },
+    { "name": "Premier", "min": 200000, "rate": 2.0 }
+  ],
+
+  "selectBrands": {
+    "rate": 1.0,
+    "brands": ["Bosch", "Thermador", "Monogram", "Signature Kitchen Suite", "Fisher & Paykel"]
+  },
+
+  "payment": {
+    "rate": 1.0,
+    "label": "Check or ACH",
+    "detail": "On invoices paid by check or ACH within terms"
+  },
+
+  "example": { "purchases": 150000, "selectBrands": 40000 },
+
+  "payout": "March 2028",
+
+  "terms": [
+    "Program year January 1 – December 31, 2027, for approved trade partners. Only appliance invoices billed to the trade partner's account qualify; cabinetry and HVAC are invoiced separately and are not part of this program. An invoice counts once it is paid in full and posted by December 31, 2027.",
+    "Tier is based on annual net qualifying purchases after returns and credits. Delivery, installation, freight, tax, accessories, service plans and clearance or display units do not qualify. Sub-Zero, Wolf and Cove are excluded. Brand eligibility is subject to each manufacturer's discretion.",
+    "Check/ACH bonus requires invoices paid in full within terms; card payments do not earn it. Account must be in good standing at payout. Rebates are issued in March 2028. Wilson AC & Appliance may modify or end this program at any time."
+  ],
+
+  "contact": {
+    "company": "Wilson AC & Appliance",
+    "address": "4205 E Hwy 290, Dripping Springs, TX",
+    "phone": "512-894-0907",
+    "website": "wilsonappliance.com"
+  }
+}

@@ -313,6 +313,7 @@ import { listShopClosedDays, addShopClosedDay, removeShopClosedDay, cleanClosedD
 import { placeOrgNode, removeOrgNode, addOrgDottedLine, removeOrgDottedLine, dottedLinesFor, loadOrgContext, reportsToState, syncOrgReportsTo, scheduleStateFor } from "./lib/org-chart-postgres.js";
 import { ticketKey, collectTicketRecords, buildTicketAudit, searchTicketRecords, mergeTicketHits } from "./lib/ticket-audit.js";
 import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup, listRsvpAnswerEmails, setImportantDateSignupClosed } from "./lib/important-dates-postgres.js";
+import { PAGE_FEEDBACK_MAX, PAGE_FEEDBACK_PER_10_MIN, PAGE_FEEDBACK_PER_DAY, cleanPageFeedback, cleanPagePath, recentPageFeedback, savePageFeedback, setPageFeedbackNotified, listPageFeedback } from "./lib/page-feedback-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, processCatalogueHistoryBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
@@ -19696,6 +19697,64 @@ app.post("/api/important-dates/:id/archive", requireImportantDates, async (req, 
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: date.archived ? "important_date_archived" : "important_date_restored", targetUserId: null, detail: { id: date.id, title: date.title } }).catch(() => {});
     return res.json({ ok: true, date });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+
+// ---------------------------------------------------------------------------
+// Page feedback (Andrew 11/26: "I need a page feedback form that goes to all
+// executives. It should be in the shell and be able to have the team send a
+// notification with 100 characters or less feedback about how an internal
+// page functions"). See lib/page-feedback-postgres.js and
+// docs/company/page-feedback.md.
+//
+// POST /api/page-feedback  { message, page, label }   anyone signed in.
+//   message  1 to 100 characters, one line.
+//   page     the page's path. Anything after ? or # is dropped before it is
+//            stored or shown: an address can carry a client's details.
+//   label    the name the shell shows for the page; used only when Agility
+//            has no name of its own for that path.
+// Every active executive but the sender gets it on My Notifications, as
+// "Page feedback": the page's name, the words, and who sent it. Nothing is
+// emailed or texted.
+// GET /api/page-feedback   executives: everything sent, newest first.
+// ---------------------------------------------------------------------------
+app.post("/api/page-feedback", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    let message;
+    try { message = cleanPageFeedback(req.body?.message); } catch (err) { return res.status(400).json({ error: err.message }); }
+    const pagePath = cleanPagePath(req.body?.page);
+    const typedLabel = String(req.body?.label || "").replace(/[\u0000-\u001f\u007f<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+    const pageLabel = PAGE_LABELS[pagePath] || typedLabel || pagePath || "an Agility page";
+    const byEmail = String(req.authUser.email || req.authUser.username || "").trim().toLowerCase();
+    const byName = String(req.authUser.displayName || "").trim() || byEmail || "A teammate";
+
+    const recent = await recentPageFeedback(byEmail, { pagePath, message });
+    // The same words about the same page a moment ago: a second tap on Send. One notification, not two.
+    if (recent.repeat) return res.json({ ok: true, id: recent.repeat, repeat: true });
+    if (recent.tenMin >= PAGE_FEEDBACK_PER_10_MIN) return res.status(429).json({ error: `That's ${PAGE_FEEDBACK_PER_10_MIN} in ten minutes. Give it a few minutes before sending more.` });
+    if (recent.day >= PAGE_FEEDBACK_PER_DAY) return res.status(429).json({ error: `That's ${PAGE_FEEDBACK_PER_DAY} today, which is the most one person can send in a day.` });
+
+    const saved = await savePageFeedback({ pagePath, pageLabel, message, byEmail, byName });
+    // One notification per executive, so each closes their own.
+    let notified = 0;
+    try {
+      const execs = (await listUsersWithAccess()).filter((u) => u.status === "active" && u.isExecutive && u.email && String(u.email).toLowerCase() !== byEmail);
+      for (const u of execs) {
+        await createPushedNotification({ severity: "neutral", typeLabel: "Page feedback", refId: `pagefb:${saved.id}`, title: pageLabel, body: message, audienceEmail: u.email, byEmail, byName });
+        notified++;
+      }
+      await setPageFeedbackNotified(saved.id, notified);
+    } catch (err) { console.error("Page feedback notifications failed:", err.message); }
+    recordAudit({ ip: req.ip, actorUserId: req.authUser.id || null, action: "page_feedback_sent", targetUserId: null, detail: { id: saved.id, page: pagePath, pageLabel, message, notified } }).catch(() => {});
+    return res.json({ ok: true, id: saved.id, notified });
+  } catch (err) {
+    console.error("Page feedback failed:", err.message);
+    return res.status(500).json({ error: "Unable to send your feedback just now." });
+  }
+});
+app.get("/api/page-feedback", requireExecutiveApi, async (req, res) => {
+  try { return res.json({ max: PAGE_FEEDBACK_MAX, feedback: await listPageFeedback({ limit: req.query.limit }) }); }
+  catch (err) { console.error("Page feedback list failed:", err.message); return res.status(500).json({ error: "Unable to load page feedback." }); }
 });
 
 // ---------------------------------------------------------------------------

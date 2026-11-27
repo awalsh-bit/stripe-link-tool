@@ -434,6 +434,9 @@
       links.push(`<a class="internal-shell-footer-link" href="${withRoot("audit-log.html")}">Activity Audit</a>`);
     }
 
+    // Page feedback (11/26): on every page, for anyone signed in. See "Page feedback (modal)" below.
+    if (session) links.push(`<a class="internal-shell-footer-link" href="#" role="button" data-open-feedback>Page feedback</a>`);
+
     links.push(`<a class="internal-shell-footer-link" href="${withRoot("logout.html")}">Sign Out</a>`);
     return links.join("");
   }
@@ -508,6 +511,10 @@
             <span class="internal-shell-personal-item-title">Edit my profile</span>
             <span class="internal-shell-personal-item-text">Photo, uniform sizes, commute, birthday.</span>
           </button>
+          ${session ? `<button type="button" class="internal-shell-personal-item" data-open-feedback>
+            <span class="internal-shell-personal-item-title">Page feedback</span>
+            <span class="internal-shell-personal-item-text">Tell the executives how this page works for you.</span>
+          </button>` : ""}
           ${buildThemePicker()}
           <a class="internal-shell-personal-signout" href="${withRoot("logout.html")}">
             <span class="internal-shell-personal-signout-title">Sign Out</span>
@@ -784,6 +791,107 @@
   });
   // Other pages (e.g. the dashboard's sizes card) can open it too.
   window.openMyProfile = openProfileModal;
+
+  // ---- Page feedback (modal) -------------------------------------------
+  // Andrew 11/26: "I need a page feedback form that goes to all executives.
+  // It should be in the shell and be able to have the team send a
+  // notification with 100 characters or less feedback about how an internal
+  // page functions."
+  //
+  // Opened from the personal menu (top right) or the footer, on any page
+  // that carries the shell. It is always about the page it was opened on:
+  // the form names that page and sends its path. One short line, 100
+  // characters at most. Every executive gets it on My Notifications with
+  // the page's name and the sender's name; nothing is emailed or texted.
+  const FEEDBACK_MAX = 100;
+  const pageNameNow = () => (document.querySelector(".internal-shell-badge span")?.textContent || label || "this page").trim();
+  function ensureFeedbackModal() {
+    let modal = document.getElementById("internal-shell-feedback");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "internal-shell-feedback";
+    modal.className = "internal-shell-profile-bg";
+    modal.innerHTML = `
+      <div class="internal-shell-profile internal-shell-feedback" role="dialog" aria-modal="true" aria-labelledby="isfTitle">
+        <div class="internal-shell-profile-head">
+          <div>
+            <div class="internal-shell-profile-title" id="isfTitle">Page feedback</div>
+            <div class="internal-shell-profile-sub" id="isfSub"></div>
+          </div>
+          <button type="button" class="internal-shell-profile-close" data-close-feedback aria-label="Close">&times;</button>
+        </div>
+        <div class="internal-shell-profile-body">
+          <label class="internal-shell-feedback-label" for="isfText">How is this page working for you?</label>
+          <textarea id="isfText" rows="3" maxlength="${FEEDBACK_MAX}" placeholder="e.g. The search is slow on my phone" autocomplete="off"></textarea>
+          <div class="internal-shell-feedback-meta">
+            <span>Goes to the executives as a notification, with your name.</span>
+            <span class="internal-shell-feedback-count" id="isfCount">${FEEDBACK_MAX} left</span>
+          </div>
+        </div>
+        <div class="internal-shell-profile-foot">
+          <div class="internal-shell-profile-msg" id="isfMsg" role="status"></div>
+          <button type="button" class="internal-shell-profile-btn quiet" data-close-feedback>Cancel</button>
+          <button type="button" class="internal-shell-profile-btn" id="isfSend" disabled>Send</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    const text = document.getElementById("isfText"), send = document.getElementById("isfSend");
+    modal.addEventListener("click", (ev) => { if (ev.target === modal || ev.target.closest("[data-close-feedback]")) closeFeedbackModal(); });
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && modal.classList.contains("show")) closeFeedbackModal(); });
+    text.addEventListener("input", syncFeedbackCount);
+    // It is one line: Enter sends it (a line break would not be kept anyway).
+    text.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); if (!send.disabled) sendFeedback(); } });
+    send.addEventListener("click", sendFeedback);
+    return modal;
+  }
+  function syncFeedbackCount() {
+    const text = document.getElementById("isfText"), count = document.getElementById("isfCount"), send = document.getElementById("isfSend");
+    const left = FEEDBACK_MAX - text.value.length;
+    count.textContent = `${left} left`;
+    count.classList.toggle("near", left <= 15);
+    send.disabled = feedbackBusy || !text.value.trim();
+  }
+  let feedbackBusy = false, feedbackCloseTimer = null;
+  function closeFeedbackModal() { clearTimeout(feedbackCloseTimer); document.getElementById("internal-shell-feedback")?.classList.remove("show"); }
+  function openFeedbackModal() {
+    const modal = ensureFeedbackModal();
+    clearTimeout(feedbackCloseTimer);
+    const text = document.getElementById("isfText"), msg = document.getElementById("isfMsg");
+    document.getElementById("isfSub").innerHTML = `About <strong>${escHtml(pageNameNow())}</strong>, the page you're on.`;
+    msg.textContent = ""; msg.className = "internal-shell-profile-msg";
+    text.disabled = false; feedbackBusy = false;
+    syncFeedbackCount();
+    modal.classList.add("show");
+    setTimeout(() => text.focus({ preventScroll: true }), 60);
+  }
+  async function sendFeedback() {
+    const text = document.getElementById("isfText"), msg = document.getElementById("isfMsg"), send = document.getElementById("isfSend");
+    const message = text.value.replace(/\s+/g, " ").trim();
+    if (!message || feedbackBusy) return;
+    feedbackBusy = true; send.disabled = true;
+    msg.textContent = "Sending…"; msg.className = "internal-shell-profile-msg";
+    try {
+      const res = await fetch("/api/page-feedback", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        // the path only: what follows ? or # in an address can name a client or an order, and isn't sent
+        body: JSON.stringify({ message, page: location.pathname, label })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(res.status === 401 ? "You've been signed out. Sign in again, then send it." : data.error || "Couldn't send that just now.");
+      text.value = ""; text.disabled = true;
+      msg.textContent = "Sent to the executives. Thank you."; msg.className = "internal-shell-profile-msg ok";
+      feedbackBusy = false; syncFeedbackCount(); send.disabled = true;
+      feedbackCloseTimer = setTimeout(closeFeedbackModal, 1800);
+    } catch (err) {
+      feedbackBusy = false; syncFeedbackCount();
+      msg.textContent = err.message || "Couldn't send that just now."; msg.className = "internal-shell-profile-msg error";
+    }
+  }
+  document.addEventListener("click", (event) => {
+    if (event.target.closest?.("[data-open-feedback]")) { event.preventDefault(); openFeedbackModal(); }
+  });
+  // A page can put its own "feedback on this page" control anywhere and open the same form.
+  window.openPageFeedback = openFeedbackModal;
 
   // "Transition to Podium Conversation" — any page that shows a customer
   // phone can render <button data-podium-phone="512…">. Tap → the Podium
